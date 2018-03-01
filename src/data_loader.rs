@@ -9,17 +9,21 @@ use std::fmt::Debug;
 use labeled_data::LabeledData;
 
 #[derive(Debug)]
-#[derive(Default)]
 pub struct DataLoader<'a> {
     filename: String,
     size: usize,
+    feature_size: usize,
+    batch_size: usize,
+
     num_unique: usize,
     num_positive: usize,
     num_negative: usize,
     num_unique_positive: usize,
     num_unique_negative: usize,
 
-    full_scanned: bool,
+    _full_scanned: bool,
+    _reader: BufReader<File>,
+    _cursor: usize,
 
     base_node: usize,
     base_scores: Vec<f32>,
@@ -28,13 +32,62 @@ pub struct DataLoader<'a> {
     source: Option<&'a DataLoader<'a>>
 }
 
+// TODO: use genetic types for reading data
 impl<'a> DataLoader<'a> {
-    pub fn new(filename: String, size: usize) -> DataLoader<'a> {
+    pub fn new(filename: String, size: usize, feature_size: usize, batch_size: usize)
+            -> DataLoader<'a> {
+        let reader = create_bufreader(&filename);
         DataLoader {
             filename: filename,
             size: size,
-            ..Default::default()
+            feature_size: feature_size,
+            batch_size: batch_size,
+
+            num_unique: 0,
+            num_positive: 0,
+            num_negative: 0,
+            num_unique_positive: 0,
+            num_unique_negative: 0,
+
+            _full_scanned: false,
+            _reader: reader,
+            _cursor: 0,
+
+            base_node: 0,
+            base_scores: vec![],
+            scores: vec![],
+
+            source: None
         }
+    }
+
+    pub fn set_source(&mut self, source: &'a DataLoader<'a>) {
+        self.source = Some(source);
+    }
+
+    pub fn get_next_batch(&mut self) -> Vec<LabeledData<f32, f32>> {
+        if self._cursor + self.batch_size <= self.size {
+            self._cursor = self._cursor + self.batch_size;
+            read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
+        } else {
+            let from_tail = self.size - self._cursor;
+            let from_head = self.batch_size - from_tail;
+            self._cursor = from_head;
+            if from_tail > 0 {
+                let mut a = read_k_labeled_data(&mut self._reader, from_tail, 0.0, self.feature_size);
+                self.set_bufrader();
+                let b = read_k_labeled_data(&mut self._reader, from_head, 0.0, self.feature_size);
+                a.extend(b);
+                a
+            } else {
+                self.set_bufrader();
+                read_k_labeled_data(&mut self._reader, from_head, 0.0, self.feature_size)
+            }
+        }
+    }
+
+    fn set_bufrader(&mut self) {
+        self._reader = create_bufreader(&self.filename);
     }
 }
 
