@@ -1,0 +1,4 @@
+[[package]]
+name = "rust-boost"
+version = "0.1.0"
+

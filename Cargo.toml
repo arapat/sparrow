@@ -1,0 +1,6 @@
+[package]
+name = "rust-boost"
+version = "0.1.0"
+authors = ["Julaiti Alafate <jalafate@gmail.com>"]
+
+[dependencies]
