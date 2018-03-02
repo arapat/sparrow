@@ -7,9 +7,12 @@ use std::str::FromStr;
 use std::fmt::Debug;
 
 use labeled_data::LabeledData;
+use tree::Tree;
 
+// TODO: use genetic types for reading data
 type _TFeature = f32;
 type _TLabel = f32;
+type Examples = Vec<LabeledData<_TFeature, _TLabel>>;
 
 #[derive(Debug)]
 pub struct DataLoader<'a> {
@@ -25,21 +28,27 @@ pub struct DataLoader<'a> {
     num_unique_negative: usize,
 
     _full_scanned: bool,
+    _num_batch: usize,
     _reader: BufReader<File>,
+    _curr_loc: usize,
     _cursor: usize,
+    _curr_batch: Examples,
 
     base_node: usize,
+    scores_version: Vec<usize>,
     base_scores: Vec<f32>,
     scores: Vec<f32>,
 
-    source: Option<&'a DataLoader<'a>>
+    derive_from: Option<&'a DataLoader<'a>>
 }
 
-// TODO: use genetic types for reading data
+// TODO: write scores to disk
 impl<'a> DataLoader<'a> {
-    pub fn new(filename: String, size: usize, feature_size: usize, batch_size: usize)
-            -> DataLoader<'a> {
+    pub fn new(filename: String, size: usize, feature_size: usize, batch_size: usize,
+               base_node: usize, scores: Vec<f32>) -> DataLoader<'a> {
+        assert!(batch_size <= size);
         let reader = create_bufreader(&filename);
+        let num_batch = size / batch_size + (size % batch_size as usize);
         DataLoader {
             filename: filename,
             size: size,
@@ -53,40 +62,68 @@ impl<'a> DataLoader<'a> {
             num_unique_negative: 0,
 
             _full_scanned: false,
+            _num_batch: num_batch,
             _reader: reader,
+            _curr_loc: 0,
             _cursor: 0,
+            _curr_batch: vec![],
 
             base_node: 0,
-            base_scores: vec![],
-            scores: vec![],
+            scores_version: vec![base_node; num_batch],
+            base_scores: scores.clone(),
+            scores: scores,
 
-            source: None
+            derive_from: None
         }
     }
 
-    pub fn set_source(&mut self, source: &'a DataLoader<'a>) {
-        self.source = Some(source);
+    pub fn set_source(&mut self, derive_from: &'a DataLoader<'a>) {
+        self.derive_from = Some(derive_from);
     }
 
-    pub fn get_next_batch(&mut self) -> Vec<LabeledData<_TFeature, _TLabel>> {
-        if self._cursor + self.batch_size <= self.size {
-            self._cursor = self._cursor + self.batch_size;
+    pub fn get_next_batch(&mut self) -> &Examples {
+        self._curr_loc = self._cursor;
+        self._curr_batch = if (self._cursor + 1) * self.batch_size <= self.size {
+            self._cursor += 1;
             read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
         } else {
-            let from_tail = self.size - self._cursor;
-            let from_head = self.batch_size - from_tail;
-            self._cursor = from_head;
-            if from_tail > 0 {
-                let mut a = read_k_labeled_data(&mut self._reader, from_tail, 0.0, self.feature_size);
+            let tail_remains = self.size - self._cursor * self.batch_size;
+            self._cursor = 0;
+            if tail_remains > 0 {
+                let ret = read_k_labeled_data(&mut self._reader, tail_remains, 0.0, self.feature_size);
                 self.set_bufrader();
-                let b = read_k_labeled_data(&mut self._reader, from_head, 0.0, self.feature_size);
-                a.extend(b);
-                a
+                ret
             } else {
                 self.set_bufrader();
-                read_k_labeled_data(&mut self._reader, from_head, 0.0, self.feature_size)
+                self._cursor += 1;
+                read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
             }
+        };
+        &self._curr_batch
+    }
+
+    pub fn get_curr_batch_scores(&mut self, trees: &Vec<Tree>) -> (Vec<f32>, &[f32]) {
+        let tree_head = self.scores_version[self._curr_loc];
+        let tree_tail = trees.len();
+        let head = self._curr_loc * self.batch_size;
+        let tail = head + self._curr_batch.len();
+
+        {
+            let scores_region = &mut self.scores[head..tail];
+            for tree in trees[tree_head..tree_tail].iter() {
+                tree.add_prediction_to_score(&self._curr_batch, scores_region)
+            }
+            self.scores_version[self._curr_loc] = tree_tail;
         }
+
+        (
+            self.scores[head..tail]
+                .iter()
+                .zip(self.base_scores[head..tail].iter())
+                .map(|(a, b)| a - b)
+                .collect(),
+            &self.scores[head..tail]
+        )
     }
 
     fn set_bufrader(&mut self) {
