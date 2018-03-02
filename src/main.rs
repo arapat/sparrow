@@ -1,5 +1,6 @@
 mod labeled_data; 
 mod data_loader; 
+mod tree;
 
 // use labeled_data::LabeledData;
 

@@ -8,6 +8,9 @@ use std::fmt::Debug;
 
 use labeled_data::LabeledData;
 
+type _TFeature = f32;
+type _TLabel = f32;
+
 #[derive(Debug)]
 pub struct DataLoader<'a> {
     filename: String,
@@ -65,7 +68,7 @@ impl<'a> DataLoader<'a> {
         self.source = Some(source);
     }
 
-    pub fn get_next_batch(&mut self) -> Vec<LabeledData<f32, f32>> {
+    pub fn get_next_batch(&mut self) -> Vec<LabeledData<_TFeature, _TLabel>> {
         if self._cursor + self.batch_size <= self.size {
             self._cursor = self._cursor + self.batch_size;
             read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
