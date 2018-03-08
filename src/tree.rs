@@ -8,6 +8,7 @@ use labeled_data::LabeledData;
 type DimScaleType = u16;
 type _TFeature = f32;
 type _TLabel = f32;
+type Example = LabeledData<_TFeature, _TLabel>;
 
 
 #[derive(Debug)]
@@ -71,7 +72,7 @@ impl Tree {
     }
 
     pub fn add_prediction_to_score(
-            &self, data: &Vec<LabeledData<_TFeature, _TLabel>>, score: &mut [f32]) {
+            &self, data: &Vec<Example>, score: &mut [f32]) {
         score.par_iter_mut()
              .zip(
                  data.par_iter()
@@ -79,7 +80,7 @@ impl Tree {
              .for_each(|(accum, update)| *accum += update)
     }
 
-    fn get_leaf_prediction(&self, data: &LabeledData<_TFeature, _TLabel>) -> f32 {
+    fn get_leaf_prediction(&self, data: &Example) -> f32 {
         let mut node: usize = 0;
         let mut reached_leaf = false;
         let features = data.get_features();

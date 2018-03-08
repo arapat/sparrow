@@ -1,3 +1,7 @@
+extern crate rand;
+
+mod constructor;
+
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
@@ -6,20 +10,28 @@ use std::clone::Clone;
 use std::str::FromStr;
 use std::fmt::Debug;
 
+use self::rand::Rng;
+
+use boosting::max;
+use boosting::get_weight;
+use boosting::get_weights;
 use labeled_data::LabeledData;
 use tree::Tree;
+use self::constructor::Constructor;
 
 // TODO: use genetic types for reading data
 type _TFeature = f32;
 type _TLabel = f32;
-type Examples = Vec<LabeledData<_TFeature, _TLabel>>;
+type Example = LabeledData<_TFeature, _TLabel>;
+
 
 #[derive(Debug)]
-pub struct DataLoader<'a> {
+pub struct DataLoader {
     filename: String,
     size: usize,
     feature_size: usize,
     batch_size: usize,
+    num_batch: usize,
 
     num_unique: usize,
     num_positive: usize,
@@ -28,24 +40,24 @@ pub struct DataLoader<'a> {
     num_unique_negative: usize,
 
     _full_scanned: bool,
-    _num_batch: usize,
     _reader: BufReader<File>,
     _curr_loc: usize,
     _cursor: usize,
-    _curr_batch: Examples,
+    _curr_batch: Vec<Example>,
+    _curr_batch_str: Vec<String>,
 
     base_node: usize,
     scores_version: Vec<usize>,
     base_scores: Vec<f32>,
     scores: Vec<f32>,
 
-    derive_from: Option<&'a DataLoader<'a>>
+    derive_from: Option<Box<DataLoader>>
 }
 
 // TODO: write scores to disk
-impl<'a> DataLoader<'a> {
+impl DataLoader {
     pub fn new(filename: String, size: usize, feature_size: usize, batch_size: usize,
-               base_node: usize, scores: Vec<f32>) -> DataLoader<'a> {
+               base_node: usize, scores: Vec<f32>) -> DataLoader {
         assert!(batch_size <= size);
         let reader = create_bufreader(&filename);
         let num_batch = size / batch_size + (size % batch_size as usize);
@@ -54,6 +66,7 @@ impl<'a> DataLoader<'a> {
             size: size,
             feature_size: feature_size,
             batch_size: batch_size,
+            num_batch: num_batch,
 
             num_unique: 0,
             num_positive: 0,
@@ -62,11 +75,11 @@ impl<'a> DataLoader<'a> {
             num_unique_negative: 0,
 
             _full_scanned: false,
-            _num_batch: num_batch,
             _reader: reader,
             _curr_loc: 0,
             _cursor: 0,
             _curr_batch: vec![],
+            _curr_batch_str: vec![],
 
             base_node: 0,
             scores_version: vec![base_node; num_batch],
@@ -77,13 +90,52 @@ impl<'a> DataLoader<'a> {
         }
     }
 
-    pub fn set_source(&mut self, derive_from: &'a DataLoader<'a>) {
-        self.derive_from = Some(derive_from);
+    pub fn from_constructor(self, constructor: Constructor, base_node: usize) -> DataLoader {
+        let file_scores_size = constructor.get_content();
+        let mut new_loader = DataLoader::new(
+            file_scores_size.0,
+            file_scores_size.2,
+            self.feature_size,
+            self.batch_size,
+            base_node,
+            file_scores_size.1
+        );
+        new_loader.scores.shrink_to_fit();
+        new_loader.set_source(self);
+        new_loader
     }
 
-    pub fn get_next_batch(&mut self) -> &Examples {
+    pub fn set_source(&mut self, derive_from: DataLoader) {
+        self.derive_from = Some(Box::new(derive_from));
+    }
+
+    pub fn get_curr_batch(&self) -> &Vec<Example> {
+        &self._curr_batch
+    }
+
+    pub fn get_curr_batch_str(&self) -> &Vec<String> {
+        &self._curr_batch_str
+    }
+
+    pub fn get_relative_scores(&self) -> Vec<f32> {
+        let head = self._curr_loc * self.batch_size;
+        let tail = head + self._curr_batch.len();
+        self.scores[head..tail]
+            .iter()
+            .zip(self.base_scores[head..tail].iter())
+            .map(|(a, b)| a - b)
+            .collect()
+    }
+
+    pub fn get_absolute_scores(&self) -> &[f32] {
+        let head = self._curr_loc * self.batch_size;
+        let tail = head + self._curr_batch.len();
+        &self.scores[head..tail]
+    }
+
+    pub fn fetch_next_batch(&mut self) {
         self._curr_loc = self._cursor;
-        self._curr_batch = if (self._cursor + 1) * self.batch_size <= self.size {
+        let ret = if (self._cursor + 1) * self.batch_size <= self.size {
             self._cursor += 1;
             read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
         } else {
@@ -99,35 +151,82 @@ impl<'a> DataLoader<'a> {
                 read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
             }
         };
-        &self._curr_batch
+        self._curr_batch = ret.0;
+        self._curr_batch_str = ret.1;
     }
 
-    pub fn get_curr_batch_scores(&mut self, trees: &Vec<Tree>) -> (Vec<f32>, &[f32]) {
+    pub fn fetch_scores(&mut self, trees: &Vec<Tree>) {
         let tree_head = self.scores_version[self._curr_loc];
         let tree_tail = trees.len();
         let head = self._curr_loc * self.batch_size;
         let tail = head + self._curr_batch.len();
 
-        {
-            let scores_region = &mut self.scores[head..tail];
-            for tree in trees[tree_head..tree_tail].iter() {
-                tree.add_prediction_to_score(&self._curr_batch, scores_region)
-            }
-            self.scores_version[self._curr_loc] = tree_tail;
+        let scores_region = &mut self.scores[head..tail];
+        for tree in trees[tree_head..tree_tail].iter() {
+            tree.add_prediction_to_score(&self._curr_batch, scores_region)
         }
-
-        (
-            self.scores[head..tail]
-                .iter()
-                .zip(self.base_scores[head..tail].iter())
-                .map(|(a, b)| a - b)
-                .collect(),
-            &self.scores[head..tail]
-        )
+        self.scores_version[self._curr_loc] = tree_tail;
     }
 
     fn set_bufrader(&mut self) {
         self._reader = create_bufreader(&self.filename);
+    }
+
+    // TODO: implement stratified sampling version
+    pub fn sample(mut self, trees: &Vec<Tree>, sample_ratio: f32) -> DataLoader {
+        let intr_size = self.get_estimated_interval_and_size(trees, sample_ratio);
+        let interval = intr_size.0;
+        let size = intr_size.1;
+
+        let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
+        let mut constructor = Constructor::new(size);
+        for _ in 0..self.num_batch {
+            {
+                self.fetch_next_batch();
+            }
+            {
+                self.fetch_scores(trees);
+            }
+            let data = self.get_curr_batch();
+            self.get_absolute_scores()
+                .iter()
+                .zip(data.iter().zip(self._curr_batch_str.iter()))
+                .for_each(|(score, (data, data_str))| {
+                    let w = get_weight(data, *score);
+                    let next_sum_weight = sum_weights + w;
+                    let num_copies = (next_sum_weight / interval) as usize - (sum_weights / interval) as usize;
+                    if num_copies > 0 {
+                        constructor.append_data(data_str, score * (num_copies as f32));
+                    }
+                    sum_weights = next_sum_weight;
+                });
+        }
+        self.from_constructor(constructor, trees.len())
+    }
+
+    fn get_estimated_interval_and_size(&mut self, trees: &Vec<Tree>, sample_ratio: f32) -> (f32, usize) {
+        let mut sum_weights = 0.0;
+        let mut max_weight = 0.0;
+        for _ in 0..self.num_batch {
+            {
+                self.fetch_next_batch();
+            }
+            {
+                self.fetch_scores(trees);
+            }
+            let data = self.get_curr_batch();
+            let scores = self.get_absolute_scores();
+            let ws = get_weights(&data, &scores);
+            ws.iter().for_each(|w| {
+                sum_weights += w;
+                max_weight = max(max_weight, *w);
+            });
+        }
+        let sample_size = (sample_ratio * self.size as f32) as usize + 1;
+        let interval = sum_weights / (sample_size as f32);
+        // TODO: log max_repeat
+        let _max_repeat = max_weight / interval;
+        (interval, sample_size + 10)
     }
 }
 
@@ -147,10 +246,11 @@ pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
 
 pub fn read_k_labeled_data<TFeature, TLabel>(
             reader: &mut BufReader<File>, k: usize, missing_val: TFeature, size: usize
-        ) -> Vec<LabeledData<TFeature, TLabel>>
+        ) -> (Vec<LabeledData<TFeature, TLabel>>, Vec<String>)
         where TFeature: FromStr + Clone, TFeature::Err: Debug,
               TLabel: FromStr, TLabel::Err: Debug {
-    parse_libsvm(&read_k_lines(reader, k), missing_val, size)
+    let lines = read_k_lines(reader, k);
+    (parse_libsvm(&lines, missing_val, size), lines)
 }
 
 pub fn parse_libsvm_one_line<TFeature, TLabel>(
@@ -215,7 +315,7 @@ mod tests {
     fn test_read_libsvm() {
         let mut f = create_bufreader(&get_libsvm_file_path());
         let labeled_data = get_libsvm_answer();
-        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6), labeled_data);
+        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6).0, labeled_data);
     }
 
     fn get_libsvm_file_path() -> String {
