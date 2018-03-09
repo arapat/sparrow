@@ -11,7 +11,6 @@ pub fn get_weight(data: &Example, score: f32) -> f32 {
     max(1.0, (-score * data.get_label()).exp())
 }
 
-#[inline]
 pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
     data.iter()
         .zip(scores.iter())

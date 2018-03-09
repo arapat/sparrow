@@ -12,9 +12,9 @@ use std::fmt::Debug;
 
 use self::rand::Rng;
 
-use boosting::max;
-use boosting::get_weight;
-use boosting::get_weights;
+use commons::max;
+use commons::get_weight;
+use commons::get_weights;
 use labeled_data::LabeledData;
 use tree::Tree;
 use self::constructor::Constructor;

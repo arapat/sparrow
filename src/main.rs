@@ -1,7 +1,8 @@
-mod boosting;
+mod commons;
 mod labeled_data; 
 mod data_loader; 
 mod tree;
+mod learner;
 
 
 fn main() {
