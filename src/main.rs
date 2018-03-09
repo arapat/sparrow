@@ -1,8 +1,10 @@
+mod bins;
 mod commons;
-mod labeled_data; 
 mod data_loader; 
-mod tree;
+mod labeled_data;
 mod learner;
+mod tree;
+mod validator;
 
 
 fn main() {

@@ -109,6 +109,10 @@ impl DataLoader {
         self.derive_from = Some(Box::new(derive_from));
     }
 
+    pub fn get_feature_size(&self) -> usize {
+        self.feature_size
+    }
+
     pub fn get_curr_batch(&self) -> &Vec<Example> {
         &self._curr_batch
     }

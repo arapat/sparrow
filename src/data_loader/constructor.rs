@@ -19,14 +19,13 @@ impl Constructor {
     pub fn new(capacity: usize) -> Constructor {
         let filename = gen_filename();
         let writer = create_bufwriter(&filename);
-        let scores: Vec<f32> = 
-        return Constructor {
+        Constructor {
             filename: filename,
             scores: Vec::with_capacity(capacity),
             size: 0,
 
             _writer: writer
-        };
+        }
     }
 
     pub fn append_data(&mut self, data: &String, score: f32) {
