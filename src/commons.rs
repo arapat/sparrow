@@ -3,7 +3,7 @@ use labeled_data::LabeledData;
 // TODO: use genetic types for reading data
 type _TFeature = f32;
 type _TLabel = f32;
-type Example = LabeledData<_TFeature, _TLabel>;
+pub type Example = LabeledData<_TFeature, _TLabel>;
 
 
 #[inline]

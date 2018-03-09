@@ -12,13 +12,13 @@ pub struct Bins {
     vals: Vec<f32>
 }
 
-pub struct BinMapper {
+struct BinMapper {
     total_vals: usize,
     distinct: BTreeMap<NotNaN<f32>, u32>
 }
 
 impl Bins {
-    pub fn new(size: usize, mapper: &BinMapper) -> Bins {
+    fn new(size: usize, mapper: &BinMapper) -> Bins {
         let avg_bin_size = (mapper.total_vals / size) as usize;
         let mut last_val = 0.0;
         let mut counter = 0;
@@ -38,17 +38,21 @@ impl Bins {
             vals: vals
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.size
+    }
 }
 
 impl BinMapper {
-    pub fn new() -> BinMapper {
+    fn new() -> BinMapper {
         BinMapper {
             total_vals: 0,
             distinct: BTreeMap::new()
         }
     }
 
-    pub fn update(&mut self, val: &f32) {
+    fn update(&mut self, val: &f32) {
         self.total_vals += 1;
         let count = self.distinct.entry(NotNaN::new(*val).unwrap()).or_insert(0);
         *count += 1;

@@ -15,14 +15,10 @@ use self::rand::Rng;
 use commons::max;
 use commons::get_weight;
 use commons::get_weights;
+use commons::Example;
 use labeled_data::LabeledData;
 use tree::Tree;
 use self::constructor::Constructor;
-
-// TODO: use genetic types for reading data
-type _TFeature = f32;
-type _TLabel = f32;
-type Example = LabeledData<_TFeature, _TLabel>;
 
 
 #[derive(Debug)]

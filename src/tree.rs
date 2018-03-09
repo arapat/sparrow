@@ -2,13 +2,10 @@ extern crate rayon;
 
 use self::rayon::prelude::*;
 
+use commons::Example;
 use labeled_data::LabeledData;
 
-// TODO: use genetic types for building trees
 type DimScaleType = u16;
-type _TFeature = f32;
-type _TLabel = f32;
-type Example = LabeledData<_TFeature, _TLabel>;
 
 
 #[derive(Debug)]
