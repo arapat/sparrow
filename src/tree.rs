@@ -3,7 +3,6 @@ extern crate rayon;
 use self::rayon::prelude::*;
 
 use commons::Example;
-use labeled_data::LabeledData;
 
 type DimScaleType = u16;
 

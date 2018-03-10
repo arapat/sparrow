@@ -42,6 +42,10 @@ impl Bins {
     pub fn len(&self) -> usize {
         self.size
     }
+
+    pub fn get_vals(&self) -> &Vec<f32> {
+        &self.vals
+    }
 }
 
 impl BinMapper {
