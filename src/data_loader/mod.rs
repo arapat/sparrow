@@ -87,14 +87,14 @@ impl DataLoader {
     }
 
     pub fn from_constructor(self, constructor: Constructor, base_node: usize) -> DataLoader {
-        let file_scores_size = constructor.get_content();
+        let (filename, scores, size): (String, Vec<f32>, usize) = constructor.get_content();
         let mut new_loader = DataLoader::new(
-            file_scores_size.0,
-            file_scores_size.2,
+            filename,
+            size,
             self.feature_size,
             self.batch_size,
             base_node,
-            file_scores_size.1
+            scores
         );
         new_loader.scores.shrink_to_fit();
         new_loader.set_source(self);
@@ -135,7 +135,7 @@ impl DataLoader {
 
     pub fn fetch_next_batch(&mut self) {
         self._curr_loc = self._cursor;
-        let ret = if (self._cursor + 1) * self.batch_size <= self.size {
+        let (batch, batch_str) = if (self._cursor + 1) * self.batch_size <= self.size {
             self._cursor += 1;
             read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
         } else {
@@ -151,8 +151,8 @@ impl DataLoader {
                 read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
             }
         };
-        self._curr_batch = ret.0;
-        self._curr_batch_str = ret.1;
+        self._curr_batch = batch;
+        self._curr_batch_str = batch_str;
     }
 
     pub fn fetch_scores(&mut self, trees: &Vec<Tree>) {
@@ -174,9 +174,7 @@ impl DataLoader {
 
     // TODO: implement stratified sampling version
     pub fn sample(mut self, trees: &Vec<Tree>, sample_ratio: f32) -> DataLoader {
-        let intr_size = self.get_estimated_interval_and_size(trees, sample_ratio);
-        let interval = intr_size.0;
-        let size = intr_size.1;
+        let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio);
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
         let mut constructor = Constructor::new(size);

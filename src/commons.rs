@@ -51,14 +51,3 @@ pub fn max(a: f32, b: f32) -> f32 {
         b
     }
 }
-
-
-// #[inline]
-// pub fn squared(a: &Vec<f32>) -> Vec<f32> {
-//     a.iter().map(|x| x * x).collect()
-// }
-
-// #[inline]
-// pub fn multiply(a: &Vec<f32>, b: &Vec<f32>) -> Vec<f32> {
-//     a.iter().zip(b.iter()).map(|(x, y)| *x * *y).collect()
-// }
