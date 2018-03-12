@@ -1,12 +1,16 @@
 use labeled_data::LabeledData;
+use tree::Tree;
 
 // TODO: use genetic types for reading data
 type _TFeature = f32;
 type _TLabel = f32;
 pub type Example = LabeledData<_TFeature, _TLabel>;
+pub type TLabel = _TLabel;
+pub type Model = Vec<Tree>;
 
 const DELTA: f32  = 0.0001;
 const SHRINK: f32 = 0.8;
+const ALMOST_ZERO: f32 = 1e-8;
 
 
 // Boosting related
@@ -50,4 +54,9 @@ pub fn max(a: f32, b: f32) -> f32 {
     } else {
         b
     }
+}
+
+#[inline]
+pub fn is_zero(a: f32) -> bool {
+    -ALMOST_ZERO < a && a < ALMOST_ZERO
 }

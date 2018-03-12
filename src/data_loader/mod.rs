@@ -16,8 +16,8 @@ use commons::max;
 use commons::get_weight;
 use commons::get_weights;
 use commons::Example;
+use commons::Model;
 use labeled_data::LabeledData;
-use tree::Tree;
 use self::constructor::Constructor;
 
 
@@ -133,6 +133,14 @@ impl DataLoader {
         &self.scores[head..tail]
     }
 
+    pub fn get_num_examples(&self) -> usize {
+        self.size
+    }
+
+    pub fn get_num_batches(&self) -> usize {
+        self.num_batch
+    }
+
     pub fn fetch_next_batch(&mut self) {
         self._curr_loc = self._cursor;
         let (batch, batch_str) = if (self._cursor + 1) * self.batch_size <= self.size {
@@ -155,7 +163,7 @@ impl DataLoader {
         self._curr_batch_str = batch_str;
     }
 
-    pub fn fetch_scores(&mut self, trees: &Vec<Tree>) {
+    pub fn fetch_scores(&mut self, trees: &Model) {
         let tree_head = self.scores_version[self._curr_loc];
         let tree_tail = trees.len();
         let head = self._curr_loc * self.batch_size;
@@ -173,7 +181,7 @@ impl DataLoader {
     }
 
     // TODO: implement stratified sampling version
-    pub fn sample(mut self, trees: &Vec<Tree>, sample_ratio: f32) -> DataLoader {
+    pub fn sample(mut self, trees: &Model, sample_ratio: f32) -> DataLoader {
         let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio);
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
@@ -202,7 +210,7 @@ impl DataLoader {
         self.from_constructor(constructor, trees.len())
     }
 
-    fn get_estimated_interval_and_size(&mut self, trees: &Vec<Tree>, sample_ratio: f32) -> (f32, usize) {
+    fn get_estimated_interval_and_size(&mut self, trees: &Model, sample_ratio: f32) -> (f32, usize) {
         let mut sum_weights = 0.0;
         let mut max_weight = 0.0;
         for _ in 0..self.num_batch {
