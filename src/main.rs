@@ -1,3 +1,6 @@
+#[macro_use] extern crate log;
+extern crate env_logger;
+
 mod bins;
 mod commons;
 mod data_loader; 
@@ -9,5 +12,8 @@ mod boosting;
 
 
 fn main() {
-    println!("Just created a numbers object.");
+    env_logger::init();
+
+    debug!("this is a debug {}", "message");
+    error!("this is printed by default");
 }
