@@ -8,6 +8,8 @@ pub type Example = LabeledData<_TFeature, _TLabel>;
 pub type TLabel = _TLabel;
 pub type Model = Vec<Tree>;
 
+pub type LossFunc = Fn(&Vec<(f32, TLabel)>) -> f32;
+
 const DELTA: f32  = 0.0001;
 const SHRINK: f32 = 0.8;
 const ALMOST_ZERO: f32 = 1e-8;

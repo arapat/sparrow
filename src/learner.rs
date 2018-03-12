@@ -1,8 +1,8 @@
-
+use bins::Bins;
+use tree::Tree;
 use commons::Example;
 use commons::max;
 use commons::get_bound;
-use bins::Bins;
 
 /*
 TODO: extend support to regression tasks
@@ -27,6 +27,15 @@ pub struct WeakRule {
 
     martingale: f32,
     bound: f32
+}
+
+impl WeakRule {
+    pub fn create_tree(&self) -> Tree {
+        let mut tree = Tree::new(2);
+        tree.split(0, self.feature, self.threshold, self.left_predict, self.right_predict);
+        tree.release();
+        tree
+    }
 }
 
 pub struct Learner {
@@ -86,6 +95,9 @@ impl Learner {
         self.sum_weights_squared = 0.0;
     }
 
+    pub fn get_count(&self) -> usize {
+        self.count
+    }
 
     pub fn get_ess(&self) -> f32 {
         if self.count <= 0 {
@@ -100,7 +112,13 @@ impl Learner {
         self.reset()
     }
 
-    pub fn get_max_empirical_ratio(&self) -> f32 {
+    pub fn shrink_target(&mut self) {
+        let max_empirical_ratio = self.get_max_empirical_ratio();
+        self.cur_rho_gamma = max(self.cur_rho_gamma, max_empirical_ratio) * 0.9;
+        self.reset();
+    }
+
+    fn get_max_empirical_ratio(&self) -> f32 {
         self.weak_rules_score.iter().flat_map(|rules| {
             rules.iter().flat_map(|scores| {
                 scores.iter().map(|s| s / self.sum_weights)

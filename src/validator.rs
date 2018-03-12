@@ -2,20 +2,17 @@
 use data_loader::DataLoader;
 use commons::TLabel;
 use commons::Model;
+use commons::LossFunc;
 use commons::is_zero;
 
 
 pub fn validate(
-            data_loader: &mut DataLoader, trees: &Model, eval_funcs: &Vec<&Fn(&Vec<(f32, TLabel)>) -> f32>
+            data_loader: &mut DataLoader, trees: &Model, eval_funcs: &Vec<&LossFunc>
         ) -> Vec<f32> {
     let num_batches = data_loader.get_num_batches();
     let mut scores_labels: Vec<(f32, TLabel)> = (0..num_batches).flat_map(|_| {
-        {
-            data_loader.fetch_next_batch();
-        }
-        {
-            data_loader.fetch_scores(trees);
-        }
+        data_loader.fetch_next_batch();
+        data_loader.fetch_scores(trees);
         let labels: Vec<TLabel> = data_loader.get_curr_batch()
                                              .iter()
                                              .map(|d| d.get_label())

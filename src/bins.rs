@@ -73,9 +73,7 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize, data_loader: &mu
         mappers.push(BinMapper::new());
     }
     while remaining_reads > 0 {
-        {
-            data_loader.fetch_next_batch();
-        }
+        data_loader.fetch_next_batch();
         let data = data_loader.get_curr_batch();
         data.iter().for_each(|example| {
             let features = example.get_features();

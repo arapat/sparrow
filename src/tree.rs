@@ -25,15 +25,16 @@ pub struct Tree {
 
 impl Tree {
     pub fn new(max_leaves: DimScaleType) -> Tree {
+        let max_nodes = max_leaves * 2;
         let mut tree = Tree {
             max_leaves:     max_leaves,
             num_leaves:     0,
-            left_child:     Vec::with_capacity(max_leaves as usize),
-            right_child:    Vec::with_capacity(max_leaves as usize),
-            split_feature:  Vec::with_capacity(max_leaves as usize),
-            threshold:      Vec::with_capacity(max_leaves as usize),
-            leaf_value:     Vec::with_capacity(max_leaves as usize),
-            leaf_depth:     Vec::with_capacity(max_leaves as usize)
+            left_child:     Vec::with_capacity(max_nodes as usize),
+            right_child:    Vec::with_capacity(max_nodes as usize),
+            split_feature:  Vec::with_capacity(max_nodes as usize),
+            threshold:      Vec::with_capacity(max_nodes as usize),
+            leaf_value:     Vec::with_capacity(max_nodes as usize),
+            leaf_depth:     Vec::with_capacity(max_nodes as usize)
             // leaf_parent:    Vec::with_capacity(max_leaves),
             // leaf_count:     Vec::with_capacity(max_leaves),
             // internal_value: Vec::with_capacity(max_leaves as usize),
@@ -41,6 +42,15 @@ impl Tree {
         };
         tree.add_new_node(0.0, 0);
         tree
+    }
+
+    pub fn release(&mut self) {
+        self.left_child.shrink_to_fit();
+        self.right_child.shrink_to_fit();
+        self.split_feature.shrink_to_fit();
+        self.threshold.shrink_to_fit();
+        self.leaf_value.shrink_to_fit();
+        self.leaf_depth.shrink_to_fit();
     }
 
     fn add_new_node(&mut self, leaf_value: f32, depth: DimScaleType) {
@@ -53,17 +63,16 @@ impl Tree {
         self.leaf_depth.push(depth);
     }
 
-    pub fn split(&mut self, leaf: DimScaleType, feature: DimScaleType, threshold: f32,
+    pub fn split(&mut self, leaf: usize, feature: usize, threshold: f32,
                  left_value: f32, right_value: f32) {
-        let _leaf = leaf as usize;
-        let leaf_value = self.leaf_value[_leaf];
-        let leaf_depth = self.leaf_depth[_leaf];
+        let leaf_value = self.leaf_value[leaf];
+        let leaf_depth = self.leaf_depth[leaf];
 
-        self.split_feature[_leaf] = Some(feature);
-        self.threshold[_leaf] = threshold;
-        self.left_child[_leaf] = self.num_leaves;
+        self.split_feature[leaf] = Some(feature as DimScaleType);
+        self.threshold[leaf] = threshold;
+        self.left_child[leaf] = self.num_leaves;
         self.add_new_node(leaf_value + left_value, leaf_depth + 1);
-        self.right_child[_leaf] = self.num_leaves;
+        self.right_child[leaf] = self.num_leaves;
         self.add_new_node(leaf_value + right_value, leaf_depth + 1);
     }
 

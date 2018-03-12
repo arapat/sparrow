@@ -5,6 +5,7 @@ mod labeled_data;
 mod learner;
 mod tree;
 mod validator;
+mod boosting;
 
 
 fn main() {

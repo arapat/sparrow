@@ -86,6 +86,11 @@ impl DataLoader {
         }
     }
 
+    pub fn from_scratch(filename: String, size: usize, feature_size: usize,
+                        batch_size: usize) -> DataLoader {
+        DataLoader::new(filename, size, feature_size, batch_size, 0, vec![0.0; size])
+    }
+
     pub fn from_constructor(self, constructor: Constructor, base_node: usize) -> DataLoader {
         let (filename, scores, size): (String, Vec<f32>, usize) = constructor.get_content();
         let mut new_loader = DataLoader::new(
@@ -187,12 +192,8 @@ impl DataLoader {
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
         let mut constructor = Constructor::new(size);
         for _ in 0..self.num_batch {
-            {
-                self.fetch_next_batch();
-            }
-            {
-                self.fetch_scores(trees);
-            }
+            self.fetch_next_batch();
+            self.fetch_scores(trees);
             let data = self.get_curr_batch();
             self.get_absolute_scores()
                 .iter()
@@ -214,12 +215,8 @@ impl DataLoader {
         let mut sum_weights = 0.0;
         let mut max_weight = 0.0;
         for _ in 0..self.num_batch {
-            {
-                self.fetch_next_batch();
-            }
-            {
-                self.fetch_scores(trees);
-            }
+            self.fetch_next_batch();
+            self.fetch_scores(trees);
             let data = self.get_curr_batch();
             let scores = self.get_absolute_scores();
             let ws = get_weights(&data, &scores);
