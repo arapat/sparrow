@@ -53,14 +53,18 @@ impl<'a> Boosting<'a> {
                 self.learner.update(data, &weights);
             }
 
-            let mut found_new_rule = false;
-            match self.learner.get_new_weak_rule() {
-                &Some(ref weak_rule) => {
-                    self.model.push(weak_rule.create_tree());
-                    found_new_rule = true;
-                },
-                &None => {}
-            }
+            let found_new_rule =
+                match self.learner.get_new_weak_rule() {
+                    &Some(ref weak_rule) => {
+                        let tree = weak_rule.create_tree();
+                        info!("A new tree is added: {:?}.", tree);
+                        self.model.push(tree);
+                        true
+                    },
+                    &None => {
+                        false
+                    }
+                };
             if found_new_rule {
                 remaining_iterations -= 1;
                 self.learner.reset();
@@ -72,6 +76,10 @@ impl<'a> Boosting<'a> {
     }
 
     fn _validate(&mut self) {
-        validate(&mut self.testing_loader, &self.model, &self.eval_funcs);
+        debug!("Validation is started.");
+        let scores = validate(&mut self.testing_loader, &self.model, &self.eval_funcs);
+        let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
+        info!("Eval funcs: {}", output.join(", "));
+        debug!("Validation is completed.");
     }
 }

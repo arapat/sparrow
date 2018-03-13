@@ -1,3 +1,7 @@
+extern crate time;
+
+use self::time::PreciseTime;
+
 use labeled_data::LabeledData;
 use tree::Tree;
 
@@ -61,4 +65,24 @@ pub fn max(a: f32, b: f32) -> f32 {
 #[inline]
 pub fn is_zero(a: f32) -> bool {
     -ALMOST_ZERO < a && a < ALMOST_ZERO
+}
+
+
+// Performance monitoring
+
+pub struct Timer {
+    start_time: PreciseTime
+}
+
+impl Timer {
+    pub fn start() -> Timer {
+        Timer {
+            start_time: PreciseTime::now()
+        }
+    }
+
+    pub fn stop(self) -> f32 {
+        let now = PreciseTime::now();
+        1e-3 * self.start_time.to(now).num_milliseconds() as f32
+    }
 }

@@ -53,16 +53,6 @@ impl Tree {
         self.leaf_depth.shrink_to_fit();
     }
 
-    fn add_new_node(&mut self, leaf_value: f32, depth: DimScaleType) {
-        self.num_leaves += 1;
-        self.left_child.push(0);
-        self.right_child.push(0);
-        self.split_feature.push(None);
-        self.threshold.push(0.0);
-        self.leaf_value.push(leaf_value);
-        self.leaf_depth.push(depth);
-    }
-
     pub fn split(&mut self, leaf: usize, feature: usize, threshold: f32,
                  left_value: f32, right_value: f32) {
         let leaf_value = self.leaf_value[leaf];
@@ -103,5 +93,15 @@ impl Tree {
             }
         }
         self.leaf_value[node]
+    }
+
+    fn add_new_node(&mut self, leaf_value: f32, depth: DimScaleType) {
+        self.num_leaves += 1;
+        self.left_child.push(0);
+        self.right_child.push(0);
+        self.split_feature.push(None);
+        self.threshold.push(0.0);
+        self.leaf_value.push(leaf_value);
+        self.leaf_depth.push(depth);
     }
 }

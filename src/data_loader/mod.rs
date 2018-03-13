@@ -57,6 +57,11 @@ impl DataLoader {
         assert!(batch_size <= size);
         let reader = create_bufreader(&filename);
         let num_batch = size / batch_size + (size % batch_size as usize);
+        debug!(
+            "New DataLoader is created for `{}` \
+            (size = {}, feature_size = {}, batch_size = {}, base_node = {})",
+            filename, size, feature_size, batch_size, base_node
+        );
         DataLoader {
             filename: filename,
             size: size,
@@ -107,7 +112,9 @@ impl DataLoader {
     }
 
     pub fn set_source(&mut self, derive_from: DataLoader) {
+        let source_loc = derive_from.filename.clone();
         self.derive_from = Some(Box::new(derive_from));
+        debug!("The source of `{}` is `{}`.", self.filename, source_loc);
     }
 
     pub fn get_feature_size(&self) -> usize {
@@ -147,11 +154,13 @@ impl DataLoader {
     }
 
     pub fn fetch_next_batch(&mut self) {
+        let mut loader_reset = false;
         self._curr_loc = self._cursor;
         let (batch, batch_str) = if (self._cursor + 1) * self.batch_size <= self.size {
             self._cursor += 1;
             read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
         } else {
+            loader_reset = true;
             let tail_remains = self.size - self._cursor * self.batch_size;
             self._cursor = 0;
             if tail_remains > 0 {
@@ -166,6 +175,11 @@ impl DataLoader {
         };
         self._curr_batch = batch;
         self._curr_batch_str = batch_str;
+
+        debug!("Fetched {} examples.", self._curr_batch.len());
+        if loader_reset {
+            debug!("Loader have reset.");
+        }
     }
 
     pub fn fetch_scores(&mut self, trees: &Model) {
@@ -179,6 +193,7 @@ impl DataLoader {
             tree.add_prediction_to_score(&self._curr_batch, scores_region)
         }
         self.scores_version[self._curr_loc] = tree_tail;
+        debug!("Fetched {} scores.", tail - head);
     }
 
     fn set_bufrader(&mut self) {
@@ -187,7 +202,9 @@ impl DataLoader {
 
     // TODO: implement stratified sampling version
     pub fn sample(mut self, trees: &Model, sample_ratio: f32) -> DataLoader {
+        debug!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
         let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio);
+        debug!("Sample size is estimated to be {}.", size);
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
         let mut constructor = Constructor::new(size);
@@ -201,14 +218,17 @@ impl DataLoader {
                 .for_each(|(score, (data, data_str))| {
                     let w = get_weight(data, *score);
                     let next_sum_weight = sum_weights + w;
-                    let num_copies = (next_sum_weight / interval) as usize - (sum_weights / interval) as usize;
+                    let num_copies =
+                        (next_sum_weight / interval) as usize - (sum_weights / interval) as usize;
                     if num_copies > 0 {
                         constructor.append_data(data_str, score * (num_copies as f32));
                     }
                     sum_weights = next_sum_weight;
                 });
         }
-        self.from_constructor(constructor, trees.len())
+        let ret = self.from_constructor(constructor, trees.len());
+        debug!("Sampling finished. Sample size is {}.", ret.get_num_examples());
+        ret
     }
 
     fn get_estimated_interval_and_size(&mut self, trees: &Model, sample_ratio: f32) -> (f32, usize) {

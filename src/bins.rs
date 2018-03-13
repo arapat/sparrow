@@ -85,7 +85,15 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize, data_loader: &mu
         });
         remaining_reads -= data.len();
     }
-    mappers.iter()
-           .map(|mapper| Bins::new(max_bin_size, mapper))
-           .collect()
+    let ret: Vec<Bins> = mappers.iter()
+                                .map(|mapper| Bins::new(max_bin_size, mapper))
+                                .collect();
+
+    debug!("Bins are created.");
+    ret.iter()
+       .zip(0..ret.len())
+       .for_each(|(bin, idx)| {
+           info!("{} thresholds are generated for the feature {}.", bin.len(), idx);
+       });
+    ret
 }

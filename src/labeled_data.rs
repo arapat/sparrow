@@ -34,6 +34,7 @@ impl<TFeature, TLabel> PartialEq for LabeledData<TFeature, TLabel>
 impl<TFeature, TLabel> Eq for LabeledData<TFeature, TLabel>
     where TFeature: PartialEq, TLabel: PartialEq {}
 
+
 #[cfg(test)]
 mod tests {
     use super::LabeledData;
