@@ -3,6 +3,7 @@ use data_loader::DataLoader;
 use commons::TLabel;
 use commons::Model;
 use commons::LossFunc;
+use commons::is_positive;
 use commons::is_zero;
 
 
@@ -119,9 +120,4 @@ fn get_fps_tps(sorted_scores_labels: &Vec<(f32, f32)>) -> (Vec<usize>, Vec<usize
     tps.shrink_to_fit();
     thresholds.shrink_to_fit();
     (fps, tps, thresholds)
-}
-
-#[inline]
-fn is_positive(label: &f32) -> bool {
-    is_zero(label - 1.0)
 }

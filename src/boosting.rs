@@ -49,7 +49,7 @@ impl<'a> Boosting<'a> {
                 self.training_loader.fetch_scores(&self.model);
                 let data = self.training_loader.get_curr_batch();
                 let scores = self.training_loader.get_relative_scores();
-                let weights = get_weights(data, scores.as_slice());
+                let weights = get_weights(data, scores);
                 self.learner.update(data, &weights);
             }
 

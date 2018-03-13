@@ -103,7 +103,7 @@ impl Learner {
         if self.count <= 0 {
             1.0
         } else {
-            self.sum_weights * self.sum_weights / self.sum_weights_squared / (self.count as f32)
+            self.sum_weights.powi(2) / self.sum_weights_squared / (self.count as f32)
         }
     }
 

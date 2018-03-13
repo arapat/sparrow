@@ -67,6 +67,11 @@ pub fn is_zero(a: f32) -> bool {
     -ALMOST_ZERO < a && a < ALMOST_ZERO
 }
 
+#[inline]
+pub fn is_positive(label: &TLabel) -> bool {
+    is_zero(label - 1.0)
+}
+
 
 // Performance monitoring
 

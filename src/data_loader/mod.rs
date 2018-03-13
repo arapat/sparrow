@@ -15,6 +15,7 @@ use self::rand::Rng;
 use commons::max;
 use commons::get_weight;
 use commons::get_weights;
+use commons::is_positive;
 use commons::Example;
 use commons::Model;
 use labeled_data::LabeledData;
@@ -29,23 +30,24 @@ pub struct DataLoader {
     batch_size: usize,
     num_batch: usize,
 
-    num_unique: usize,
     num_positive: usize,
     num_negative: usize,
-    num_unique_positive: usize,
-    num_unique_negative: usize,
+    sum_weights: f32,
+    sum_weight_squared: f32,
+    ess: Option<f32>,
 
-    _full_scanned: bool,
     _reader: BufReader<File>,
     _curr_loc: usize,
     _cursor: usize,
     _curr_batch: Vec<Example>,
     _curr_batch_str: Vec<String>,
+    _scores_synced: bool,
 
     base_node: usize,
     scores_version: Vec<usize>,
     base_scores: Vec<f32>,
     scores: Vec<f32>,
+    relative_scores: Vec<f32>,
 
     derive_from: Option<Box<DataLoader>>
 }
@@ -57,6 +59,7 @@ impl DataLoader {
         assert!(batch_size <= size);
         let reader = create_bufreader(&filename);
         let num_batch = size / batch_size + (size % batch_size as usize);
+        let relative_scores = vec![0.0; size];
         debug!(
             "New DataLoader is created for `{}` \
             (size = {}, feature_size = {}, batch_size = {}, base_node = {})",
@@ -69,23 +72,24 @@ impl DataLoader {
             batch_size: batch_size,
             num_batch: num_batch,
 
-            num_unique: 0,
             num_positive: 0,
             num_negative: 0,
-            num_unique_positive: 0,
-            num_unique_negative: 0,
+            sum_weights: 0.0,
+            sum_weight_squared: 0.0,
+            ess: None,
 
-            _full_scanned: false,
             _reader: reader,
             _curr_loc: 0,
             _cursor: 0,
             _curr_batch: vec![],
             _curr_batch_str: vec![],
+            _scores_synced: false,
 
             base_node: 0,
             scores_version: vec![base_node; num_batch],
             base_scores: scores.clone(),
             scores: scores,
+            relative_scores: relative_scores,
 
             derive_from: None
         }
@@ -121,6 +125,10 @@ impl DataLoader {
         self.feature_size
     }
 
+    pub fn get_ess(&self) -> Option<f32> {
+        self.ess
+    }
+
     pub fn get_curr_batch(&self) -> &Vec<Example> {
         &self._curr_batch
     }
@@ -129,17 +137,13 @@ impl DataLoader {
         &self._curr_batch_str
     }
 
-    pub fn get_relative_scores(&self) -> Vec<f32> {
-        let head = self._curr_loc * self.batch_size;
-        let tail = head + self._curr_batch.len();
-        self.scores[head..tail]
-            .iter()
-            .zip(self.base_scores[head..tail].iter())
-            .map(|(a, b)| a - b)
-            .collect()
+    pub fn get_relative_scores(&self) -> &[f32] {
+        assert!(self._scores_synced);
+        &self.relative_scores.as_slice()
     }
 
     pub fn get_absolute_scores(&self) -> &[f32] {
+        assert!(self._scores_synced);
         let head = self._curr_loc * self.batch_size;
         let tail = head + self._curr_batch.len();
         &self.scores[head..tail]
@@ -175,25 +179,74 @@ impl DataLoader {
         };
         self._curr_batch = batch;
         self._curr_batch_str = batch_str;
+        self._scores_synced = false;
 
-        debug!("Fetched {} examples.", self._curr_batch.len());
         if loader_reset {
+            // update ESS
+            let count = self.num_positive + self.num_negative;
+            let ess = self.sum_weights.powi(2) / self.sum_weight_squared / (count as f32);
+            self.ess = Some(ess);
+            self.num_positive = 0;
+            self.num_negative = 0;
+            self.sum_weights = 0.0;
+            self.sum_weight_squared = 0.0;
+            info!("ESS is updated: {}", ess);
             debug!("Loader have reset.");
         }
+
+        debug!("Fetched {} examples.", self._curr_batch.len());
     }
 
     pub fn fetch_scores(&mut self, trees: &Model) {
+        if self._scores_synced {
+            return;
+        }
+
         let tree_head = self.scores_version[self._curr_loc];
         let tree_tail = trees.len();
         let head = self._curr_loc * self.batch_size;
         let tail = head + self._curr_batch.len();
 
-        let scores_region = &mut self.scores[head..tail];
-        for tree in trees[tree_head..tree_tail].iter() {
-            tree.add_prediction_to_score(&self._curr_batch, scores_region)
+        {
+            let scores_region = &mut self.scores[head..tail];
+            for tree in trees[tree_head..tree_tail].iter() {
+                tree.add_prediction_to_score(&self._curr_batch, scores_region)
+            }
         }
+        self.relative_scores = self.scores[head..tail]
+                                   .iter()
+                                   .zip(self.base_scores[head..tail].iter())
+                                   .map(|(a, b)| a - b)
+                                   .collect();
         self.scores_version[self._curr_loc] = tree_tail;
+        self._scores_synced = true;
+        self.update_stats_for_ess();
+
         debug!("Fetched {} scores.", tail - head);
+    }
+
+    fn update_stats_for_ess(&mut self) {
+        let mut num_positive       = 0;
+        let mut num_negative       = 0;
+        let mut sum_weights        = 0.0;
+        let mut sum_weight_squared = 0.0;
+        self._curr_batch
+            .iter()
+            .zip(self.relative_scores.iter())
+            .for_each(|(data, score)| {
+                if is_positive(data.get_label()) {
+                    num_positive += 1;
+                } else {
+                    num_negative += 1;
+                }
+                let w = get_weight(data, *score);
+                sum_weights += w;
+                sum_weight_squared += w * w;
+            });
+        self.num_positive       += num_positive;
+        self.num_negative       += num_negative;
+        self.sum_weights        += sum_weights;
+        self.sum_weight_squared += sum_weight_squared;
     }
 
     fn set_bufrader(&mut self) {
