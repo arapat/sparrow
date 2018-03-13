@@ -47,9 +47,7 @@ pub struct DataLoader {
     scores_version: Vec<usize>,
     base_scores: Vec<f32>,
     scores: Vec<f32>,
-    relative_scores: Vec<f32>,
-
-    derive_from: Option<Box<DataLoader>>
+    relative_scores: Vec<f32>
 }
 
 // TODO: write scores to disk
@@ -89,9 +87,7 @@ impl DataLoader {
             scores_version: vec![base_node; num_batch],
             base_scores: scores.clone(),
             scores: scores,
-            relative_scores: relative_scores,
-
-            derive_from: None
+            relative_scores: relative_scores
         }
     }
 
@@ -100,7 +96,7 @@ impl DataLoader {
         DataLoader::new(filename, size, feature_size, batch_size, 0, vec![0.0; size])
     }
 
-    pub fn from_constructor(self, constructor: Constructor, base_node: usize) -> DataLoader {
+    pub fn from_constructor(&self, constructor: Constructor, base_node: usize) -> DataLoader {
         let (filename, scores, size): (String, Vec<f32>, usize) = constructor.get_content();
         let mut new_loader = DataLoader::new(
             filename,
@@ -111,14 +107,7 @@ impl DataLoader {
             scores
         );
         new_loader.scores.shrink_to_fit();
-        new_loader.set_source(self);
         new_loader
-    }
-
-    pub fn set_source(&mut self, derive_from: DataLoader) {
-        let source_loc = derive_from.filename.clone();
-        self.derive_from = Some(Box::new(derive_from));
-        debug!("The source of `{}` is `{}`.", self.filename, source_loc);
     }
 
     pub fn get_feature_size(&self) -> usize {
@@ -254,7 +243,7 @@ impl DataLoader {
     }
 
     // TODO: implement stratified sampling version
-    pub fn sample(mut self, trees: &Model, sample_ratio: f32) -> DataLoader {
+    pub fn sample(&mut self, trees: &Model, sample_ratio: f32) -> DataLoader {
         debug!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
         let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio);
         debug!("Sample size is estimated to be {}.", size);

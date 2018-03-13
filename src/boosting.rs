@@ -9,9 +9,12 @@ use validator::validate;
 
 
 pub struct Boosting<'a> {
-    training_loader: DataLoader,
+    training_loader_stack: Vec<DataLoader>,
     testing_loader: DataLoader,
     eval_funcs: Vec<&'a LossFunc>,
+
+    sample_ratio: f32,
+    ess_threshold: f32,
 
     learner: Learner,
     model: Model
@@ -19,25 +22,41 @@ pub struct Boosting<'a> {
 
 impl<'a> Boosting<'a> {
     pub fn new(
-                mut training_loader: DataLoader, testing_loader: DataLoader,
-                max_sample_size: usize, max_bin_size: usize,
+                mut training_loader: DataLoader,
+                testing_loader: DataLoader,
+                max_sample_size: usize,
+                max_bin_size: usize,
+                sample_ratio: f32,
+                ess_threshold: f32,
                 default_rho_gamma: f32,
                 eval_funcs: Vec<&'a LossFunc>
             ) -> Boosting<'a> {
         let bins = create_bins(max_sample_size, max_bin_size, &mut training_loader);
         let learner = Learner::new(training_loader.get_feature_size(), default_rho_gamma, bins);
-        Boosting {
-            training_loader: training_loader,
+        let mut boosting = Boosting {
+            training_loader_stack: vec![training_loader],
             testing_loader: testing_loader,
             eval_funcs: eval_funcs,
+
+            sample_ratio: sample_ratio,
+            ess_threshold: ess_threshold,
+
             learner: learner,
             model: vec![]
-        }
+        };
+        boosting.sample();
+        boosting
     }
 
-    pub fn training(&mut self, num_iterations: u32, max_trials: u32, validate_interval: u32) {
+    pub fn training(
+            &mut self,
+            num_iterations: u32,
+            sample_ratio: f32,
+            ess_threshold: f32,
+            max_trials_before_shrink: u32,
+            validate_interval: u32) {
         let interval = validate_interval as usize;
-        let timeout = max_trials as usize;
+        let timeout = max_trials_before_shrink as usize;
         let mut remaining_iterations = num_iterations;
         while remaining_iterations > 0 {
             if self.learner.get_count() >= timeout {
@@ -45,10 +64,11 @@ impl<'a> Boosting<'a> {
             }
 
             {
-                self.training_loader.fetch_next_batch();
-                self.training_loader.fetch_scores(&self.model);
-                let data = self.training_loader.get_curr_batch();
-                let scores = self.training_loader.get_relative_scores();
+                let training_loader = &mut self.training_loader_stack[1];
+                training_loader.fetch_next_batch();
+                training_loader.fetch_scores(&self.model);
+                let data = training_loader.get_curr_batch();
+                let scores = training_loader.get_relative_scores();
                 let weights = get_weights(data, scores);
                 self.learner.update(data, &weights);
             }
@@ -67,12 +87,35 @@ impl<'a> Boosting<'a> {
                 };
             if found_new_rule {
                 remaining_iterations -= 1;
+                self.try_sample();
                 self.learner.reset();
                 if self.model.len() % interval == 0 {
                     self._validate();
                 }
             }
         }
+    }
+
+    fn try_sample(&mut self) {
+        let ess_option = self.training_loader_stack[1].get_ess();
+        match ess_option {
+            Some(ess) => {
+                if ess < self.ess_threshold {
+                    debug!("ESS is below the threshold: {} < {}. A new sample will be generated.",
+                           ess, self.ess_threshold);
+                    self.training_loader_stack.pop();
+                    self.sample();
+                }
+            },
+            None      => {}
+        }
+    }
+
+    fn sample(&mut self) {
+        debug!("Re-sampling is started.");
+        let new_sample = self.training_loader_stack[0].sample(&self.model, self.sample_ratio);
+        self.training_loader_stack.push(new_sample);
+        info!("A new sample is generated.");
     }
 
     fn _validate(&mut self) {
