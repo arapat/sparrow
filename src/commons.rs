@@ -17,6 +17,7 @@ pub type LossFunc = Fn(&Vec<(f32, TLabel)>) -> f32;
 
 const DELTA: f32  = 0.0001;
 const SHRINK: f32 = 0.8;
+const THRESHOLD_FACTOR: f32 = 1.0;
 const ALMOST_ZERO: f32 = 1e-8;
 
 
@@ -24,7 +25,7 @@ const ALMOST_ZERO: f32 = 1e-8;
 
 #[inline]
 pub fn get_weight(data: &Example, score: f32) -> f32 {
-    max(1.0, (-score * data.get_label()).exp())
+    max(1.0, (-score * get_symmetric_label(data)).exp())
 }
 
 pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
@@ -37,7 +38,7 @@ pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
 #[inline]
 pub fn get_bound(sum_c: &f32, sum_c_squared: &f32) -> Option<f32> {
     // loglogv will be np.nan if conditons are not satisfied
-    let threshold: f32 = 173.0 * (4.0 / DELTA).ln();
+    let threshold: f32 = THRESHOLD_FACTOR * 173.0 * (4.0 / DELTA).ln();
     if *sum_c_squared >= threshold {
         let log_log_term = 3.0 * sum_c_squared / 2.0 / sum_c.abs();
         if log_log_term > 1.0 {
@@ -49,6 +50,15 @@ pub fn get_bound(sum_c: &f32, sum_c_squared: &f32) -> Option<f32> {
         }
     }
     None
+}
+
+#[inline]
+pub fn get_symmetric_label(data: &Example) -> f32 {
+    if is_positive(data.get_label()) {
+        1.0
+    } else {
+        -1.0
+    }
 }
 
 

@@ -4,6 +4,7 @@ use commons::Example;
 use commons::max;
 use commons::get_bound;
 use commons::is_positive;
+use commons::get_symmetric_label;
 
 /*
 TODO: extend support to regression tasks
@@ -143,12 +144,14 @@ impl Learner {
             self.sum_weights_squared += weight * weight;
 
             // accumulate stats for each rule
-            let label = if is_positive(example.get_label()) { 1.0 } else { -1.0 };
+            let label = get_symmetric_label(example);
             let feature = example.get_features();
+            let weighted_label = weight * label;
             let w_pos = (label - 2.0 * self.cur_rho_gamma) * weight;
-            let wp_sq = w_pos * w_pos;
             let w_neg = (-label - 2.0 * self.cur_rho_gamma) * weight;
-            let wn_sq = w_neg * w_neg;
+            let w_sq = (1.0 + 2.0 * self.cur_rho_gamma).powi(2);
+            // let wp_sq = w_pos.powi(2);
+            // let wn_sq = w_neg.powi(2);
             /*
                 1. Left +1, Right +1;
                 2. Left +1, Right -1;
@@ -156,14 +159,14 @@ impl Learner {
                 4. Left -1, Right -1.
             */
             let goes_to_left: TupleTuple3 = (
-                (weight * label, weight * label, -weight * label, -weight * label),
+                (weighted_label, weighted_label, -weighted_label, -weighted_label),
                 (w_pos, w_pos, w_neg, w_neg),
-                (wp_sq, wp_sq, wn_sq, wn_sq)
+                (w_sq, w_sq, w_sq, w_sq)
             );
             let goes_to_right: TupleTuple3 = (
-                (weight * label, -weight * label, weight * label, -weight * label),
+                (weighted_label, -weighted_label, weighted_label, -weighted_label),
                 (w_pos, w_neg, w_pos, w_neg),
-                (wp_sq, wn_sq, wp_sq, wn_sq)
+                (w_sq, w_sq, w_sq, w_sq)
             );
             (0..self.bins.len()).for_each(|i| {
                 (0..self.bins[i].get_vals().len()).for_each(|j| {
@@ -214,10 +217,11 @@ impl Learner {
                             if *sum_c > bound {
                                 let (left_predict, right_predict) = get_prediction(k, self.cur_rho_gamma);
                                 let threshold = self.bins[i].get_vals()[j];
-                                // debug!("Weak rule is detected. sum_c={}, bound={}, advantage={}. \
-                                //         feature={}, threshold={}, type={}.",
-                                //        *sum_c, bound, self.cur_rho_gamma,
-                                //        i, threshold, k);
+                                debug!("Weak rule is detected. sum_c={:?}, sum_c_sq={:?}, \
+                                        bound={}, advantage={}. feature={}, threshold={}, type={}.",
+                                       self.sum_c[i][j], self.sum_c_squared[i][j], bound,
+                                       self.cur_rho_gamma, i, threshold, k);
+
                                 self.valid_weak_rule = Some(WeakRule {
                                     feature: i,
                                     threshold: threshold,

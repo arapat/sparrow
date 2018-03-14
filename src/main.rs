@@ -20,9 +20,10 @@ use commons::LossFunc;
 fn main() {
     env_logger::init();
 
-    let training_data = String::from("/home/arapat/Downloads/testing-libsvm.bin");
+    let home_dir = std::env::home_dir().unwrap().display().to_string();
+    let training_data = home_dir.clone() + "/Downloads/testing-libsvm.bin";
     let training_size = 4627840;
-    let testing_data = String::from("/home/arapat/Downloads/testing-libsvm.bin");
+    let testing_data =  home_dir.clone() + "/Downloads/testing-libsvm.bin";
     let testing_size = 4627840;
     let feature_size = 564;
     let batch_size = 1000;
@@ -38,7 +39,7 @@ fn main() {
     ];
     let num_iterations = 0;
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 10;
+    let validate_interval = 1;
 
     let training_loader = DataLoader::from_scratch(
         training_data, training_size, feature_size, batch_size

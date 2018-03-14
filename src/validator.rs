@@ -5,6 +5,8 @@ use commons::Model;
 use commons::LossFunc;
 use commons::is_positive;
 use commons::is_zero;
+use commons::get_symmetric_label;
+use commons::max;
 
 
 pub fn validate(
@@ -16,8 +18,7 @@ pub fn validate(
         data_loader.fetch_scores(trees);
         let labels: Vec<TLabel> = data_loader.get_curr_batch()
                                              .iter()
-                                             .map(|d| d.get_label())
-                                             .cloned()
+                                             .map(|d| get_symmetric_label(d))
                                              .collect();
         let scores: Vec<f32> = data_loader.get_absolute_scores()
                                           .iter()
@@ -34,7 +35,7 @@ pub fn validate(
 
 pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let loss: f32 = scores_labels.iter()
-                                 .map(|&(score, label)| (-score * label).ln())
+                                 .map(|&(score, label)| max(1.0, (-score * label).exp()))
                                  .sum();
     loss / (scores_labels.len() as f32)
 }
