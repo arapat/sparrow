@@ -1,12 +1,14 @@
 extern crate rand;
+extern crate rayon;
 
 mod constructor;
+
+use self::rayon::prelude::*;
 
 use std::fs::File;
 use std::io::BufRead;
 use std::io::BufReader;
 
-use std::clone::Clone;
 use std::str::FromStr;
 use std::fmt::Debug;
 
@@ -320,8 +322,8 @@ pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
 pub fn read_k_labeled_data<TFeature, TLabel>(
             reader: &mut BufReader<File>, k: usize, missing_val: TFeature, size: usize
         ) -> (Vec<LabeledData<TFeature, TLabel>>, Vec<String>)
-        where TFeature: FromStr + Clone, TFeature::Err: Debug,
-              TLabel: FromStr, TLabel::Err: Debug {
+        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
+              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
     let lines = read_k_lines(reader, k);
     (parse_libsvm(&lines, missing_val, size), lines)
 }
@@ -329,8 +331,8 @@ pub fn read_k_labeled_data<TFeature, TLabel>(
 pub fn parse_libsvm_one_line<TFeature, TLabel>(
             raw_string: &String, missing_val: TFeature, size: usize
         ) -> LabeledData<TFeature, TLabel>
-        where TFeature: FromStr + Clone, TFeature::Err: Debug,
-              TLabel: FromStr, TLabel::Err: Debug {
+        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
+              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
     let mut numbers = raw_string.split_whitespace();
     let label = numbers.next().unwrap().parse::<TLabel>().unwrap();
     let mut feature: Vec<TFeature> = vec![missing_val; size];
@@ -344,9 +346,11 @@ pub fn parse_libsvm_one_line<TFeature, TLabel>(
 
 pub fn parse_libsvm<TFeature, TLabel>(raw_strings: &Vec<String>, missing_val: TFeature, size: usize)
         -> Vec<LabeledData<TFeature, TLabel>>
-        where TFeature: FromStr + Clone, TFeature::Err: Debug,
-              TLabel: FromStr, TLabel::Err: Debug {
-    raw_strings.iter().map(|s| parse_libsvm_one_line(&s, missing_val.clone(), size)).collect()
+        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
+              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
+    raw_strings.par_iter()
+               .map(|s| parse_libsvm_one_line(&s, missing_val.clone(), size))
+               .collect()
 }
 
 
