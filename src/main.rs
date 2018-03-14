@@ -39,7 +39,7 @@ fn main() {
     ];
     let num_iterations = 0;
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 1;
+    let validate_interval = 10;
 
     let training_loader = DataLoader::from_scratch(
         training_data, training_size, feature_size, batch_size

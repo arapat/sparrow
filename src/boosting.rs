@@ -2,6 +2,7 @@ use data_loader::DataLoader;
 use learner::Learner;
 use commons::Model;
 use commons::LossFunc;
+use commons::PerformanceMonitor;
 
 use commons::get_weights;
 use bins::create_bins;
@@ -57,6 +58,7 @@ impl<'a> Boosting<'a> {
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut iteration = 0;
+        let timer = PerformanceMonitor::new();
         while num_iterations <= 0 || iteration < num_iterations {
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
@@ -85,8 +87,8 @@ impl<'a> Boosting<'a> {
                 };
             if found_new_rule {
                 info!(
-                    "Tree {} is added: {:?}. Scanned {} examples. Advantage is {}.",
-                    iteration, self.model[iteration as usize],
+                    "Clock {}. Tree {} is added: {:?}. Scanned {} examples. Advantage is {}.",
+                    timer.get_duration(), iteration, self.model[iteration as usize],
                     self.learner.get_count(), self.learner.get_rho_gamma()
                 );
                 iteration += 1;

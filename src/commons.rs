@@ -129,4 +129,9 @@ impl PerformanceMonitor {
         let duration = 1e-3 * self.start_time.to(now).num_milliseconds() as f32;
         (self.counter, duration, (self.counter as f32) / duration)
     }
+
+    pub fn get_duration(&self) -> f32 {
+        let now = PreciseTime::now();
+        1e-3 * self.start_time.to(now).num_milliseconds() as f32
+    }
 }

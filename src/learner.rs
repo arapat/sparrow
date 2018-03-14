@@ -217,10 +217,10 @@ impl Learner {
                             if *sum_c > bound {
                                 let (left_predict, right_predict) = get_prediction(k, self.cur_rho_gamma);
                                 let threshold = self.bins[i].get_vals()[j];
-                                debug!("Weak rule is detected. sum_c={:?}, sum_c_sq={:?}, \
-                                        bound={}, advantage={}. feature={}, threshold={}, type={}.",
-                                       self.sum_c[i][j], self.sum_c_squared[i][j], bound,
-                                       self.cur_rho_gamma, i, threshold, k);
+                                // debug!("Weak rule is detected. sum_c={:?}, sum_c_sq={:?}, \
+                                //         bound={}, advantage={}. feature={}, threshold={}, type={}.",
+                                //        self.sum_c[i][j], self.sum_c_squared[i][j], bound,
+                                //        self.cur_rho_gamma, i, threshold, k);
 
                                 self.valid_weak_rule = Some(WeakRule {
                                     feature: i,

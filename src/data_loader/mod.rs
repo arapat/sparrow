@@ -186,8 +186,7 @@ impl DataLoader {
             self.num_negative = 0;
             self.sum_weights = 0.0;
             self.sum_weight_squared = 0.0;
-            info!("ESS is updated: {}", ess);
-            debug!("Loader have reset.");
+            debug!("Loader have reset. ESS is updated: {}", ess);
         }
 
         self.performance.update(self._curr_batch.len());
