@@ -35,7 +35,8 @@ pub fn validate(
 
 pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let loss: f32 = scores_labels.iter()
-                                 .map(|&(score, label)| min(1.0, (-score * label).exp()))
+                                 // .map(|&(score, label)| min(1.0, (-score * label).exp()))
+                                 .map(|&(score, label)| (-score * label).exp())
                                  .sum();
     loss / (scores_labels.len() as f32)
 }
