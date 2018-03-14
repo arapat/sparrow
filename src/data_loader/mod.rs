@@ -334,13 +334,15 @@ pub fn parse_libsvm_one_line<TFeature, TLabel>(
         where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
               TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
     let mut numbers = raw_string.split_whitespace();
-    let label = numbers.next().unwrap().parse::<TLabel>().unwrap();
+    let label: TLabel = numbers.next().unwrap().parse().unwrap();
     let mut feature: Vec<TFeature> = vec![missing_val; size];
-    for mut index_value in numbers.map(|s| s.split(':')) {
-        let index = index_value.next().unwrap().parse::<usize>().unwrap();
-        let value = index_value.next().unwrap().parse::<TFeature>().unwrap();
+    numbers.map(|index_value| {
+        let sep = index_value.find(':').unwrap();
+        (index_value[..sep].parse().unwrap(),
+         index_value[sep+1..].parse().unwrap())
+    }).for_each(|(index, value): (usize, TFeature)| {
         feature[index] = value;
-    }
+    });
     LabeledData::new(feature, label)
 }
 
