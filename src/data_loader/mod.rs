@@ -18,6 +18,7 @@ use commons::get_weights;
 use commons::is_positive;
 use commons::Example;
 use commons::Model;
+use commons::PerformanceMonitor;
 use labeled_data::LabeledData;
 use self::constructor::Constructor;
 
@@ -47,7 +48,9 @@ pub struct DataLoader {
     scores_version: Vec<usize>,
     base_scores: Vec<f32>,
     scores: Vec<f32>,
-    relative_scores: Vec<f32>
+    relative_scores: Vec<f32>,
+
+    performance: PerformanceMonitor
 }
 
 // TODO: write scores to disk
@@ -87,7 +90,9 @@ impl DataLoader {
             scores_version: vec![base_node; num_batch],
             base_scores: scores.clone(),
             scores: scores,
-            relative_scores: relative_scores
+            relative_scores: relative_scores,
+
+            performance: PerformanceMonitor::new()
         }
     }
 
@@ -183,7 +188,12 @@ impl DataLoader {
             debug!("Loader have reset.");
         }
 
-        debug!("Fetched {} examples.", self._curr_batch.len());
+        self.performance.update(self._curr_batch.len());
+        let (count, duration, speed) = self.performance.get_performance();
+        if count >= 10000 {
+            debug!("Loader speed is {}.", speed);
+            self.performance.start();
+        }
     }
 
     pub fn fetch_scores(&mut self, trees: &Model) {
@@ -210,8 +220,6 @@ impl DataLoader {
         self.scores_version[self._curr_loc] = tree_tail;
         self._scores_synced = true;
         self.update_stats_for_ess();
-
-        debug!("Fetched {} scores.", tail - head);
     }
 
     fn update_stats_for_ess(&mut self) {

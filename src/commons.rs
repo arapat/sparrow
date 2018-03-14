@@ -1,6 +1,7 @@
 extern crate time;
 
 use self::time::PreciseTime;
+use std::fmt;
 
 use labeled_data::LabeledData;
 use tree::Tree;
@@ -75,23 +76,37 @@ pub fn is_positive(label: &TLabel) -> bool {
 
 // Performance monitoring
 
-pub struct Timer {
-    start_time: PreciseTime
+pub struct PerformanceMonitor {
+    start_time: PreciseTime,
+    counter: usize
 }
 
-impl Timer {
-    pub fn new() -> Timer {
-        Timer {
-            start_time: PreciseTime::now()
+impl fmt::Debug for PerformanceMonitor {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "PerformanceMonitor")
+    }
+}
+
+impl PerformanceMonitor {
+    pub fn new() -> PerformanceMonitor {
+        PerformanceMonitor {
+            start_time: PreciseTime::now(),
+            counter: 0
         }
     }
 
     pub fn start(&mut self) {
         self.start_time = PreciseTime::now();
+        self.counter = 0;
     }
 
-    pub fn get_interval(&self) -> f32 {
+    pub fn update(&mut self, count: usize) {
+        self.counter += count;
+    }
+
+    pub fn get_performance(&self) -> (usize, f32, f32) {
         let now = PreciseTime::now();
-        1e-3 * self.start_time.to(now).num_milliseconds() as f32
+        let duration = 1e-3 * self.start_time.to(now).num_milliseconds() as f32;
+        (self.counter, duration, (self.counter as f32) / duration)
     }
 }
