@@ -2,8 +2,8 @@ use bins::Bins;
 use tree::Tree;
 use commons::Example;
 use commons::max;
+use commons::min;
 use commons::get_bound;
-use commons::is_positive;
 use commons::get_symmetric_label;
 
 /*
@@ -121,7 +121,7 @@ impl Learner {
     pub fn shrink_target(&mut self) {
         let old_rho_gamma = self.cur_rho_gamma.clone();
         let max_empirical_ratio = self.get_max_empirical_ratio();
-        self.cur_rho_gamma = max(self.cur_rho_gamma, max_empirical_ratio) * 0.9;
+        self.cur_rho_gamma = min(self.cur_rho_gamma, max_empirical_ratio) * 0.9;
         self.reset();
 
         info!("Target advantage is shrinked: {} -> {}.", old_rho_gamma, self.cur_rho_gamma);

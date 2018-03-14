@@ -6,7 +6,7 @@ use commons::LossFunc;
 use commons::is_positive;
 use commons::is_zero;
 use commons::get_symmetric_label;
-use commons::max;
+use commons::min;
 
 
 pub fn validate(
@@ -35,7 +35,7 @@ pub fn validate(
 
 pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let loss: f32 = scores_labels.iter()
-                                 .map(|&(score, label)| max(1.0, (-score * label).exp()))
+                                 .map(|&(score, label)| min(1.0, (-score * label).exp()))
                                  .sum();
     loss / (scores_labels.len() as f32)
 }
