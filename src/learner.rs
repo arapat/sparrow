@@ -3,6 +3,7 @@ use tree::Tree;
 use commons::Example;
 use commons::max;
 use commons::get_bound;
+use commons::is_positive;
 
 /*
 TODO: extend support to regression tasks
@@ -107,6 +108,10 @@ impl Learner {
         }
     }
 
+    pub fn get_rho_gamma(&self) -> f32 {
+        self.cur_rho_gamma
+    }
+
     pub fn set_rho_gamma(&mut self, rho_gamma: f32) {
         self.cur_rho_gamma = rho_gamma;
         self.reset()
@@ -138,11 +143,11 @@ impl Learner {
             self.sum_weights_squared += weight * weight;
 
             // accumulate stats for each rule
-            let label = example.get_label();
+            let label = if is_positive(example.get_label()) { 1.0 } else { -1.0 };
             let feature = example.get_features();
-            let w_pos = weight * (1.0 - 2.0 * self.cur_rho_gamma);
+            let w_pos = (label - 2.0 * self.cur_rho_gamma) * weight;
             let wp_sq = w_pos * w_pos;
-            let w_neg = weight * (1.0 + 2.0 * self.cur_rho_gamma);
+            let w_neg = (-label - 2.0 * self.cur_rho_gamma) * weight;
             let wn_sq = w_neg * w_neg;
             /*
                 1. Left +1, Right +1;
@@ -160,38 +165,28 @@ impl Learner {
                 (w_pos, w_neg, w_pos, w_neg),
                 (wp_sq, wn_sq, wp_sq, wn_sq)
             );
-            let stats: Vec<Vec<TupleTuple3>> =
-                self.bins
-                    .iter()
-                    .zip(0..self.bins.len())
-                    .map(|(bin, idx)| {
-                        bin.get_vals()
-                           .iter()
-                           .map(|threshold| {
-                               if feature[idx] <= *threshold {
-                                   goes_to_left
-                               } else {
-                                   goes_to_right
-                               }
-                           }).collect()
-                    }).collect();
-
             (0..self.bins.len()).for_each(|i| {
                 (0..self.bins[i].get_vals().len()).for_each(|j| {
-                    self.weak_rules_score[i][j][0] += (stats[i][j].0).0;
-                    self.weak_rules_score[i][j][1] += (stats[i][j].0).1;
-                    self.weak_rules_score[i][j][2] += (stats[i][j].0).2;
-                    self.weak_rules_score[i][j][3] += (stats[i][j].0).3;
+                    let direction =
+                        if feature[i] <= self.bins[i].get_vals()[j] {
+                            goes_to_left
+                        } else {
+                            goes_to_right
+                        };
+                    self.weak_rules_score[i][j][0] += (direction.0).0;
+                    self.weak_rules_score[i][j][1] += (direction.0).1;
+                    self.weak_rules_score[i][j][2] += (direction.0).2;
+                    self.weak_rules_score[i][j][3] += (direction.0).3;
 
-                    self.sum_c[i][j][0]            += (stats[i][j].1).0;
-                    self.sum_c[i][j][1]            += (stats[i][j].1).1;
-                    self.sum_c[i][j][2]            += (stats[i][j].1).2;
-                    self.sum_c[i][j][3]            += (stats[i][j].1).3;
+                    self.sum_c[i][j][0]            += (direction.1).0;
+                    self.sum_c[i][j][1]            += (direction.1).1;
+                    self.sum_c[i][j][2]            += (direction.1).2;
+                    self.sum_c[i][j][3]            += (direction.1).3;
 
-                    self.sum_c_squared[i][j][0]    += (stats[i][j].2).0;
-                    self.sum_c_squared[i][j][1]    += (stats[i][j].2).1;
-                    self.sum_c_squared[i][j][2]    += (stats[i][j].2).2;
-                    self.sum_c_squared[i][j][3]    += (stats[i][j].2).3;
+                    self.sum_c_squared[i][j][0]    += (direction.2).0;
+                    self.sum_c_squared[i][j][1]    += (direction.2).1;
+                    self.sum_c_squared[i][j][2]    += (direction.2).2;
+                    self.sum_c_squared[i][j][3]    += (direction.2).3;
                 });
             });
         });
@@ -214,13 +209,18 @@ impl Learner {
                 (0..4).for_each(|k| {
                     let sum_c = &self.sum_c[i][j][k];
                     let sum_c_squared = &self.sum_c_squared[i][j][k];
-                    let (left_predict, right_predict) = get_prediction(k, self.cur_rho_gamma);
                     match get_bound(sum_c, sum_c_squared) {
                         Some(bound) => {
-                            if bound < *sum_c {
+                            if *sum_c > bound {
+                                let (left_predict, right_predict) = get_prediction(k, self.cur_rho_gamma);
+                                let threshold = self.bins[i].get_vals()[j];
+                                // debug!("Weak rule is detected. sum_c={}, bound={}, advantage={}. \
+                                //         feature={}, threshold={}, type={}.",
+                                //        *sum_c, bound, self.cur_rho_gamma,
+                                //        i, threshold, k);
                                 self.valid_weak_rule = Some(WeakRule {
                                     feature: i,
-                                    threshold: self.bins[i].get_vals()[j],
+                                    threshold: threshold,
                                     left_predict: left_predict,
                                     right_predict: right_predict,
 

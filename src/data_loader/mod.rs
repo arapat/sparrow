@@ -191,8 +191,8 @@ impl DataLoader {
         }
 
         self.performance.update(self._curr_batch.len());
-        let (count, duration, speed) = self.performance.get_performance();
-        if count >= 10000 {
+        let (_, duration, speed) = self.performance.get_performance();
+        if duration >= 10.0 {
             debug!("Loader speed is {}.", speed);
             self.performance.start();
         }

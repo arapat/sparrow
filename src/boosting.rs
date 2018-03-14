@@ -56,8 +56,8 @@ impl<'a> Boosting<'a> {
         debug!("Start training.");
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
-        let mut remaining_iterations = num_iterations;
-        while num_iterations <= 0 || remaining_iterations > 0 {
+        let mut iteration = 0;
+        while num_iterations <= 0 || iteration < num_iterations {
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
@@ -76,7 +76,6 @@ impl<'a> Boosting<'a> {
                 match self.learner.get_new_weak_rule() {
                     &Some(ref weak_rule) => {
                         let tree = weak_rule.create_tree();
-                        info!("A new tree is added: {:?}.", tree);
                         self.model.push(tree);
                         true
                     },
@@ -85,9 +84,12 @@ impl<'a> Boosting<'a> {
                     }
                 };
             if found_new_rule {
-                if remaining_iterations > 0 {
-                    remaining_iterations -= 1;
-                }
+                info!(
+                    "Tree {} is added: {:?}. Scanned {} examples. Advantage is {}.",
+                    iteration, self.model[iteration as usize],
+                    self.learner.get_count(), self.learner.get_rho_gamma()
+                );
+                iteration += 1;
                 self.try_sample();
                 self.learner.reset();
                 if self.model.len() % interval == 0 {
