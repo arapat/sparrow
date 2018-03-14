@@ -51,14 +51,13 @@ impl<'a> Boosting<'a> {
     pub fn training(
             &mut self,
             num_iterations: u32,
-            sample_ratio: f32,
-            ess_threshold: f32,
             max_trials_before_shrink: u32,
             validate_interval: u32) {
+        debug!("Start training.");
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut remaining_iterations = num_iterations;
-        while remaining_iterations > 0 {
+        while num_iterations <= 0 || remaining_iterations > 0 {
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
@@ -86,7 +85,9 @@ impl<'a> Boosting<'a> {
                     }
                 };
             if found_new_rule {
-                remaining_iterations -= 1;
+                if remaining_iterations > 0 {
+                    remaining_iterations -= 1;
+                }
                 self.try_sample();
                 self.learner.reset();
                 if self.model.len() % interval == 0 {
@@ -112,7 +113,7 @@ impl<'a> Boosting<'a> {
     }
 
     fn sample(&mut self) {
-        debug!("Re-sampling is started.");
+        info!("Re-sampling is started.");
         let new_sample = self.training_loader_stack[0].sample(&self.model, self.sample_ratio);
         self.training_loader_stack.push(new_sample);
         info!("A new sample is generated.");

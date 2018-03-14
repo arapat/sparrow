@@ -80,13 +80,17 @@ pub struct Timer {
 }
 
 impl Timer {
-    pub fn start() -> Timer {
+    pub fn new() -> Timer {
         Timer {
             start_time: PreciseTime::now()
         }
     }
 
-    pub fn stop(self) -> f32 {
+    pub fn start(&mut self) {
+        self.start_time = PreciseTime::now();
+    }
+
+    pub fn get_interval(&self) -> f32 {
         let now = PreciseTime::now();
         1e-3 * self.start_time.to(now).num_milliseconds() as f32
     }
