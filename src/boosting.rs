@@ -6,8 +6,7 @@ use std::sync::mpsc::Receiver;
 
 use data_loader::DataLoader;
 use learner::Learner;
-use network::start_receivers;
-use network::start_sender;
+use network::start_network;
 use commons::Model;
 use commons::LossFunc;
 use commons::PerformanceMonitor;
@@ -68,13 +67,12 @@ impl<'a> Boosting<'a> {
         boosting
     }
 
-    pub fn enable_network(&mut self, remote_ips: &Vec<String>, port: &str) {
-        let (send, recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
-        self.sender = Some(send);
-        start_sender(remote_ips, port, recv);
-        let (send, recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
-        self.receiver = Some(recv);
-        start_receivers(remote_ips, port, send);
+    pub fn enable_network(&mut self, remote_ips: &Vec<String>, port: u16) {
+        let (local_send, local_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
+        let (other_send, other_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
+        self.sender = Some(local_send);
+        self.receiver = Some(other_recv);
+        start_network(remote_ips, port, other_send, local_recv)
     }
 
     pub fn training(
@@ -151,7 +149,7 @@ impl<'a> Boosting<'a> {
 
             // handle sending
             if self.sum_gamma > self.prev_sum_gamma {
-                self.sender.as_ref().unwrap().send((self.model.clone(), self.sum_gamma));
+                self.sender.as_ref().unwrap().send((self.model.clone(), self.sum_gamma)).unwrap();
                 self.prev_sum_gamma = self.sum_gamma;
             }
         }

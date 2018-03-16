@@ -129,10 +129,6 @@ impl DataLoader {
         &self._curr_batch
     }
 
-    pub fn get_curr_batch_str(&self) -> &Vec<String> {
-        &self._curr_batch_str
-    }
-
     pub fn get_relative_scores(&self) -> &[f32] {
         assert!(self._scores_synced);
         &self.relative_scores.as_slice()
