@@ -10,6 +10,7 @@ mod learner;
 mod tree;
 mod validator;
 mod boosting;
+mod network;
 
 use validator::get_adaboost_loss;
 use validator::get_auprc;

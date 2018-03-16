@@ -12,6 +12,7 @@ type _TLabel = f32;
 pub type Example = LabeledData<_TFeature, _TLabel>;
 pub type TLabel = _TLabel;
 pub type Model = Vec<Tree>;
+pub type ModelScore = (Model, f32);
 
 pub type LossFunc = Fn(&Vec<(f32, TLabel)>) -> f32;
 

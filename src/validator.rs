@@ -6,7 +6,6 @@ use commons::LossFunc;
 use commons::is_positive;
 use commons::is_zero;
 use commons::get_symmetric_label;
-use commons::min;
 
 
 pub fn validate(
