@@ -77,15 +77,12 @@ impl<'a> Boosting<'a> {
             }
 
             let found_new_rule =
-                match self.learner.get_new_weak_rule() {
-                    &Some(ref weak_rule) => {
-                        let tree = weak_rule.create_tree();
-                        self.model.push(tree);
-                        true
-                    },
-                    &None => {
-                        false
-                    }
+                if let &Some(ref weak_rule) = self.learner.get_new_weak_rule() {
+                    let tree = weak_rule.create_tree();
+                    self.model.push(tree);
+                    true
+                } else {
+                    false
                 };
             if found_new_rule {
                 info!(
@@ -106,16 +103,13 @@ impl<'a> Boosting<'a> {
 
     fn try_sample(&mut self) {
         let ess_option = self.training_loader_stack[1].get_ess();
-        match ess_option {
-            Some(ess) => {
-                if ess < self.ess_threshold {
-                    debug!("ESS is below the threshold: {} < {}. A new sample will be generated.",
-                           ess, self.ess_threshold);
-                    self.training_loader_stack.pop();
-                    self.sample();
-                }
-            },
-            None      => {}
+        if let Some(ess) = ess_option {
+            if ess < self.ess_threshold {
+                debug!("ESS is below the threshold: {} < {}. A new sample will be generated.",
+                        ess, self.ess_threshold);
+                self.training_loader_stack.pop();
+                self.sample();
+            }
         }
     }
 

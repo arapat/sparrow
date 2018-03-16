@@ -85,18 +85,12 @@ impl Tree {
         let mut node: usize = 0;
         let mut reached_leaf = false;
         let features = data.get_features();
-        while !reached_leaf {
-            reached_leaf = match self.split_feature[node] {
-                None => true,
-                Some(split_feature) => {
-                    node = if features[split_feature as usize] <= self.threshold[node] {
-                        self.left_child[node]
-                    } else {
-                        self.right_child[node]
-                    } as usize;
-                    false
-                }
-            }
+        while let Some(split_feature) = self.split_feature[node] {
+            node = if features[split_feature as usize] <= self.threshold[node] {
+                self.left_child[node]
+            } else {
+                self.right_child[node]
+            } as usize;
         }
         self.leaf_value[node]
     }

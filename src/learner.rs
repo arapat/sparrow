@@ -212,28 +212,25 @@ impl Learner {
                 (0..4).for_each(|k| {
                     let sum_c = &self.sum_c[i][j][k];
                     let sum_c_squared = &self.sum_c_squared[i][j][k];
-                    match get_bound(sum_c, sum_c_squared) {
-                        Some(bound) => {
-                            if *sum_c > bound {
-                                let (left_predict, right_predict) = get_prediction(k, self.cur_rho_gamma);
-                                let threshold = self.bins[i].get_vals()[j];
-                                // debug!("Weak rule is detected. sum_c={:?}, sum_c_sq={:?}, \
-                                //         bound={}, advantage={}. feature={}, threshold={}, type={}.",
-                                //        self.sum_c[i][j], self.sum_c_squared[i][j], bound,
-                                //        self.cur_rho_gamma, i, threshold, k);
+                    if let Some(bound) = get_bound(sum_c, sum_c_squared) {
+                        if *sum_c > bound {
+                            let (left_predict, right_predict) = get_prediction(k, self.cur_rho_gamma);
+                            let threshold = self.bins[i].get_vals()[j];
+                            // debug!("Weak rule is detected. sum_c={:?}, sum_c_sq={:?}, \
+                            //         bound={}, advantage={}. feature={}, threshold={}, type={}.",
+                            //        self.sum_c[i][j], self.sum_c_squared[i][j], bound,
+                            //        self.cur_rho_gamma, i, threshold, k);
 
-                                self.valid_weak_rule = Some(WeakRule {
-                                    feature: i,
-                                    threshold: threshold,
-                                    left_predict: left_predict,
-                                    right_predict: right_predict,
+                            self.valid_weak_rule = Some(WeakRule {
+                                feature: i,
+                                threshold: threshold,
+                                left_predict: left_predict,
+                                right_predict: right_predict,
 
-                                    martingale: *sum_c,
-                                    bound: bound
-                                });
-                            }
-                        },
-                        None => {}
+                                martingale: *sum_c,
+                                bound: bound
+                            });
+                        }
                     }
                 });
             });
