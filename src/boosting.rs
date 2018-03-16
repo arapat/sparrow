@@ -1,10 +1,17 @@
 extern crate serde_json;
 
+use std::sync::mpsc;
+use std::sync::mpsc::Sender;
+use std::sync::mpsc::Receiver;
+
 use data_loader::DataLoader;
 use learner::Learner;
+use network::start_receivers;
+use network::start_sender;
 use commons::Model;
 use commons::LossFunc;
 use commons::PerformanceMonitor;
+use commons::ModelScore;
 
 use commons::get_weights;
 use bins::create_bins;
@@ -20,7 +27,12 @@ pub struct Boosting<'a> {
     ess_threshold: f32,
 
     learner: Learner,
-    model: Model
+    model: Model,
+
+    sender: Option<Sender<ModelScore>>,
+    receiver: Option<Receiver<ModelScore>>,
+    sum_gamma: f32,
+    prev_sum_gamma: f32
 }
 
 impl<'a> Boosting<'a> {
@@ -45,10 +57,24 @@ impl<'a> Boosting<'a> {
             ess_threshold: ess_threshold,
 
             learner: learner,
-            model: vec![]
+            model: vec![],
+
+            sender: None,
+            receiver: None,
+            sum_gamma: 0.0,
+            prev_sum_gamma: 0.0
         };
         boosting.sample();
         boosting
+    }
+
+    pub fn enable_network(&mut self, remote_ips: &Vec<String>, port: &str) {
+        let (send, recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
+        self.sender = Some(send);
+        start_sender(remote_ips, port, recv);
+        let (send, recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
+        self.receiver = Some(recv);
+        start_receivers(remote_ips, port, send);
     }
 
     pub fn training(
@@ -91,14 +117,44 @@ impl<'a> Boosting<'a> {
                     self.learner.get_count(), self.learner.get_rho_gamma()
                 );
                 iteration += 1;
+                self.sum_gamma += self.learner.get_rho_gamma().powi(2);
                 self.try_sample();
                 self.learner.reset();
                 if self.model.len() % interval == 0 {
                     self._validate();
                 }
             }
+
+            self.handle_network();
         }
         info!("Model = {}", serde_json::to_string(&self.model).unwrap());
+    }
+
+    fn handle_network(&mut self) {
+        if self.receiver.is_some() {
+            // handle receiving
+            let recv = self.receiver.as_ref().unwrap();
+            let mut best_model = None;
+            let mut max_score = 0.0;
+            while let Some(model_score) = recv.try_iter().next() {
+                let (new_model, sum_gamma) = model_score;
+                if best_model.is_none() || sum_gamma > max_score {
+                    best_model = Some(new_model);
+                    max_score = sum_gamma;
+                }
+            }
+            if max_score > self.sum_gamma {
+                self.model = best_model.unwrap();
+                self.sum_gamma = max_score;
+                self.prev_sum_gamma = self.sum_gamma;
+            }
+
+            // handle sending
+            if self.sum_gamma > self.prev_sum_gamma {
+                self.sender.as_ref().unwrap().send((self.model.clone(), self.sum_gamma));
+                self.prev_sum_gamma = self.sum_gamma;
+            }
+        }
     }
 
     fn try_sample(&mut self) {
@@ -109,6 +165,7 @@ impl<'a> Boosting<'a> {
                         ess, self.ess_threshold);
                 self.training_loader_stack.pop();
                 self.sample();
+                self.learner.reset_all();
             }
         }
     }

@@ -113,9 +113,14 @@ impl Learner {
         self.cur_rho_gamma
     }
 
-    pub fn set_rho_gamma(&mut self, rho_gamma: f32) {
+    fn set_rho_gamma(&mut self, rho_gamma: f32) {
         self.cur_rho_gamma = rho_gamma;
         self.reset()
+    }
+
+    pub fn reset_all(&mut self) {
+        let rho_gamma = self.default_rho_gamma;
+        self.set_rho_gamma(rho_gamma);
     }
 
     pub fn shrink_target(&mut self) {

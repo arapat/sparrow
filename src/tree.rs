@@ -29,6 +29,21 @@ pub struct Tree {
     // internal_count: Vec<DimScaleType>,
 }
 
+impl Clone for Tree {
+    fn clone(&self) -> Tree {
+        Tree {
+            max_leaves:     self.max_leaves,
+            num_leaves:     self.num_leaves,
+            left_child:     self.left_child.clone(),
+            right_child:    self.right_child.clone(),
+            split_feature:  self.split_feature.clone(),
+            threshold:      self.threshold.clone(),
+            leaf_value:     self.leaf_value.clone(),
+            leaf_depth:     self.leaf_depth.clone()
+        }
+    }
+}
+
 impl Tree {
     pub fn new(max_leaves: DimScaleType) -> Tree {
         let max_nodes = max_leaves * 2;
@@ -83,7 +98,6 @@ impl Tree {
 
     fn get_leaf_prediction(&self, data: &Example) -> f32 {
         let mut node: usize = 0;
-        let mut reached_leaf = false;
         let features = data.get_features();
         while let Some(split_feature) = self.split_feature[node] {
             node = if features[split_feature as usize] <= self.threshold[node] {
