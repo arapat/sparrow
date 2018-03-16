@@ -7,7 +7,13 @@ use commons::Example;
 type DimScaleType = u16;
 
 
-#[derive(Debug)]
+/*
+Why JSON (rather than binary)?
+    - Readable for human
+    - Compatible with Python
+    - BufReader-friendly by using newline as separator
+*/
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Tree {
     max_leaves:     DimScaleType,
     num_leaves:     DimScaleType,

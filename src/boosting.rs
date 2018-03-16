@@ -1,3 +1,5 @@
+extern crate serde_json;
+
 use data_loader::DataLoader;
 use learner::Learner;
 use commons::Model;
@@ -99,6 +101,7 @@ impl<'a> Boosting<'a> {
                 }
             }
         }
+        info!("Model = {}", serde_json::to_string(&self.model).unwrap());
     }
 
     fn try_sample(&mut self) {
