@@ -44,10 +44,10 @@ fn main() {
     let validate_interval = 10;
 
     let training_loader = DataLoader::from_scratch(
-        training_data, training_size, feature_size, batch_size
+        String::from("training"), training_data, training_size, feature_size, batch_size
     );
     let testing_loader = DataLoader::from_scratch(
-        testing_data, testing_size, feature_size, batch_size
+        String::from("testing"), testing_data, testing_size, feature_size, batch_size
     );
 
     let mut boosting = Boosting::new(

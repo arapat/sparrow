@@ -27,6 +27,7 @@ use self::constructor::Constructor;
 
 #[derive(Debug)]
 pub struct DataLoader {
+    name: String,
     filename: String,
     size: usize,
     feature_size: usize,
@@ -57,7 +58,7 @@ pub struct DataLoader {
 
 // TODO: write scores to disk
 impl DataLoader {
-    pub fn new(filename: String, size: usize, feature_size: usize, batch_size: usize,
+    pub fn new(name: String, filename: String, size: usize, feature_size: usize, batch_size: usize,
                base_node: usize, scores: Vec<f32>) -> DataLoader {
         assert!(batch_size <= size);
         let reader = create_bufreader(&filename);
@@ -69,6 +70,7 @@ impl DataLoader {
             filename, size, feature_size, batch_size, base_node
         );
         DataLoader {
+            name: name,
             filename: filename,
             size: size,
             feature_size: feature_size,
@@ -98,14 +100,15 @@ impl DataLoader {
         }
     }
 
-    pub fn from_scratch(filename: String, size: usize, feature_size: usize,
+    pub fn from_scratch(name: String, filename: String, size: usize, feature_size: usize,
                         batch_size: usize) -> DataLoader {
-        DataLoader::new(filename, size, feature_size, batch_size, 0, vec![0.0; size])
+        DataLoader::new(name, filename, size, feature_size, batch_size, 0, vec![0.0; size])
     }
 
-    pub fn from_constructor(&self, constructor: Constructor, base_node: usize) -> DataLoader {
+    pub fn from_constructor(&self, name: String, constructor: Constructor, base_node: usize) -> DataLoader {
         let (filename, scores, size): (String, Vec<f32>, usize) = constructor.get_content();
         let mut new_loader = DataLoader::new(
+            name,
             filename,
             size,
             self.feature_size,
@@ -182,13 +185,13 @@ impl DataLoader {
             self.num_negative = 0;
             self.sum_weights = 0.0;
             self.sum_weight_squared = 0.0;
-            debug!("Loader have reset. ESS is updated: {}", ess);
+            debug!("Loader {} has reset. ESS is updated: {}", self.name, ess);
         }
 
         self.performance.update(self._curr_batch.len());
         let (_, duration, speed) = self.performance.get_performance();
         if duration >= 10.0 {
-            debug!("Loader speed is {}.", speed);
+            debug!("Loader `{}` speed is {}.", self.name, speed);
             self.performance.start();
         }
     }
@@ -273,7 +276,7 @@ impl DataLoader {
                     sum_weights = next_sum_weight;
                 });
         }
-        let ret = self.from_constructor(constructor, trees.len());
+        let ret = self.from_constructor(self.name.clone() + " sample", constructor, trees.len());
         debug!("Sampling finished. Sample size is {}.", ret.get_num_examples());
         ret
     }
