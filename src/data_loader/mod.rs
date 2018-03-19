@@ -12,6 +12,8 @@ use commons::max;
 use commons::get_weight;
 use commons::get_weights;
 use commons::is_positive;
+use commons::get_symmetric_label;
+use commons::TLabel;
 use commons::Example;
 use commons::Model;
 use commons::PerformanceMonitor;
@@ -178,7 +180,8 @@ impl DataLoader {
             tail_remains
         };
         self._curr_batch = if self.format == Format::Text {
-            let batch = read_k_labeled_data(&mut self._reader, batch_size, 0.0, self.feature_size);
+            let batch: Vec<Example> =
+                read_k_labeled_data(&mut self._reader, batch_size, 0 as TLabel, self.feature_size);
             if let Some(ref mut constructor) = self.binary_constructor {
                 batch.iter().for_each(|data| {
                     constructor.append_data(data, 0.0);
@@ -255,7 +258,7 @@ impl DataLoader {
             .iter()
             .zip(self.relative_scores.iter())
             .for_each(|(data, score)| {
-                if is_positive(data.get_label()) {
+                if is_positive(&get_symmetric_label(data)) {
                     num_positive += 1;
                 } else {
                     num_negative += 1;

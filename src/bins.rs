@@ -80,7 +80,7 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize, data_loader: &mu
             mappers.iter_mut()
                    .zip(0..feature_size)
                    .for_each(|(mapper, idx)| {
-                       mapper.update(&features[idx]);
+                       mapper.update(&(features[idx] as f32));
                    });
         });
         remaining_reads -= data.len();

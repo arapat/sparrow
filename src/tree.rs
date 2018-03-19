@@ -100,7 +100,7 @@ impl Tree {
         let mut node: usize = 0;
         let features = data.get_features();
         while let Some(split_feature) = self.split_feature[node] {
-            node = if features[split_feature as usize] <= self.threshold[node] {
+            node = if features[split_feature as usize] as f32 <= self.threshold[node] {
                 self.left_child[node]
             } else {
                 self.right_child[node]

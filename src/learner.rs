@@ -176,7 +176,7 @@ impl Learner {
             (0..self.bins.len()).for_each(|i| {
                 (0..self.bins[i].get_vals().len()).for_each(|j| {
                     let direction =
-                        if feature[i] <= self.bins[i].get_vals()[j] {
+                        if feature[i] as f32 <= self.bins[i].get_vals()[j] {
                             goes_to_left
                         } else {
                             goes_to_right

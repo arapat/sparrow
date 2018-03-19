@@ -23,9 +23,9 @@ fn main() {
     env_logger::init();
 
     let home_dir = std::env::home_dir().unwrap().display().to_string();
-    let training_data = home_dir.clone() + "/Downloads/testing-libsvm.bin";
-    let training_size = 4627840;
-    let testing_data =  home_dir.clone() + "/Downloads/testing-libsvm.bin";
+    let training_data = home_dir.clone() + "/Downloads/splice/training-correct-libsvm.txt";
+    let training_size = 50000000;
+    let testing_data =  home_dir + "/Downloads/splice/testing-correct-libsvm.txt";
     let testing_size = 4627840;
     let feature_size = 564;
     let batch_size = 1000;

@@ -7,14 +7,14 @@ use labeled_data::LabeledData;
 use tree::Tree;
 
 // TODO: use genetic types for reading data
-type _TFeature = f32;
-type _TLabel = f32;
+type _TFeature = u8;
+type _TLabel = u8;
 pub type Example = LabeledData<_TFeature, _TLabel>;
 pub type TLabel = _TLabel;
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
 
-pub type LossFunc = Fn(&Vec<(f32, TLabel)>) -> f32;
+pub type LossFunc = Fn(&Vec<(f32, f32)>) -> f32;
 
 const DELTA: f32  = 0.0001;
 const SHRINK: f32 = 0.8;
@@ -56,7 +56,8 @@ pub fn get_bound(sum_c: &f32, sum_c_squared: &f32) -> Option<f32> {
 
 #[inline]
 pub fn get_symmetric_label(data: &Example) -> f32 {
-    if is_positive(data.get_label()) {
+    let label = *data.get_label() as f32;
+    if is_positive(&label) {
         1.0
     } else {
         -1.0
@@ -90,7 +91,7 @@ pub fn is_zero(a: f32) -> bool {
 }
 
 #[inline]
-pub fn is_positive(label: &TLabel) -> bool {
+pub fn is_positive(label: &f32) -> bool {
     is_zero(label - 1.0)
 }
 
