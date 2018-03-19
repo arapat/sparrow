@@ -9,6 +9,7 @@ use commons::Example;
 use super::io::write_to_binary_file;
 
 
+#[derive(Debug)]
 pub struct Constructor {
     filename: String,
     scores: Vec<f32>,
@@ -44,6 +45,14 @@ impl Constructor {
 
     pub fn get_content(self) -> (String, Vec<f32>, usize, usize) {
         (self.filename, self.scores, self.size, self.bytes_per_example)
+    }
+
+    pub fn get_filename(&self) -> String {
+        self.filename.clone()
+    }
+
+    pub fn get_bytes_per_example(&self) -> usize {
+        self.bytes_per_example.clone()
     }
 }
 

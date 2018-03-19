@@ -86,6 +86,7 @@ impl<'a> Boosting<'a> {
         let mut iteration = 0;
         let timer = PerformanceMonitor::new();
         while num_iterations <= 0 || iteration < num_iterations {
+            self.try_sample();
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
@@ -116,7 +117,6 @@ impl<'a> Boosting<'a> {
                 );
                 iteration += 1;
                 self.sum_gamma += self.learner.get_rho_gamma().powi(2);
-                self.try_sample();
                 self.learner.reset();
                 if self.model.len() % interval == 0 {
                     self._validate();

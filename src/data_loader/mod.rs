@@ -35,6 +35,7 @@ pub struct DataLoader {
     num_batch: usize,
     format: Format,
     bytes_per_example: usize,
+    binary_constructor: Option<Constructor>,
 
     num_positive: usize,
     num_negative: usize,
@@ -81,6 +82,7 @@ impl DataLoader {
             num_batch: num_batch,
             format: format,
             bytes_per_example: bytes_per_example,
+            binary_constructor: None,
 
             num_positive: 0,
             num_negative: 0,
@@ -106,8 +108,10 @@ impl DataLoader {
 
     pub fn from_scratch(name: String, filename: String, size: usize, feature_size: usize,
                         batch_size: usize) -> DataLoader {
-        DataLoader::new(name, filename, size, feature_size, batch_size,
-                        Format::Text, 0, 0, vec![0.0; size])
+        let mut ret = DataLoader::new(name, filename, size, feature_size, batch_size,
+                                      Format::Text, 0, 0, vec![0.0; size]);
+        ret.binary_constructor = Some(Constructor::new(size));
+        ret
     }
 
     pub fn from_constructor(&self, name: String, constructor: Constructor,
@@ -164,32 +168,37 @@ impl DataLoader {
     pub fn fetch_next_batch(&mut self) {
         let mut loader_reset = false;
         self._curr_loc = self._cursor;
-        let batch_size = if (self._cursor + 1) * self.batch_size <= self.size {
+        let batch_size = if (self._cursor + 1) * self.batch_size < self.size {
             self._cursor += 1;
             self.batch_size
         } else {
             loader_reset = true;
             let tail_remains = self.size - self._cursor * self.batch_size;
             self._cursor = 0;
-            if tail_remains > 0 {
-                tail_remains
-            } else {
-                self.set_bufrader();
-                self._cursor += 1;
-                self.batch_size
-            }
+            tail_remains
         };
         self._curr_batch = if self.format == Format::Text {
-            read_k_labeled_data(&mut self._reader, batch_size, 0.0, self.feature_size)
+            let batch = read_k_labeled_data(&mut self._reader, batch_size, 0.0, self.feature_size);
+            if let Some(ref mut constructor) = self.binary_constructor {
+                batch.iter().for_each(|data| {
+                    constructor.append_data(data, 0.0);
+                });
+            }
+            batch
         } else {
             read_k_labeled_data_from_binary_file(&mut self._reader, batch_size, self.bytes_per_example)
         };
-        if batch_size < self.batch_size {
-            self.set_bufrader();
-        }
         self._scores_synced = false;
 
         if loader_reset {
+            // switch to binary
+            if let Some(ref constructor) = self.binary_constructor {
+                self.format = Format::Binary;
+                self.filename = constructor.get_filename();
+                self.bytes_per_example = constructor.get_bytes_per_example();
+                info!("Text-based loader `{}` has been converted to Binary-based.", self.name);
+            }
+            self.binary_constructor = None;
             // update ESS
             let count = self.num_positive + self.num_negative;
             let ess = self.sum_weights.powi(2) / self.sum_weight_squared / (count as f32);
@@ -198,13 +207,15 @@ impl DataLoader {
             self.num_negative = 0;
             self.sum_weights = 0.0;
             self.sum_weight_squared = 0.0;
+            // reset bufreader
+            self.set_bufrader();
             debug!("Loader `{}` has reset. ESS is updated: {}", self.name, ess);
         }
 
         self.performance.update(self._curr_batch.len());
         let (_, duration, speed) = self.performance.get_performance();
         if duration >= 10.0 {
-            debug!("Loader `{}` speed is {}.", self.name, speed);
+            debug!("{:?} loader `{}` speed is {}.", self.format, self.name, speed);
             self.performance.start();
         }
     }
