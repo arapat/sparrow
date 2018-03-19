@@ -2,9 +2,11 @@ extern crate rand;
 
 use std::fs::File;
 use std::io::BufWriter;
-use std::io::Write;
 
 use self::rand::Rng;
+
+use commons::Example;
+use super::io::write_to_binary_file;
 
 
 pub struct Constructor {
@@ -12,6 +14,7 @@ pub struct Constructor {
     scores: Vec<f32>,
     size: usize,
 
+    bytes_per_example: usize,
     _writer: BufWriter<File>
 }
 
@@ -24,18 +27,23 @@ impl Constructor {
             scores: Vec::with_capacity(capacity),
             size: 0,
 
+            bytes_per_example: 0,
             _writer: writer
         }
     }
 
-    pub fn append_data(&mut self, data: &String, score: f32) {
-        self._writer.write(data.as_bytes()).unwrap();
+    pub fn append_data(&mut self, data: &Example, score: f32) {
+        let size = write_to_binary_file(&mut self._writer, data);
+        if self.bytes_per_example > 0 {
+            assert_eq!(self.bytes_per_example, size);
+        }
+        self.bytes_per_example = size;
         self.scores.push(score);
         self.size += 1;
     }
 
-    pub fn get_content(self) -> (String, Vec<f32>, usize) {
-        (self.filename, self.scores, self.size)
+    pub fn get_content(self) -> (String, Vec<f32>, usize, usize) {
+        (self.filename, self.scores, self.size, self.bytes_per_example)
     }
 }
 
@@ -46,7 +54,7 @@ fn gen_filename() -> String {
             .gen_ascii_chars()
             .take(6)
             .collect::<String>();
-    String::from("data-") + random_str.as_str() + ".txt"
+    String::from("data-") + random_str.as_str() + ".bin"
 }
 
 fn create_bufwriter(filename: &String) -> BufWriter<File> {

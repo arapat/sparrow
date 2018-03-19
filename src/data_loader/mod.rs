@@ -1,18 +1,12 @@
 extern crate rand;
-extern crate rayon;
 
+mod io;
 mod constructor;
 
-use self::rayon::prelude::*;
+use self::rand::Rng;
 
 use std::fs::File;
-use std::io::BufRead;
 use std::io::BufReader;
-
-use std::str::FromStr;
-use std::fmt::Debug;
-
-use self::rand::Rng;
 
 use commons::max;
 use commons::get_weight;
@@ -21,9 +15,15 @@ use commons::is_positive;
 use commons::Example;
 use commons::Model;
 use commons::PerformanceMonitor;
-use labeled_data::LabeledData;
 use self::constructor::Constructor;
+use self::io::*;
 
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Format {
+    Binary,
+    Text
+}
 
 #[derive(Debug)]
 pub struct DataLoader {
@@ -33,6 +33,8 @@ pub struct DataLoader {
     feature_size: usize,
     batch_size: usize,
     num_batch: usize,
+    format: Format,
+    bytes_per_example: usize,
 
     num_positive: usize,
     num_negative: usize,
@@ -44,7 +46,6 @@ pub struct DataLoader {
     _curr_loc: usize,
     _cursor: usize,
     _curr_batch: Vec<Example>,
-    _curr_batch_str: Vec<String>,
     _scores_synced: bool,
 
     base_node: usize,
@@ -58,16 +59,18 @@ pub struct DataLoader {
 
 // TODO: write scores to disk
 impl DataLoader {
-    pub fn new(name: String, filename: String, size: usize, feature_size: usize, batch_size: usize,
-               base_node: usize, scores: Vec<f32>) -> DataLoader {
+    fn new(name: String, filename: String, size: usize, feature_size: usize,
+           batch_size: usize, format: Format, bytes_per_example: usize, base_node: usize,
+           scores: Vec<f32>) -> DataLoader {
         assert!(batch_size <= size);
         let reader = create_bufreader(&filename);
         let num_batch = size / batch_size + (size % batch_size as usize);
         let relative_scores = vec![0.0; size];
         debug!(
             "New DataLoader is created for `{}` \
-            (size = {}, feature_size = {}, batch_size = {}, base_node = {})",
-            filename, size, feature_size, batch_size, base_node
+            (size = {}, feature_size = {}, batch_size = {}, base_node = {}, \
+            bytes_per_example = {})",
+            filename, size, feature_size, batch_size, base_node, bytes_per_example
         );
         DataLoader {
             name: name,
@@ -76,6 +79,8 @@ impl DataLoader {
             feature_size: feature_size,
             batch_size: batch_size,
             num_batch: num_batch,
+            format: format,
+            bytes_per_example: bytes_per_example,
 
             num_positive: 0,
             num_negative: 0,
@@ -87,7 +92,6 @@ impl DataLoader {
             _curr_loc: 0,
             _cursor: 0,
             _curr_batch: vec![],
-            _curr_batch_str: vec![],
             _scores_synced: false,
 
             base_node: 0,
@@ -102,17 +106,22 @@ impl DataLoader {
 
     pub fn from_scratch(name: String, filename: String, size: usize, feature_size: usize,
                         batch_size: usize) -> DataLoader {
-        DataLoader::new(name, filename, size, feature_size, batch_size, 0, vec![0.0; size])
+        DataLoader::new(name, filename, size, feature_size, batch_size,
+                        Format::Text, 0, 0, vec![0.0; size])
     }
 
-    pub fn from_constructor(&self, name: String, constructor: Constructor, base_node: usize) -> DataLoader {
-        let (filename, scores, size): (String, Vec<f32>, usize) = constructor.get_content();
+    pub fn from_constructor(&self, name: String, constructor: Constructor,
+                            base_node: usize) -> DataLoader {
+        let (filename, scores, size, bytes_per_example): (String, Vec<f32>, usize, usize) =
+            constructor.get_content();
         let mut new_loader = DataLoader::new(
             name,
             filename,
             size,
             self.feature_size,
             self.batch_size,
+            Format::Binary,
+            bytes_per_example,
             base_node,
             scores
         );
@@ -155,25 +164,29 @@ impl DataLoader {
     pub fn fetch_next_batch(&mut self) {
         let mut loader_reset = false;
         self._curr_loc = self._cursor;
-        let (batch, batch_str) = if (self._cursor + 1) * self.batch_size <= self.size {
+        let batch_size = if (self._cursor + 1) * self.batch_size <= self.size {
             self._cursor += 1;
-            read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
+            self.batch_size
         } else {
             loader_reset = true;
             let tail_remains = self.size - self._cursor * self.batch_size;
             self._cursor = 0;
             if tail_remains > 0 {
-                let ret = read_k_labeled_data(&mut self._reader, tail_remains, 0.0, self.feature_size);
-                self.set_bufrader();
-                ret
+                tail_remains
             } else {
                 self.set_bufrader();
                 self._cursor += 1;
-                read_k_labeled_data(&mut self._reader, self.batch_size, 0.0, self.feature_size)
+                self.batch_size
             }
         };
-        self._curr_batch = batch;
-        self._curr_batch_str = batch_str;
+        self._curr_batch = if self.format == Format::Text {
+            read_k_labeled_data(&mut self._reader, batch_size, 0.0, self.feature_size)
+        } else {
+            read_k_labeled_data_from_binary_file(&mut self._reader, batch_size, self.bytes_per_example)
+        };
+        if batch_size < self.batch_size {
+            self.set_bufrader();
+        }
         self._scores_synced = false;
 
         if loader_reset {
@@ -185,7 +198,7 @@ impl DataLoader {
             self.num_negative = 0;
             self.sum_weights = 0.0;
             self.sum_weight_squared = 0.0;
-            debug!("Loader {} has reset. ESS is updated: {}", self.name, ess);
+            debug!("Loader `{}` has reset. ESS is updated: {}", self.name, ess);
         }
 
         self.performance.update(self._curr_batch.len());
@@ -264,14 +277,14 @@ impl DataLoader {
             let data = self.get_curr_batch();
             self.get_absolute_scores()
                 .iter()
-                .zip(data.iter().zip(self._curr_batch_str.iter()))
-                .for_each(|(score, (data, data_str))| {
+                .zip(data.iter())
+                .for_each(|(score, data)| {
                     let w = get_weight(data, *score);
                     let next_sum_weight = sum_weights + w;
                     let num_copies =
                         (next_sum_weight / interval) as usize - (sum_weights / interval) as usize;
                     if num_copies > 0 {
-                        constructor.append_data(data_str, score * (num_copies as f32));
+                        constructor.append_data(data, score * (num_copies as f32));
                     }
                     sum_weights = next_sum_weight;
                 });
@@ -300,113 +313,5 @@ impl DataLoader {
         // TODO: log max_repeat
         let _max_repeat = max_weight / interval;
         (interval, sample_size + 10)
-    }
-}
-
-
-pub fn create_bufreader(filename: &String) -> BufReader<File> {
-    let f = File::open(filename).unwrap();
-    BufReader::new(f)
-}
-
-pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
-    let mut ret: Vec<String> = vec![String::new(); k];
-    for mut string in &mut ret {
-        reader.read_line(string).unwrap();
-    }
-    ret
-}
-
-pub fn read_k_labeled_data<TFeature, TLabel>(
-            reader: &mut BufReader<File>, k: usize, missing_val: TFeature, size: usize
-        ) -> (Vec<LabeledData<TFeature, TLabel>>, Vec<String>)
-        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
-              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
-    let lines = read_k_lines(reader, k);
-    (parse_libsvm(&lines, missing_val, size), lines)
-}
-
-pub fn parse_libsvm_one_line<TFeature, TLabel>(
-            raw_string: &String, missing_val: TFeature, size: usize
-        ) -> LabeledData<TFeature, TLabel>
-        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
-              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
-    let mut numbers = raw_string.split_whitespace();
-    let label: TLabel = numbers.next().unwrap().parse().unwrap();
-    let mut feature: Vec<TFeature> = vec![missing_val; size];
-    numbers.map(|index_value| {
-        let sep = index_value.find(':').unwrap();
-        (index_value[..sep].parse().unwrap(),
-         index_value[sep+1..].parse().unwrap())
-    }).for_each(|(index, value): (usize, TFeature)| {
-        feature[index] = value;
-    });
-    LabeledData::new(feature, label)
-}
-
-pub fn parse_libsvm<TFeature, TLabel>(raw_strings: &Vec<String>, missing_val: TFeature, size: usize)
-        -> Vec<LabeledData<TFeature, TLabel>>
-        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
-              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
-    raw_strings.par_iter()
-               .map(|s| parse_libsvm_one_line(&s, missing_val.clone(), size))
-               .collect()
-}
-
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_parse_libsvm_one_line() {
-        let raw_string = String::from("0 1:2 3:5 4:10");
-        let label = 0;
-        let feature = vec![0, 2, 0, 5, 10, 0];
-        let labeled_data = LabeledData::new(feature, label);
-        assert_eq!(parse_libsvm_one_line(&raw_string, 0, 6), labeled_data);
-    }
-
-    #[test]
-    fn test_parse_libsvm() {
-        let raw_strings = vec![
-            String::from("0 1:2 3:5 4:10"),
-            String::from("1.2 1:3.0 2:10.0 4:10.0    5:20.0")
-        ];
-        let labeled_data = get_libsvm_answer();
-        assert_eq!(parse_libsvm(&raw_strings, 0.0, 6), labeled_data);
-    }
-
-    #[test]
-    fn test_read_file() {
-        let raw_strings = vec![
-            String::from("0 1:2 3:5 4:10\n"),
-            String::from("1.2 1:3.0 2:10.0 4:10.0    5:20.0\n")
-        ];
-        let mut f = create_bufreader(&get_libsvm_file_path());
-        let from_file = read_k_lines(&mut f, 2);
-        assert_eq!(from_file, raw_strings);
-    }
-
-    #[test]
-    fn test_read_libsvm() {
-        let mut f = create_bufreader(&get_libsvm_file_path());
-        let labeled_data = get_libsvm_answer();
-        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6).0, labeled_data);
-    }
-
-    fn get_libsvm_file_path() -> String {
-        String::from("tests/data/sample_libsvm.txt")
-    }
-
-    fn get_libsvm_answer() -> Vec<LabeledData<f32, f32>> {
-        let label1 = 0.0;
-        let feature1 = vec![0.0, 2.0, 0.0, 5.0, 10.0, 0.0];
-        let label2 = 1.2;
-        let feature2 = vec![0.0, 3.0, 10.0, 0.0, 10.0, 20.0];
-        vec![
-            LabeledData::new(feature1, label1),
-            LabeledData::new(feature2, label2)
-        ]
     }
 }
