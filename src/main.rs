@@ -14,6 +14,7 @@ mod network;
 
 use validator::get_adaboost_loss;
 use validator::get_auprc;
+use data_loader::Format;
 use data_loader::DataLoader;
 use boosting::Boosting;
 use commons::LossFunc;
@@ -22,10 +23,16 @@ use commons::LossFunc;
 fn main() {
     env_logger::init();
 
-    let home_dir = std::env::home_dir().unwrap().display().to_string();
-    let training_data = home_dir.clone() + "/Downloads/splice/training-correct-libsvm.txt";
-    let training_size = 50000000;
-    let testing_data =  home_dir + "/Downloads/splice/testing-correct-libsvm.txt";
+    // let home_dir = std::env::home_dir().unwrap().display().to_string() +
+    //                "/Downloads/splice/";
+    // let training_data = home_dir.clone() + "training-correct-libsvm.txt";
+    // let testing_data =  home_dir + "testing-correct-libsvm.txt";
+    let home_dir = String::from("./bin-data/");
+    // let training_data = home_dir.clone() + "training.bin";
+    // let training_size = 50000000;
+    let training_data = home_dir.clone() + "testing.bin";
+    let training_size = 4627840;
+    let testing_data = home_dir + "testing.bin";
     let testing_size = 4627840;
     let feature_size = 564;
     let batch_size = 1000;
@@ -41,13 +48,15 @@ fn main() {
     ];
     let num_iterations = 0;
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 10;
+    let validate_interval = 1;
 
     let training_loader = DataLoader::from_scratch(
-        String::from("training"), training_data, training_size, feature_size, batch_size
+        String::from("training"), training_data, training_size, feature_size, batch_size,
+        Format::Binary, 573
     );
     let testing_loader = DataLoader::from_scratch(
-        String::from("testing"), testing_data, testing_size, feature_size, batch_size
+        String::from("testing"), testing_data, testing_size, feature_size, batch_size,
+        Format::Binary, 573
     );
 
     let mut boosting = Boosting::new(

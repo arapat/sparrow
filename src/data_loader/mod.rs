@@ -109,10 +109,12 @@ impl DataLoader {
     }
 
     pub fn from_scratch(name: String, filename: String, size: usize, feature_size: usize,
-                        batch_size: usize) -> DataLoader {
+                        batch_size: usize, format: Format, bytes_per_example: usize) -> DataLoader {
         let mut ret = DataLoader::new(name, filename, size, feature_size, batch_size,
-                                      Format::Text, 0, 0, vec![0.0; size]);
-        ret.binary_constructor = Some(Constructor::new(size));
+                                      format, bytes_per_example, 0, vec![0.0; size]);
+        if ret.format == Format::Text {
+            ret.binary_constructor = Some(Constructor::new(size));
+        }
         ret
     }
 
@@ -199,7 +201,9 @@ impl DataLoader {
                 self.format = Format::Binary;
                 self.filename = constructor.get_filename();
                 self.bytes_per_example = constructor.get_bytes_per_example();
-                info!("Text-based loader `{}` has been converted to Binary-based.", self.name);
+                info!("Text-based loader `{}` has been converted to Binary-based. \
+                      Filename: {}, bytes_per_example: {}.",
+                      self.name, constructor.get_filename(), constructor.get_bytes_per_example());
             }
             self.binary_constructor = None;
             // update ESS
