@@ -209,6 +209,8 @@ impl DataLoader {
             // update ESS
             let count = self.num_positive + self.num_negative;
             let ess = self.sum_weights.powi(2) / self.sum_weight_squared / (count as f32);
+            debug!("Loader `{}` will reset. {} positive. {} negative. ESS is updated: {}",
+                   self.name, self.num_positive, self.num_negative, ess);
             self.ess = Some(ess);
             self.num_positive = 0;
             self.num_negative = 0;
@@ -216,7 +218,6 @@ impl DataLoader {
             self.sum_weight_squared = 0.0;
             // reset bufreader
             self.set_bufrader();
-            debug!("Loader `{}` has reset. ESS is updated: {}", self.name, ess);
         }
 
         self.performance.update(self._curr_batch.len());
@@ -301,9 +302,9 @@ impl DataLoader {
                     let next_sum_weight = sum_weights + w;
                     let num_copies =
                         (next_sum_weight / interval) as usize - (sum_weights / interval) as usize;
-                    if num_copies > 0 {
-                        constructor.append_data(data, score * (num_copies as f32));
-                    }
+                    (0..num_copies).for_each(|_| {
+                        constructor.append_data(data, *score);
+                    });
                     sum_weights = next_sum_weight;
                 });
         }

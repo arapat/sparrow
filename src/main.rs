@@ -23,16 +23,23 @@ use commons::LossFunc;
 fn main() {
     env_logger::init();
 
-    // let home_dir = std::env::home_dir().unwrap().display().to_string() +
-    //                "/Downloads/splice/";
-    // let training_data = home_dir.clone() + "training-correct-libsvm.txt";
-    // let testing_data =  home_dir + "testing-correct-libsvm.txt";
-    let home_dir = String::from("./bin-data/");
+    // read from text
+    let home_dir = std::env::home_dir().unwrap().display().to_string() +
+                   "/Downloads/splice/";
+    // let training_data = home_dir.clone() + "training-shuffled.txt";
+    let testing_data =  home_dir.clone() + "testing-shuffled.txt";
+
+    // read from bin
+    // let home_dir = String::from("./bin-data/");
     // let training_data = home_dir.clone() + "training.bin";
+    // let testing_data = home_dir.clone() + "testing.bin";
+
+    // use testing for training
+    let training_data = home_dir + "testing-shuffled.txt";
+    // let training_data = home_dir.clone() + "training.bin";
+
     // let training_size = 50000000;
-    let training_data = home_dir.clone() + "testing.bin";
     let training_size = 4627840;
-    let testing_data = home_dir + "testing.bin";
     let testing_size = 4627840;
     let feature_size = 564;
     let batch_size = 1000;
@@ -52,11 +59,13 @@ fn main() {
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
-        Format::Binary, 573
+        // Format::Binary, 573
+        Format::Text, 573
     );
     let testing_loader = DataLoader::from_scratch(
         String::from("testing"), testing_data, testing_size, feature_size, batch_size,
-        Format::Binary, 573
+        // Format::Binary, 573
+        Format::Text, 573
     );
 
     let mut boosting = Boosting::new(

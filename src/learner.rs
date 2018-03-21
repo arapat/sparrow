@@ -27,12 +27,17 @@ pub struct WeakRule {
     left_predict: f32,
     right_predict: f32,
 
-    martingale: f32,
+    raw_martingale: f32,
+    sum_c: f32,
+    sum_c_squared: f32,
     bound: f32
 }
 
 impl WeakRule {
     pub fn create_tree(&self) -> Tree {
+        debug!("A new tree is being created. Raw martingale: {}. \
+                sum_c_squared: {}. Stopping rule (sum_c): {} > {}",
+               self.raw_martingale, self.sum_c_squared, self.sum_c, self.bound);
         let mut tree = Tree::new(2);
         tree.split(0, self.feature, self.threshold, self.left_predict, self.right_predict);
         tree.release();
@@ -154,7 +159,7 @@ impl Learner {
             let weighted_label = weight * label;
             let w_pos = (label - 2.0 * self.cur_rho_gamma) * weight;
             let w_neg = (-label - 2.0 * self.cur_rho_gamma) * weight;
-            let w_sq = (1.0 + 2.0 * self.cur_rho_gamma).powi(2);
+            let w_sq = ((1.0 + 2.0 * self.cur_rho_gamma) * weight).powi(2);
             // let wp_sq = w_pos.powi(2);
             // let wn_sq = w_neg.powi(2);
             /*
@@ -232,7 +237,9 @@ impl Learner {
                                 left_predict: left_predict,
                                 right_predict: right_predict,
 
-                                martingale: *sum_c,
+                                raw_martingale: self.weak_rules_score[i][j][k],
+                                sum_c: *sum_c,
+                                sum_c_squared: *sum_c_squared,
                                 bound: bound
                             });
                         }
