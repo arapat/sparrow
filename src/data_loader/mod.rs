@@ -67,7 +67,7 @@ impl DataLoader {
            scores: Vec<f32>) -> DataLoader {
         assert!(batch_size <= size);
         let reader = create_bufreader(&filename);
-        let num_batch = size / batch_size + (size % batch_size as usize);
+        let num_batch = size / batch_size + ((size % batch_size > 0) as usize);
         let relative_scores = vec![0.0; size];
         debug!(
             "New DataLoader is created for `{}` \
@@ -306,7 +306,7 @@ impl DataLoader {
                     (0..num_copies).for_each(|_| {
                         constructor.append_data(data, *score);
                     });
-                    sum_weights = next_sum_weight;
+                    sum_weights = next_sum_weight - num_copies as f32 * interval;
                 });
         }
         let ret = self.from_constructor(self.name.clone() + " sample", constructor, trees.len());
@@ -318,21 +318,27 @@ impl DataLoader {
     fn get_estimated_interval_and_size(&mut self, trees: &Model, sample_ratio: f32) -> (f32, usize) {
         let mut sum_weights = 0.0;
         let mut max_weight = 0.0;
+        let mut num_scanned = 0;
         for _ in 0..self.num_batch {
             self.fetch_next_batch();
             self.fetch_scores(trees);
             let data = self.get_curr_batch();
             let scores = self.get_absolute_scores();
             let ws = get_weights(&data, &scores);
+            let mut local_sum: f32 = 0.0;
             ws.iter().for_each(|w| {
-                sum_weights += w;
+                local_sum += w;
                 max_weight = max(max_weight, *w);
             });
+            sum_weights += local_sum;
+            num_scanned += ws.len();
         }
         let sample_size = (sample_ratio * self.size as f32) as usize + 1;
         let interval = sum_weights / (sample_size as f32);
         let max_repeat = max_weight / interval;
-        debug!("Max repeat is estimated to be {}.", max_repeat);
+        debug!("Scanned {} examples. Estimated sum of weights: {}. Estimated interval: {}. \
+                Estimated max weight: {}. Max repeat is estimated to be {}.",
+               num_scanned, sum_weights, interval, max_weight, max_repeat);
         (interval, sample_size + 10)
     }
 }

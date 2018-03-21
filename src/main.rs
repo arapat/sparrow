@@ -31,18 +31,19 @@ fn main() {
 
     // read from bin
     let home_dir = String::from("./bin-data/");
-    // let training_data = home_dir.clone() + "training.bin";
+    let training_data = home_dir.clone() + "training.bin";
     let testing_data = home_dir.clone() + "testing.bin";
 
+    let training_size = 50000000;
+    let testing_size = 4627840;
+
     // use testing for training
+    // let training_size = 4627840;
     // --> Text
     // let training_data = home_dir + "testing-shuffled.txt";
     // --> Binary
-    let training_data = home_dir.clone() + "testing.bin";
+    // let training_data = home_dir.clone() + "testing.bin";
 
-    // let training_size = 50000000;
-    let training_size = 4627840;
-    let testing_size = 4627840;
     let feature_size = 564;
     let batch_size = 1000;
 
@@ -57,7 +58,7 @@ fn main() {
     ];
     let num_iterations = 0;
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 10;
+    let validate_interval = 1;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
@@ -88,7 +89,7 @@ fn main() {
         default_rho_gamma,
         eval_funcs
     );
-    boosting.enable_network(&remote_ips, 8888);
+    // boosting.enable_network(&remote_ips, 8888);
     boosting.training(
         num_iterations,
         max_trials_before_shrink,
