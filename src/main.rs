@@ -1,6 +1,14 @@
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate log;
 extern crate env_logger;
+extern crate bincode;
+extern crate bufstream;
+extern crate ordered_float;
+extern crate rand;
+extern crate rayon;
+extern crate serde_json;
+extern crate time;
+
 
 mod bins;
 mod commons;
@@ -89,7 +97,7 @@ fn main() {
         default_rho_gamma,
         eval_funcs
     );
-    // boosting.enable_network(&remote_ips, 8888);
+    boosting.enable_network(&remote_ips, 8888);
     boosting.training(
         num_iterations,
         max_trials_before_shrink,

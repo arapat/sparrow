@@ -1,6 +1,4 @@
-extern crate rayon;
-
-use self::rayon::prelude::*;
+use rayon::prelude::*;
 
 use commons::Example;
 

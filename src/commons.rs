@@ -1,6 +1,5 @@
-extern crate time;
+use time::PreciseTime;
 
-use self::time::PreciseTime;
 use std::fmt;
 
 use labeled_data::LabeledData;

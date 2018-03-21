@@ -1,7 +1,6 @@
-extern crate bufstream;
-extern crate serde_json;
 
-use self::bufstream::BufStream;
+use bufstream::BufStream;
+use serde_json;
 
 use std::collections::HashSet;
 use std::io::Write;

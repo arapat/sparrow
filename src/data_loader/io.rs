@@ -1,9 +1,6 @@
-extern crate bincode;
-extern crate rayon;
-
-use self::bincode::serialize;
-use self::bincode::deserialize;
-use self::rayon::prelude::*;
+use bincode::serialize;
+use bincode::deserialize;
+use rayon::prelude::*;
 
 use std::str::FromStr;
 use std::fmt::Debug;

@@ -1,9 +1,8 @@
-extern crate rand;
-
 mod io;
 mod constructor;
 
-use self::rand::Rng;
+use rand;
+use rand::Rng;
 
 use std::fs::File;
 use std::io::BufReader;
@@ -17,6 +16,7 @@ use commons::TLabel;
 use commons::Example;
 use commons::Model;
 use commons::PerformanceMonitor;
+
 use self::constructor::Constructor;
 use self::io::*;
 

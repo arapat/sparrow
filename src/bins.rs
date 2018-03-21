@@ -1,7 +1,6 @@
-extern crate ordered_float;
+use ordered_float::NotNaN;
 
 use std::collections::BTreeMap;
-use self::ordered_float::NotNaN;
 
 use data_loader::DataLoader;
 

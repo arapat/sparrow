@@ -1,9 +1,8 @@
-extern crate rand;
+use rand;
+use rand::Rng;
 
 use std::fs::File;
 use std::io::BufWriter;
-
-use self::rand::Rng;
 
 use commons::Example;
 use commons::get_symmetric_label;
