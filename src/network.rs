@@ -3,7 +3,6 @@ extern crate serde_json;
 
 use self::bufstream::BufStream;
 
-use std::str::FromStr;
 use std::collections::HashSet;
 use std::io::Write;
 use std::io::BufRead;
@@ -29,16 +28,26 @@ pub fn start_network(
         model_send: Sender<ModelScore>, model_recv: Receiver<ModelScore>) {
     let (ip_send, ip_recv): (Sender<SocketAddr>, Receiver<SocketAddr>) = mpsc::channel();
     start_sender(port, model_recv, ip_send.clone());
-    start_receivers(port, model_send, ip_recv);
+    start_receiver(port, model_send, ip_recv);
 
     // wait for other computers to be up and ready
     sleep(Duration::from_secs(5));
     init_remote_ips.iter().for_each(|ip| {
-        ip_send.send(SocketAddr::from_str(ip.as_str()).unwrap()).unwrap()
+        let socket_addr: SocketAddr =
+            (ip.clone() + ":" + port.to_string().as_str()).parse().unwrap();
+        ip_send.send(socket_addr).unwrap();
     });
 }
 
-fn start_receivers(port: u16, model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
+fn start_receiver(port: u16, model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
+    spawn(move|| {
+        receivers_listener(port, model_send, remote_ip_recv);
+    });
+}
+
+fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
+                      remote_ip_recv: Receiver<SocketAddr>) {
+    debug!("now entering receivers listener");
     let mut receivers = HashSet::new();
     loop {
         let mut remote_addr = remote_ip_recv.recv().unwrap();
@@ -99,9 +108,10 @@ fn sender_listener(
     // Sender listener is responsible for:
     //     1. Add new incoming stream to sender (via streams RwLock)
     //     2. Send new incoming address to receiver so that it connects to the new machine
-    let mut addr = SocketAddr::from_str("127.0.0.1").unwrap();
-    addr.set_port(port);
-    let listener = TcpListener::bind(addr).unwrap();
+    debug!("now entering sender listener");
+    let local_addr: SocketAddr =
+        (String::from("0.0.0.0:") + port.to_string().as_str()).parse().unwrap();
+    let listener = TcpListener::bind(local_addr).unwrap();
     for stream in listener.incoming() {
         match stream {
             Err(_) => error!("Sender received an error connection."),

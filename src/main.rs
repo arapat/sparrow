@@ -24,19 +24,21 @@ fn main() {
     env_logger::init();
 
     // read from text
-    let home_dir = std::env::home_dir().unwrap().display().to_string() +
-                   "/Downloads/splice/";
+    // let home_dir = std::env::home_dir().unwrap().display().to_string() +
+    //                "/Downloads/splice/";
     // let training_data = home_dir.clone() + "training-shuffled.txt";
-    let testing_data =  home_dir.clone() + "testing-shuffled.txt";
+    // let testing_data =  home_dir.clone() + "testing-shuffled.txt";
 
     // read from bin
-    // let home_dir = String::from("./bin-data/");
-    // let training_data = home_dir.clone() + "training.bin";
-    // let testing_data = home_dir.clone() + "testing.bin";
+    let home_dir = String::from("./bin-data/");
+    let training_data = home_dir.clone() + "training.bin";
+    let testing_data = home_dir.clone() + "testing.bin";
 
     // use testing for training
-    let training_data = home_dir + "testing-shuffled.txt";
-    // let training_data = home_dir.clone() + "training.bin";
+    // --> Text
+    // let training_data = home_dir + "testing-shuffled.txt";
+    // --> Binary
+    let training_data = home_dir.clone() + "testing.bin";
 
     // let training_size = 50000000;
     let training_size = 4627840;
@@ -55,18 +57,26 @@ fn main() {
     ];
     let num_iterations = 0;
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 1;
+    let validate_interval = 10;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
-        // Format::Binary, 573
-        Format::Text, 573
+        Format::Binary, 573
+        // Format::Text, 573
     );
     let testing_loader = DataLoader::from_scratch(
         String::from("testing"), testing_data, testing_size, feature_size, batch_size,
-        // Format::Binary, 573
-        Format::Text, 573
+        Format::Binary, 573
+        // Format::Text, 573
     );
+
+    let remote_ips = vec![
+        String::from("18.232.106.228"),
+        String::from("34.207.76.228"),
+        String::from("54.224.67.100"),
+        String::from("34.229.241.77"),
+        String::from("34.235.119.198")
+    ];
 
     let mut boosting = Boosting::new(
         training_loader,
@@ -78,6 +88,7 @@ fn main() {
         default_rho_gamma,
         eval_funcs
     );
+    boosting.enable_network(&remote_ips, 8888);
     boosting.training(
         num_iterations,
         max_trials_before_shrink,

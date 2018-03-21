@@ -120,9 +120,10 @@ impl DataLoader {
 
     pub fn from_constructor(&self, name: String, constructor: Constructor,
                             base_node: usize) -> DataLoader {
-        let (filename, scores, size, bytes_per_example): (String, Vec<f32>, usize, usize) =
+        let (filename, mut scores, size, bytes_per_example): (String, Vec<f32>, usize, usize) =
             constructor.get_content();
-        let mut new_loader = DataLoader::new(
+        scores.shrink_to_fit();
+        DataLoader::new(
             name,
             filename,
             size,
@@ -132,9 +133,7 @@ impl DataLoader {
             bytes_per_example,
             base_node,
             scores
-        );
-        new_loader.scores.shrink_to_fit();
-        new_loader
+        )
     }
 
     pub fn get_feature_size(&self) -> usize {
@@ -290,6 +289,7 @@ impl DataLoader {
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
         let mut constructor = Constructor::new(size);
+        let mut max_repeat = 0;
         for _ in 0..self.num_batch {
             self.fetch_next_batch();
             self.fetch_scores(trees);
@@ -302,6 +302,7 @@ impl DataLoader {
                     let next_sum_weight = sum_weights + w;
                     let num_copies =
                         (next_sum_weight / interval) as usize - (sum_weights / interval) as usize;
+                    max_repeat = max(max_repeat, num_copies);
                     (0..num_copies).for_each(|_| {
                         constructor.append_data(data, *score);
                     });
@@ -309,7 +310,8 @@ impl DataLoader {
                 });
         }
         let ret = self.from_constructor(self.name.clone() + " sample", constructor, trees.len());
-        debug!("Sampling finished. Sample size is {}.", ret.get_num_examples());
+        debug!("Sampling finished. Sample size is {}. Max repeat is {}.",
+               ret.get_num_examples(), max_repeat);
         ret
     }
 
@@ -329,8 +331,8 @@ impl DataLoader {
         }
         let sample_size = (sample_ratio * self.size as f32) as usize + 1;
         let interval = sum_weights / (sample_size as f32);
-        // TODO: log max_repeat
-        let _max_repeat = max_weight / interval;
+        let max_repeat = max_weight / interval;
+        debug!("Max repeat is estimated to be {}.", max_repeat);
         (interval, sample_size + 10)
     }
 }

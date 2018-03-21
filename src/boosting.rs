@@ -129,7 +129,9 @@ impl<'a> Boosting<'a> {
     }
 
     fn handle_network(&mut self) {
+        debug!("Checking network for a better model.");
         if self.receiver.is_some() {
+            debug!("Processing models received from the network");
             // handle receiving
             let recv = self.receiver.as_ref().unwrap();
             let mut best_model = None;
@@ -142,9 +144,16 @@ impl<'a> Boosting<'a> {
                 }
             }
             if max_score > self.sum_gamma {
+                let old_model_size = self.model.len();
                 self.model = best_model.unwrap();
                 self.sum_gamma = max_score;
                 self.prev_sum_gamma = self.sum_gamma;
+                info!("A better model is received from the network: {} > {}. \
+                      Local model size: {}. Remote model size: {}. \
+                      Local model is replaced.",
+                      max_score, self.sum_gamma, old_model_size, self.model.len());
+            } else {
+                debug!("Remote models are not better. Skipped.");
             }
 
             // handle sending
@@ -152,6 +161,8 @@ impl<'a> Boosting<'a> {
                 self.sender.as_ref().unwrap().send((self.model.clone(), self.sum_gamma)).unwrap();
                 self.prev_sum_gamma = self.sum_gamma;
             }
+        } else {
+            debug!("No new model received from the network");
         }
     }
 

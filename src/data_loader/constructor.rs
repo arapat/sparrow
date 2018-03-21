@@ -6,6 +6,8 @@ use std::io::BufWriter;
 use self::rand::Rng;
 
 use commons::Example;
+use commons::get_symmetric_label;
+use commons::is_positive;
 use super::io::write_to_binary_file;
 
 
@@ -16,7 +18,10 @@ pub struct Constructor {
     size: usize,
 
     bytes_per_example: usize,
-    _writer: BufWriter<File>
+    _writer: BufWriter<File>,
+
+    num_positive: usize,
+    num_negative: usize
 }
 
 impl Constructor {
@@ -29,7 +34,10 @@ impl Constructor {
             size: 0,
 
             bytes_per_example: 0,
-            _writer: writer
+            _writer: writer,
+
+            num_positive: 0,
+            num_negative: 0
         }
     }
 
@@ -38,12 +46,19 @@ impl Constructor {
         if self.bytes_per_example > 0 {
             assert_eq!(self.bytes_per_example, size);
         }
+        if is_positive(&get_symmetric_label(data)) {
+            self.num_positive += 1;
+        } else {
+            self.num_negative += 1;
+        }
         self.bytes_per_example = size;
         self.scores.push(score);
         self.size += 1;
     }
 
     pub fn get_content(self) -> (String, Vec<f32>, usize, usize) {
+        debug!("A constructor is being consumed, which contains {} positive, {} negative.",
+               self.num_positive, self.num_negative);
         (self.filename, self.scores, self.size, self.bytes_per_example)
     }
 

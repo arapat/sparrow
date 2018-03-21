@@ -68,7 +68,7 @@ pub fn get_symmetric_label(data: &Example) -> f32 {
 // Computational functions
 
 #[inline]
-pub fn max(a: f32, b: f32) -> f32 {
+pub fn max<T>(a: T, b: T) -> T where T: PartialOrd {
     if a > b {
         a
     } else {
