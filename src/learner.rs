@@ -46,10 +46,7 @@ impl WeakRule {
 }
 
 pub struct Learner {
-    feature_size: usize,
     bins: Vec<Bins>,
-    num_weak_rules: usize,
-
     default_rho_gamma: f32,
     cur_rho_gamma: f32,
 
@@ -66,16 +63,12 @@ pub struct Learner {
 }
 
 impl Learner {
-    pub fn new(feature_size: usize, default_rho_gamma: f32, bins: Vec<Bins>) -> Learner {
-        let num_weak_rules = bins.iter().map(|bin| bin.len()).sum();
+    pub fn new(default_rho_gamma: f32, bins: Vec<Bins>) -> Learner {
         let b1 = get_score_board(&bins);
         let b2 = get_score_board(&bins);
         let b3 = get_score_board(&bins);
         Learner {
-            feature_size: feature_size,
             bins: bins,
-            num_weak_rules: num_weak_rules,
-
             default_rho_gamma: default_rho_gamma,
             cur_rho_gamma: default_rho_gamma,
 
@@ -104,14 +97,6 @@ impl Learner {
 
     pub fn get_count(&self) -> usize {
         self.count
-    }
-
-    pub fn get_ess(&self) -> f32 {
-        if self.count <= 0 {
-            1.0
-        } else {
-            self.sum_weights.powi(2) / self.sum_weights_squared / (self.count as f32)
-        }
     }
 
     pub fn get_rho_gamma(&self) -> f32 {

@@ -123,7 +123,7 @@ mod tests {
     fn test_read_libsvm() {
         let mut f = create_bufreader(&get_libsvm_file_path());
         let labeled_data = get_libsvm_answer();
-        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6).0, labeled_data);
+        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6), labeled_data);
     }
 
     fn get_libsvm_file_path() -> String {

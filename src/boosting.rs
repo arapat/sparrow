@@ -46,7 +46,7 @@ impl<'a> Boosting<'a> {
                 eval_funcs: Vec<&'a LossFunc>
             ) -> Boosting<'a> {
         let bins = create_bins(max_sample_size, max_bin_size, &mut training_loader);
-        let learner = Learner::new(training_loader.get_feature_size(), default_rho_gamma, bins);
+        let learner = Learner::new(default_rho_gamma, bins);
         let mut boosting = Boosting {
             training_loader_stack: vec![training_loader],
             testing_loader: testing_loader,

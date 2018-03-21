@@ -31,7 +31,7 @@ fn main() {
 
     // read from bin
     let home_dir = String::from("./bin-data/");
-    let training_data = home_dir.clone() + "training.bin";
+    // let training_data = home_dir.clone() + "training.bin";
     let testing_data = home_dir.clone() + "testing.bin";
 
     // use testing for training

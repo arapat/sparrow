@@ -31,6 +31,8 @@ pub fn start_network(
     start_receiver(port, model_send, ip_recv);
 
     // wait for other computers to be up and ready
+    // TODO: waiting is not necessary if receive listener can handle
+    // the connection refused exception
     sleep(Duration::from_secs(5));
     init_remote_ips.iter().for_each(|ip| {
         let socket_addr: SocketAddr =

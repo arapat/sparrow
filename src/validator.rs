@@ -39,6 +39,7 @@ pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
     loss / (scores_labels.len() as f32)
 }
 
+#[allow(dead_code)]
 pub fn get_error_rate(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let error: usize = scores_labels.iter()
                                     .map(|&(score, label)| {
@@ -51,6 +52,7 @@ pub fn get_error_rate(scores_labels: &Vec<(f32, f32)>) -> f32 {
     (error as f32) / (scores_labels.len() as f32)
 }
 
+#[allow(dead_code)]
 pub fn get_auprc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     let (fps, tps, _) = get_fps_tps(sorted_scores_labels);
 
@@ -67,6 +69,7 @@ pub fn get_auprc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     area_first_seg + get_auc(&mut points, true)
 }
 
+#[allow(dead_code)]
 pub fn get_auroc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     let (fps, tps, _) = get_fps_tps(sorted_scores_labels);
 
