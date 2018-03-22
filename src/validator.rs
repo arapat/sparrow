@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 
 use data_loader::DataLoader;
 use commons::Model;
@@ -32,7 +33,7 @@ pub fn validate(
 }
 
 pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
-    let loss: f32 = scores_labels.iter()
+    let loss: f32 = scores_labels.par_iter()
                                  // .map(|&(score, label)| min(1.0, (-score * label).exp()))
                                  .map(|&(score, label)| (-score * label).exp())
                                  .sum();
@@ -41,7 +42,7 @@ pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
 
 #[allow(dead_code)]
 pub fn get_error_rate(scores_labels: &Vec<(f32, f32)>) -> f32 {
-    let error: usize = scores_labels.iter()
+    let error: usize = scores_labels.par_iter()
                                     .map(|&(score, label)| {
                                         if score * label <= 0.0 {
                                             1
@@ -57,15 +58,17 @@ pub fn get_auprc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     let (fps, tps, _) = get_fps_tps(sorted_scores_labels);
 
     let num_positive = tps[tps.len() - 1] as f32;
-    let precision: Vec<f32> = tps.iter()
-                                 .zip(fps.iter())
+    let precision: Vec<f32> = tps.par_iter()
+                                 .zip(fps.par_iter())
                                  .map(|(tp, fp)| (*tp as f32) / ((tp + fp) as f32))
                                  .collect();
-    let recall: Vec<f32> = tps.iter()
+    let recall: Vec<f32> = tps.par_iter()
                               .map(|tp| (*tp as f32) / num_positive)
                               .collect();
     let area_first_seg = 2.0 * (precision[0] as f32) * (recall[0] as f32);
-    let mut points: Vec<(f32, f32)> = recall.into_iter().zip(precision.into_iter()).collect();
+    let mut points: Vec<(f32, f32)> = recall.into_iter()
+                                            .zip(precision.into_iter())
+                                            .collect();
     area_first_seg + get_auc(&mut points, true)
 }
 
@@ -74,16 +77,18 @@ pub fn get_auroc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     let (fps, tps, _) = get_fps_tps(sorted_scores_labels);
 
     let num_fp = fps[fps.len() - 1] as f32;
-    let fpr: Vec<f32> = fps.into_iter()
+    let fpr: Vec<f32> = fps.into_par_iter()
                            .map(|a| (a as f32) / num_fp)
                            .collect();
     let num_tp = tps[tps.len() - 1] as f32;
-    let tpr: Vec<f32> = tps.into_iter()
+    let tpr: Vec<f32> = tps.into_par_iter()
                            .map(|a| (a as f32) / num_tp)
                            .collect();
 
     let area_first_seg = fpr[0] * tpr[0] / 2.0;
-    let mut points: Vec<(f32, f32)> = fpr.into_iter().zip(tpr.into_iter()).collect();
+    let mut points: Vec<(f32, f32)> = fpr.into_iter()
+                                         .zip(tpr.into_iter())
+                                         .collect();
     area_first_seg + get_auc(&mut points, true)
 }
 

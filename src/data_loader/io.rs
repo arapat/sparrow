@@ -40,10 +40,13 @@ pub fn read_k_labeled_data<TFeature, TLabel>(
 
 pub fn read_k_labeled_data_from_binary_file(
         reader: &mut BufReader<File>, k: usize, data_size: usize) -> Vec<Example> {
-    let mut buf: Vec<u8> = vec![0; data_size];
-    (0..k).map(|_| {
+    let data: Vec<Vec<u8>> = (0..k).map(|_| {
+        let mut buf: Vec<u8> = vec![0; data_size];
         reader.read_exact(&mut buf[..]).unwrap();
-        deserialize(&mut buf[..]).unwrap()
+        buf
+    }).collect();
+    data.par_iter().map(|buf| {
+        deserialize(&buf[..]).unwrap()
     }).collect()
 }
 

@@ -136,6 +136,7 @@ impl<'a> Boosting<'a> {
             let recv = self.receiver.as_ref().unwrap();
             let mut best_model = None;
             let mut max_score = 0.0;
+            // process all models received so far
             while let Some(model_score) = recv.try_iter().next() {
                 let (new_model, sum_gamma) = model_score;
                 if best_model.is_none() || sum_gamma > max_score {

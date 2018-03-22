@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use time::PreciseTime;
 
 use std::fmt;
@@ -30,8 +31,8 @@ pub fn get_weight(data: &Example, score: f32) -> f32 {
 }
 
 pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
-    data.iter()
-        .zip(scores.iter())
+    data.par_iter()
+        .zip(scores.par_iter())
         .map(|(d, s)| get_weight(&d, *s))
         .collect()
 }
@@ -76,7 +77,7 @@ pub fn max<T>(a: T, b: T) -> T where T: PartialOrd {
 }
 
 #[inline]
-pub fn min(a: f32, b: f32) -> f32 {
+pub fn min<T>(a: T, b: T) -> T where T: PartialOrd {
     if a > b {
         b
     } else {
