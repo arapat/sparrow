@@ -1,3 +1,5 @@
+use rayon::prelude::*;
+
 use bins::Bins;
 use tree::Tree;
 use commons::Example;
@@ -131,65 +133,84 @@ impl Learner {
     }
 
     pub fn update(&mut self, data: &Vec<Example>, weights: &Vec<f32>) {
-        // update stats
+        // update global stats
+        let (sum_w, sum_w_squared) =
+            weights.par_iter()
+                   .cloned()
+                   .map(|w| (w, w * w))
+                   .reduce(|| (0.0, 0.0), |a, b| (a.0 + b.0, a.1 + b.1));
+        self.sum_weights += sum_w;
+        self.sum_weights_squared += sum_w_squared;
         self.count += data.len();
-        data.iter().zip(weights.iter()).for_each(|(example, weight)| {
-            // accumulate global stats
-            self.sum_weights += weight;
-            self.sum_weights_squared += weight * weight;
 
-            // accumulate stats for each rule
-            let label = get_symmetric_label(example);
-            let feature = example.get_features();
-            let weighted_label = weight * label;
-            let w_pos = (label - 2.0 * self.cur_rho_gamma) * weight;
-            let w_neg = (-label - 2.0 * self.cur_rho_gamma) * weight;
-            let w_sq = ((1.0 + 2.0 * self.cur_rho_gamma) * weight).powi(2);
-            // let wp_sq = w_pos.powi(2);
-            // let wn_sq = w_neg.powi(2);
-            /*
-                1. Left +1, Right +1;
-                2. Left +1, Right -1;
-                3. Left -1, Right +1;
-                4. Left -1, Right -1.
-            */
-            let goes_to_left: TupleTuple3 = (
-                (weighted_label, weighted_label, -weighted_label, -weighted_label),
-                (w_pos, w_pos, w_neg, w_neg),
-                (w_sq, w_sq, w_sq, w_sq)
-            );
-            let goes_to_right: TupleTuple3 = (
-                (weighted_label, -weighted_label, weighted_label, -weighted_label),
-                (w_pos, w_neg, w_pos, w_neg),
-                (w_sq, w_sq, w_sq, w_sq)
-            );
-            (0..self.bins.len()).for_each(|i| {
-                (0..self.bins[i].get_vals().len()).for_each(|j| {
-                    let direction =
-                        if feature[i] as f32 <= self.bins[i].get_vals()[j] {
-                            goes_to_left
-                        } else {
-                            goes_to_right
-                        };
-                    self.weak_rules_score[i][j][0] += (direction.0).0;
-                    self.weak_rules_score[i][j][1] += (direction.0).1;
-                    self.weak_rules_score[i][j][2] += (direction.0).2;
-                    self.weak_rules_score[i][j][3] += (direction.0).3;
-
-                    self.sum_c[i][j][0]            += (direction.1).0;
-                    self.sum_c[i][j][1]            += (direction.1).1;
-                    self.sum_c[i][j][2]            += (direction.1).2;
-                    self.sum_c[i][j][3]            += (direction.1).3;
-
-                    self.sum_c_squared[i][j][0]    += (direction.2).0;
-                    self.sum_c_squared[i][j][1]    += (direction.2).1;
-                    self.sum_c_squared[i][j][2]    += (direction.2).2;
-                    self.sum_c_squared[i][j][3]    += (direction.2).3;
-                });
-            });
-        });
+        // update each weak rule
+        let gamma = self.cur_rho_gamma;
+        self.update_weak_rules(
+            data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
+                // accumulate stats for each rule
+                let label = get_symmetric_label(example);
+                let weighted_label = weight * label;
+                let w_pos = (label - 2.0 * gamma) * weight;
+                let w_neg = (-label - 2.0 * gamma) * weight;
+                let w_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                /*
+                    1. Left +1, Right +1;
+                    2. Left +1, Right -1;
+                    3. Left -1, Right +1;
+                    4. Left -1, Right -1.
+                */
+                let goes_to_left: TupleTuple3 = (
+                    (weighted_label, weighted_label, -weighted_label, -weighted_label),
+                    (w_pos, w_pos, w_neg, w_neg),
+                    (w_sq, w_sq, w_sq, w_sq)
+                );
+                let goes_to_right: TupleTuple3 = (
+                    (weighted_label, -weighted_label, weighted_label, -weighted_label),
+                    (w_pos, w_neg, w_pos, w_neg),
+                    (w_sq, w_sq, w_sq, w_sq)
+                );
+                (example, goes_to_left, goes_to_right)
+            }).collect()
+        );
 
         self.outdated = true;
+    }
+
+    fn update_weak_rules(&mut self, examples: Vec<(&Example, TupleTuple3, TupleTuple3)>) {
+        self.bins.par_iter().zip(
+            self.weak_rules_score.par_iter_mut().zip(
+                self.sum_c.par_iter_mut().zip(
+                    self.sum_c_squared.par_iter_mut()
+                )
+            )
+        ).enumerate().for_each(
+            |(i, (bin, (weak_rules_score, (sum_c, sum_c_squared))))| {
+                examples.iter().for_each(|&(example, goes_to_left, goes_to_right)| {
+                    let feature_val = example.get_features()[i] as f32;
+                    bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
+                        let direction =
+                            if feature_val <= *threshold {
+                                goes_to_left
+                            } else {
+                                goes_to_right
+                            };
+                        weak_rules_score[j][0] += (direction.0).0;
+                        weak_rules_score[j][1] += (direction.0).1;
+                        weak_rules_score[j][2] += (direction.0).2;
+                        weak_rules_score[j][3] += (direction.0).3;
+
+                        sum_c[j][0]            += (direction.1).0;
+                        sum_c[j][1]            += (direction.1).1;
+                        sum_c[j][2]            += (direction.1).2;
+                        sum_c[j][3]            += (direction.1).3;
+
+                        sum_c_squared[j][0]    += (direction.2).0;
+                        sum_c_squared[j][1]    += (direction.2).1;
+                        sum_c_squared[j][2]    += (direction.2).2;
+                        sum_c_squared[j][3]    += (direction.2).3;
+                    });
+                });
+        });
     }
 
     pub fn get_new_weak_rule(&mut self) -> &Option<WeakRule> {
@@ -201,37 +222,57 @@ impl Learner {
     }
 
     fn set_valid_weak_rule(&mut self) {
-        self.valid_weak_rule = None;
-        (0..self.bins.len()).for_each(|i| {
-            (0..self.bins[i].get_vals().len()).for_each(|j| {
-                (0..4).for_each(|k| {
-                    let sum_c = &self.sum_c[i][j][k];
-                    let sum_c_squared = &self.sum_c_squared[i][j][k];
-                    if let Some(bound) = get_bound(sum_c, sum_c_squared) {
-                        if *sum_c > bound {
-                            let (left_predict, right_predict) = get_prediction(k, self.cur_rho_gamma);
-                            let threshold = self.bins[i].get_vals()[j];
-                            // debug!("Weak rule is detected. sum_c={:?}, sum_c_sq={:?}, \
-                            //         bound={}, advantage={}. feature={}, threshold={}, type={}.",
-                            //        self.sum_c[i][j], self.sum_c_squared[i][j], bound,
-                            //        self.cur_rho_gamma, i, threshold, k);
+        let gamma = self.cur_rho_gamma;
+        let ret =
+            self.bins.par_iter().zip(
+                self.weak_rules_score.par_iter().zip(
+                    self.sum_c.par_iter().zip(
+                        self.sum_c_squared.par_iter()
+                    )
+                )
+            ).enumerate().map(
+                |(i, (bin, (weak_rules_score, (sum_c, sum_c_squared))))| {
+                    let mut ret = None;
+                    let cur_bin = bin.get_vals();
+                    for j in 0..cur_bin.len() {
+                        let threshold = cur_bin[j];
+                        for k in 0..4 {
+                            let _sum_c = sum_c[j][k];
+                            let _sum_c_squared = sum_c_squared[j][k];
+                            let _score = weak_rules_score[j][k];
+                            if let Some(bound) = get_bound(&_sum_c, &_sum_c_squared) {
+                                if _sum_c > bound {
+                                    let (left_predict, right_predict) = get_prediction(k, gamma);
+                                    ret = Some(WeakRule {
+                                        feature: i,
+                                        threshold: threshold,
+                                        left_predict: left_predict,
+                                        right_predict: right_predict,
 
-                            self.valid_weak_rule = Some(WeakRule {
-                                feature: i,
-                                threshold: threshold,
-                                left_predict: left_predict,
-                                right_predict: right_predict,
-
-                                raw_martingale: self.weak_rules_score[i][j][k],
-                                sum_c: *sum_c,
-                                sum_c_squared: *sum_c_squared,
-                                bound: bound
-                            });
+                                        raw_martingale: _score,
+                                        sum_c: _sum_c,
+                                        sum_c_squared: _sum_c_squared,
+                                        bound: bound
+                                    });
+                                    break;
+                                }
+                            }
+                        }
+                        if ret.is_some() {
+                            break;
                         }
                     }
-                });
-            });
-        });
+                    ret
+                }
+            ).find_any(|r| r.is_some());
+        match ret {
+            Some(valid_weak_rule) => {
+                self.valid_weak_rule = valid_weak_rule;
+            },
+            None                  => {
+                self.valid_weak_rule = None;
+            }
+        }
     }
 }
 
@@ -242,7 +283,7 @@ fn get_score_board(bins: &Vec<Bins>) -> ScoreBoard {
 }
 
 fn reset_score_board(score_board: &mut ScoreBoard) {
-    score_board.iter_mut().for_each(|a| {
+    score_board.par_iter_mut().for_each(|a| {
         a.iter_mut().for_each(|b| {
             b.iter_mut().for_each(|x| {
                 *x = 0.0;
