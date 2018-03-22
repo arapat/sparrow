@@ -1,19 +1,24 @@
 extern crate serde_json;
 
+use rayon::prelude::*;
+
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 
 use data_loader::DataLoader;
 use learner::Learner;
-use network::start_network;
+use tree::Tree;
 use commons::Model;
 use commons::LossFunc;
 use commons::PerformanceMonitor;
 use commons::ModelScore;
 
-use commons::get_weights;
 use bins::create_bins;
+use commons::get_weights;
+use commons::get_symmetric_label;
+use commons::is_positive;
+use network::start_network;
 use validator::validate;
 
 
@@ -47,6 +52,12 @@ impl<'a> Boosting<'a> {
             ) -> Boosting<'a> {
         let bins = create_bins(max_sample_size, max_bin_size, &mut training_loader);
         let learner = Learner::new(default_rho_gamma, bins);
+
+        // add root node for balancing labels
+        let (base_tree, gamma) = get_base_tree(max_sample_size, &mut training_loader);
+        let gamma_squared = gamma.powi(2);
+        let model = vec![base_tree];
+
         let mut boosting = Boosting {
             training_loader_stack: vec![training_loader],
             testing_loader: testing_loader,
@@ -56,16 +67,17 @@ impl<'a> Boosting<'a> {
             ess_threshold: ess_threshold,
 
             learner: learner,
-            model: vec![],
+            model: model,
 
             sender: None,
             receiver: None,
-            sum_gamma: 0.0,
-            prev_sum_gamma: 0.0
+            sum_gamma: gamma_squared.clone(),
+            prev_sum_gamma: gamma_squared
         };
         boosting.sample();
         boosting
     }
+
 
     pub fn enable_network(&mut self, remote_ips: &Vec<String>, port: u16) {
         let (local_send, local_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
@@ -103,8 +115,9 @@ impl<'a> Boosting<'a> {
 
             let found_new_rule =
                 if let &Some(ref weak_rule) = self.learner.get_new_weak_rule() {
-                    let tree = weak_rule.create_tree();
-                    self.model.push(tree);
+                    self.model.push(
+                        weak_rule.create_tree()
+                    );
                     true
                 } else {
                     false
@@ -194,4 +207,32 @@ impl<'a> Boosting<'a> {
         info!("Eval funcs: {}", output.join(", "));
         debug!("Validation is completed.");
     }
+}
+
+
+fn get_base_tree(max_sample_size: usize, data_loader: &mut DataLoader) -> (Tree, f32) {
+    let mut remaining_reads = max_sample_size;
+    let mut n_pos = 0;
+    let mut n_neg = 0;
+    while remaining_reads > 0 {
+        data_loader.fetch_next_batch();
+        let data = data_loader.get_curr_batch();
+        let (_p, _n) = data.par_iter().map(|example| {
+            if is_positive(&get_symmetric_label(example)) {
+                (1, 0)
+            } else {
+                (0, 1)
+            }
+        }).reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
+        n_pos += _p;
+        n_neg += _n;
+        remaining_reads -= _p + _n;
+    }
+
+    let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
+    let mut tree = Tree::new(2);
+    tree.split(0, 0, 0.0, prediction, prediction);
+    tree.release();
+
+    (tree, (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs())
 }
