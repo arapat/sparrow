@@ -142,6 +142,7 @@ impl<'a> Boosting<'a> {
             let (since_last_check, speed) = timer.get_performance();
             if since_last_check >= 10 {
                 debug!("Training speed is {} examples/second.", speed);
+                timer.reset_last_check();
             }
         }
         info!("Model = {}", serde_json::to_string(&self.model).unwrap());

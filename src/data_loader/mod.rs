@@ -228,6 +228,7 @@ impl DataLoader {
         let (since_last_check, speed) = self.load_performance.get_performance();
         if since_last_check >= 10 {
             debug!("{:?} loader `{}` loading speed is {}.", self.format, self.name, speed);
+            self.load_performance.reset_last_check();
         }
     }
 
@@ -262,6 +263,7 @@ impl DataLoader {
         let (since_last_check, speed) = self.scores_performance.get_performance();
         if since_last_check >= 10 {
             debug!("{:?} loader `{}` fetching scores speed is {}.", self.format, self.name, speed);
+            self.scores_performance.reset_last_check();
         }
     }
 
