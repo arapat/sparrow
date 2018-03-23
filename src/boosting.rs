@@ -96,10 +96,16 @@ impl<'a> Boosting<'a> {
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut iteration = 0;
-        let mut timer = PerformanceMonitor::new();
-        timer.start();
+        let mut tree_timer = PerformanceMonitor::new();
+        let mut global_timer = PerformanceMonitor::new();
+        let mut learner_timer = PerformanceMonitor::new();
+        tree_timer.start();
+        global_timer.start();
         while num_iterations <= 0 || iteration < num_iterations {
-            self.try_sample();
+            if self.try_sample() {
+                global_timer.reset();
+                global_timer.start();
+            }
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
@@ -111,8 +117,12 @@ impl<'a> Boosting<'a> {
                 let data = training_loader.get_curr_batch();
                 let scores = training_loader.get_relative_scores();
                 let weights = get_weights(data, scores);
+                learner_timer.resume();
                 self.learner.update(data, &weights);
-                timer.update(data.len());
+
+                global_timer.update(data.len());
+                learner_timer.update(data.len());
+                learner_timer.pause();
             }
 
             let found_new_rule =
@@ -127,22 +137,24 @@ impl<'a> Boosting<'a> {
             if found_new_rule {
                 info!(
                     "Clock {}. Tree {} is added: {:?}. Scanned {} examples. Advantage is {}.",
-                    timer.get_duration(), iteration, self.model[iteration as usize],
+                    tree_timer.get_duration(), iteration, self.model[iteration as usize],
                     self.learner.get_count(), self.learner.get_rho_gamma()
                 );
                 iteration += 1;
                 self.sum_gamma += self.learner.get_rho_gamma().powi(2);
                 self.learner.reset();
-                if self.model.len() % interval == 0 {
+                if interval > 0 && self.model.len() % interval == 0 {
                     self._validate();
                 }
             }
 
             self.handle_network();
-            let (since_last_check, speed) = timer.get_performance();
+            let (since_last_check, speed) = global_timer.get_performance();
             if since_last_check >= 10 {
-                debug!("Training speed is {} examples/second.", speed);
-                timer.reset_last_check();
+                debug!("Overall training speed is {} examples/second.", speed);
+                debug!("Learner speed is {} examples/second.", learner_timer.get_performance().1);
+                global_timer.reset_last_check();
+                learner_timer.reset_last_check();
             }
         }
         info!("Model = {}", serde_json::to_string(&self.model).unwrap());
@@ -187,7 +199,7 @@ impl<'a> Boosting<'a> {
         }
     }
 
-    fn try_sample(&mut self) {
+    fn try_sample(&mut self) -> bool {
         let ess_option = self.training_loader_stack[1].get_ess();
         if let Some(ess) = ess_option {
             if ess < self.ess_threshold {
@@ -196,8 +208,10 @@ impl<'a> Boosting<'a> {
                 self.training_loader_stack.pop();
                 self.sample();
                 self.learner.reset_all();
+                return true;
             }
         }
+        false
     }
 
     fn sample(&mut self) {

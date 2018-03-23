@@ -128,6 +128,13 @@ impl PerformanceMonitor {
         }
     }
 
+    pub fn reset(&mut self) {
+        self.duration = 0;
+        self.counter = 0;
+        self.status = PerformanceMonitorStatus::PAUSE;
+        self.last_check = PreciseTime::now();
+    }
+
     pub fn start(&mut self) {
         self.resume();
     }
