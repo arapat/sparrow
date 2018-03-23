@@ -229,10 +229,12 @@ fn get_base_tree(max_sample_size: usize, data_loader: &mut DataLoader) -> (Tree,
         remaining_reads -= _p + _n;
     }
 
+    let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();
     let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
     let mut tree = Tree::new(2);
     tree.split(0, 0, 0.0, prediction, prediction);
     tree.release();
 
-    (tree, (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs())
+    debug!("Root tree is being added. Advantage is {}", gamma);
+    (tree, gamma)
 }

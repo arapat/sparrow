@@ -35,8 +35,12 @@ pub fn start_network(
     sleep(Duration::from_secs(5));
     init_remote_ips.iter().for_each(|ip| {
         let socket_addr: SocketAddr =
-            (ip.clone() + ":" + port.to_string().as_str()).parse().unwrap();
-        ip_send.send(socket_addr).unwrap();
+            (ip.clone() + ":" + port.to_string().as_str()).parse().expect(
+                &format!("Failed to parse initial remote IP `{}:{}`.", ip, port)
+            );
+        ip_send.send(socket_addr).expect(
+            "Failed to send the initial remote IP to the receivers listener."
+        );
     });
 }
 
@@ -51,7 +55,9 @@ fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
     debug!("now entering receivers listener");
     let mut receivers = HashSet::new();
     loop {
-        let mut remote_addr = remote_ip_recv.recv().unwrap();
+        let mut remote_addr = remote_ip_recv.recv().expect(
+            "Failed to unwrap the received remote IP."
+        );
         remote_addr.set_port(port);
         if !receivers.contains(&remote_addr) {
             let chan = model_send.clone();
@@ -59,7 +65,9 @@ fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
             receivers.insert(remote_addr.clone());
             spawn(move|| {
                 let stream = BufStream::new(
-                    TcpStream::connect(remote_addr).unwrap()
+                    TcpStream::connect(remote_addr).expect(
+                        &format!("Failed to connect to remote address `{}`", remote_addr)
+                    )
                 );
                 receiver(addr, stream, chan);
             });
@@ -74,13 +82,20 @@ fn receiver(remote_ip: SocketAddr, mut stream: BufStream<TcpStream>, chan: Sende
     let mut idx = 0;
     loop {
         let mut json = String::new();
-        stream.read_line(&mut json).unwrap();
+        stream.read_line(&mut json).expect(
+            "Cannot read the remote model from network."
+        );
         if json.trim().len() != 0 {
             debug!("Message {}: received `{}` from `{}`. Message length {}.",
                    idx, json, remote_ip, json.len());
-            let (model, score): ModelScore = serde_json::from_str(&json).unwrap();
+            let (model, score): ModelScore = serde_json::from_str(&json).expect(
+                &format!("Cannot parse the JSON description of the remote model. \
+                          The JSON string is `{}`.", json)
+            );
             debug!("The score of the Model {} from `{}` is {}.", idx, remote_ip, score);
-            chan.send((model, score)).unwrap();
+            chan.send((model, score)).expect(
+                "Failed to send the received model from the network to local channel."
+            );
         } else {
             debug!("Received an empty message from `{}`.", remote_ip)
         }
@@ -111,21 +126,32 @@ fn sender_listener(
     //     2. Send new incoming address to receiver so that it connects to the new machine
     debug!("now entering sender listener");
     let local_addr: SocketAddr =
-        (String::from("0.0.0.0:") + port.to_string().as_str()).parse().unwrap();
-    let listener = TcpListener::bind(local_addr).unwrap();
+        (String::from("0.0.0.0:") + port.to_string().as_str()).parse().expect(
+            &format!("Cannot parse the port number `{}`.", port)
+        );
+    let listener = TcpListener::bind(local_addr)
+        .expect(&format!("Failed to bind the listening port `{}`.", port));
     for stream in listener.incoming() {
         match stream {
             Err(_) => error!("Sender received an error connection."),
             Ok(mut stream) => {
-                let remote_addr = stream.peer_addr().unwrap();
+                let remote_addr = stream.peer_addr().expect(
+                    "Cannot unwrap the remote address from the incoming stream."
+                );
                 info!("Sender received a connection from {} to {}",
-                      remote_addr, stream.local_addr().unwrap());
+                      remote_addr, stream.local_addr().expect(
+                          "Cannot unwrap the local address from the incoming stream."
+                      ));
                 {
-                    let mut lock_w = sender_streams.write().unwrap();
+                    let mut lock_w = sender_streams.write().expect(
+                        "Failed to obtain the lock for expanding sender_streams."
+                    );
                     lock_w.push(BufStream::new(stream));
                 }
                 debug!("Remote server {} will receive our model from now on.", remote_addr);
-                receiver_ips.send(remote_addr.clone()).unwrap();
+                receiver_ips.send(remote_addr.clone()).expect(
+                    "Cannot send the received IP to the channel."
+                );
                 debug!("Remote server {} will be subscribed soon.", remote_addr);
             }
         }
@@ -137,15 +163,25 @@ fn sender(streams: StreamLockVec, chan: Receiver<ModelScore>) {
 
     let mut idx = 0;
     loop {
-        let (model, score): ModelScore = chan.recv().unwrap();
+        let (model, score): ModelScore = chan.recv().expect(
+            "Network module cannot receive the local model."
+        );
         debug!("Local model {}, score {}, is received by the sender.", idx, score);
 
-        let json = serde_json::to_string(&(model, score)).unwrap();
+        let json = serde_json::to_string(&(model, score)).expect(
+            "Local model cannot be serialized."
+        );
         let num_computers = {
-            let mut lock_r = streams.write().unwrap();
+            let mut lock_r = streams.write().expect(
+                "Failed to obtain the lock for writing to sender_streams."
+            );
             lock_r.iter_mut().for_each(|stream| {
-                stream.write_fmt(format_args!("{}\n", json)).unwrap();
-                stream.flush().unwrap();
+                stream.write_fmt(format_args!("{}\n", json)).expect(
+                    "Cannot write into one of the streams."
+                );
+                stream.flush().expect(
+                    "Cannot flush one of the streams."
+                );
             });
             lock_r.len()
         };
