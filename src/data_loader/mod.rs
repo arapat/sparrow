@@ -57,7 +57,8 @@ pub struct DataLoader {
     scores: Vec<f32>,
     relative_scores: Vec<f32>,
 
-    performance: PerformanceMonitor
+    load_performance: PerformanceMonitor,
+    scores_performance: PerformanceMonitor
 }
 
 // TODO: write scores to disk
@@ -104,7 +105,8 @@ impl DataLoader {
             scores: scores,
             relative_scores: relative_scores,
 
-            performance: PerformanceMonitor::new()
+            load_performance: PerformanceMonitor::new(),
+            scores_performance: PerformanceMonitor::new(),
         }
     }
 
@@ -169,6 +171,8 @@ impl DataLoader {
     }
 
     pub fn fetch_next_batch(&mut self) {
+        self.load_performance.resume();
+
         let mut loader_reset = false;
         self._curr_loc = self._cursor;
         let batch_size = if (self._cursor + 1) * self.batch_size < self.size {
@@ -219,11 +223,11 @@ impl DataLoader {
             self.set_bufrader();
         }
 
-        self.performance.update(self._curr_batch.len());
-        let (_, duration, speed) = self.performance.get_performance();
-        if duration >= 10.0 {
-            debug!("{:?} loader `{}` speed is {}.", self.format, self.name, speed);
-            self.performance.start();
+        self.load_performance.update(self._curr_batch.len());
+        self.load_performance.pause();
+        let (since_last_check, speed) = self.load_performance.get_performance();
+        if since_last_check >= 10 {
+            debug!("{:?} loader `{}` loading speed is {}.", self.format, self.name, speed);
         }
     }
 
@@ -231,6 +235,7 @@ impl DataLoader {
         if self._scores_synced {
             return;
         }
+        self.scores_performance.resume();
 
         let tree_head = self.scores_version[self._curr_loc];
         let tree_tail = trees.len();
@@ -251,6 +256,13 @@ impl DataLoader {
         self.scores_version[self._curr_loc] = tree_tail;
         self._scores_synced = true;
         self.update_stats_for_ess();
+
+        self.scores_performance.update(tail - head);
+        self.scores_performance.pause();
+        let (since_last_check, speed) = self.scores_performance.get_performance();
+        if since_last_check >= 10 {
+            debug!("{:?} loader `{}` fetching scores speed is {}.", self.format, self.name, speed);
+        }
     }
 
     fn update_stats_for_ess(&mut self) {
@@ -283,6 +295,9 @@ impl DataLoader {
 
     // TODO: implement stratified sampling version
     pub fn sample(&mut self, trees: &Model, sample_ratio: f32) -> DataLoader {
+        let mut timer = PerformanceMonitor::new();
+        timer.start();
+
         debug!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
         let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio);
         debug!("Sample size is estimated to be {}.", size);
@@ -310,8 +325,8 @@ impl DataLoader {
                 });
         }
         let ret = self.from_constructor(self.name.clone() + " sample", constructor, trees.len());
-        debug!("Sampling finished. Sample size is {}. Max repeat is {}.",
-               ret.get_num_examples(), max_repeat);
+        debug!("Sampling finished. Sampling time: {} seconds. Sample size is {}. Max repeat is {}.",
+               timer.get_duration(), ret.get_num_examples(), max_repeat);
         ret
     }
 

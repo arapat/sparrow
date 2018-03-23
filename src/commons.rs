@@ -97,9 +97,17 @@ pub fn is_positive(label: &f32) -> bool {
 
 
 // Performance monitoring
+#[derive(PartialEq)]
+enum PerformanceMonitorStatus {
+    PAUSE,
+    RUNNING
+}
 
 pub struct PerformanceMonitor {
     start_time: PreciseTime,
+    last_check: PreciseTime,
+    status: PerformanceMonitorStatus,
+    duration: i64,
     counter: usize
 }
 
@@ -113,27 +121,48 @@ impl PerformanceMonitor {
     pub fn new() -> PerformanceMonitor {
         PerformanceMonitor {
             start_time: PreciseTime::now(),
-            counter: 0
+            last_check: PreciseTime::now(),
+            status: PerformanceMonitorStatus::PAUSE,
+            duration: 0,
+            counter: 0,
         }
     }
 
     pub fn start(&mut self) {
+        self.resume();
+    }
+
+    pub fn resume(&mut self) {
+        assert!(self.status == PerformanceMonitorStatus::PAUSE);
         self.start_time = PreciseTime::now();
-        self.counter = 0;
+        self.status = PerformanceMonitorStatus::RUNNING;
     }
 
     pub fn update(&mut self, count: usize) {
+        assert!(self.status == PerformanceMonitorStatus::RUNNING);
         self.counter += count;
     }
 
-    pub fn get_performance(&self) -> (usize, f32, f32) {
+    pub fn pause(&mut self) {
+        assert!(self.status == PerformanceMonitorStatus::RUNNING);
+        self.duration += self.start_time.to(PreciseTime::now()).num_milliseconds();
+        self.status = PerformanceMonitorStatus::PAUSE;
+    }
+
+    pub fn get_performance(&mut self) -> (i64, f32) {
         let now = PreciseTime::now();
-        let duration = 1e-3 * self.start_time.to(now).num_milliseconds() as f32;
-        (self.counter, duration, (self.counter as f32) / duration)
+        let since_last_check = self.last_check.to(now).num_seconds();
+        self.last_check = now;
+        (since_last_check, (self.counter as f32) / self.get_duration())
     }
 
     pub fn get_duration(&self) -> f32 {
-        let now = PreciseTime::now();
-        1e-3 * self.start_time.to(now).num_milliseconds() as f32
+        let milliseconds = self.duration +
+            if self.status == PerformanceMonitorStatus::RUNNING {
+                self.start_time.to(PreciseTime::now()).num_milliseconds()
+            } else {
+                0
+            };
+        1e-3 * milliseconds as f32
     }
 }

@@ -96,7 +96,8 @@ impl<'a> Boosting<'a> {
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut iteration = 0;
-        let timer = PerformanceMonitor::new();
+        let mut timer = PerformanceMonitor::new();
+        timer.start();
         while num_iterations <= 0 || iteration < num_iterations {
             self.try_sample();
             if self.learner.get_count() >= timeout {
@@ -111,6 +112,7 @@ impl<'a> Boosting<'a> {
                 let scores = training_loader.get_relative_scores();
                 let weights = get_weights(data, scores);
                 self.learner.update(data, &weights);
+                timer.update(data.len());
             }
 
             let found_new_rule =
@@ -137,6 +139,10 @@ impl<'a> Boosting<'a> {
             }
 
             self.handle_network();
+            let (since_last_check, speed) = timer.get_performance();
+            if since_last_check >= 10 {
+                debug!("Training speed is {} examples/second.", speed);
+            }
         }
         info!("Model = {}", serde_json::to_string(&self.model).unwrap());
     }
