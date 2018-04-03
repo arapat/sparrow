@@ -2,6 +2,7 @@ extern crate serde_json;
 
 use rayon::prelude::*;
 
+use std::ops::Range;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
@@ -43,6 +44,7 @@ impl<'a> Boosting<'a> {
     pub fn new(
                 mut training_loader: DataLoader,
                 testing_loader: DataLoader,
+                range: Range<usize>,
                 max_sample_size: usize,
                 max_bin_size: usize,
                 sample_ratio: f32,
@@ -50,8 +52,8 @@ impl<'a> Boosting<'a> {
                 default_rho_gamma: f32,
                 eval_funcs: Vec<&'a LossFunc>
             ) -> Boosting<'a> {
-        let bins = create_bins(max_sample_size, max_bin_size, &mut training_loader);
-        let learner = Learner::new(default_rho_gamma, bins);
+        let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
+        let learner = Learner::new(default_rho_gamma, bins, &range);
 
         // add root node for balancing labels
         let (base_tree, gamma) = get_base_tree(max_sample_size, &mut training_loader);
@@ -161,7 +163,6 @@ impl<'a> Boosting<'a> {
     }
 
     fn handle_network(&mut self) {
-        debug!("Checking network for a better model.");
         if self.receiver.is_some() {
             debug!("Processing models received from the network");
             // handle receiving
@@ -194,8 +195,6 @@ impl<'a> Boosting<'a> {
                 self.sender.as_ref().unwrap().send((self.model.clone(), self.sum_gamma)).unwrap();
                 self.prev_sum_gamma = self.sum_gamma;
             }
-        } else {
-            debug!("No new model received from the network");
         }
     }
 

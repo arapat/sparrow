@@ -1,5 +1,7 @@
 use rayon::prelude::*;
 
+use std::ops::Range;
+
 use bins::Bins;
 use tree::Tree;
 use commons::Example;
@@ -49,6 +51,7 @@ impl WeakRule {
 
 pub struct Learner {
     bins: Vec<Bins>,
+    range_start: usize,
     default_rho_gamma: f32,
     cur_rho_gamma: f32,
 
@@ -65,12 +68,13 @@ pub struct Learner {
 }
 
 impl Learner {
-    pub fn new(default_rho_gamma: f32, bins: Vec<Bins>) -> Learner {
+    pub fn new(default_rho_gamma: f32, bins: Vec<Bins>, range: &Range<usize>) -> Learner {
         let b1 = get_score_board(&bins);
         let b2 = get_score_board(&bins);
         let b3 = get_score_board(&bins);
         Learner {
             bins: bins,
+            range_start: range.start,
             default_rho_gamma: default_rho_gamma,
             cur_rho_gamma: default_rho_gamma,
 
@@ -177,6 +181,7 @@ impl Learner {
     }
 
     fn update_weak_rules(&mut self, examples: Vec<(&Example, TupleTuple3, TupleTuple3)>) {
+        let range_start = self.range_start;
         self.bins.par_iter().zip(
             self.weak_rules_score.par_iter_mut().zip(
                 self.sum_c.par_iter_mut().zip(
@@ -186,7 +191,7 @@ impl Learner {
         ).enumerate().for_each(
             |(i, (bin, (weak_rules_score, (sum_c, sum_c_squared))))| {
                 examples.iter().for_each(|&(example, goes_to_left, goes_to_right)| {
-                    let feature_val = example.get_features()[i] as f32;
+                    let feature_val = example.get_features()[i + range_start] as f32;
                     bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
                         let direction =
                             if feature_val <= *threshold {
@@ -244,7 +249,7 @@ impl Learner {
                                 if _sum_c > bound {
                                     let (left_predict, right_predict) = get_prediction(k, gamma);
                                     ret = Some(WeakRule {
-                                        feature: i,
+                                        feature: i + self.range_start,
                                         threshold: threshold,
                                         left_predict: left_predict,
                                         right_predict: right_predict,

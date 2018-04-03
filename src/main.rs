@@ -66,7 +66,7 @@ fn main() {
     ];
     let num_iterations = 0;
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 0;
+    let validate_interval = 10;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
@@ -90,6 +90,7 @@ fn main() {
     let mut boosting = Boosting::new(
         training_loader,
         testing_loader,
+        0..feature_size,
         max_sample_size,
         max_bin_size,
         sample_ratio,
@@ -97,7 +98,7 @@ fn main() {
         default_rho_gamma,
         eval_funcs
     );
-    boosting.enable_network(&remote_ips, 8888);
+    // boosting.enable_network(&remote_ips, 8888);
     boosting.training(
         num_iterations,
         max_trials_before_shrink,

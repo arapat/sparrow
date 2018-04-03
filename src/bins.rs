@@ -1,6 +1,7 @@
 use ordered_float::NotNaN;
 
 use std::collections::BTreeMap;
+use std::ops::Range;
 
 use data_loader::DataLoader;
 
@@ -63,12 +64,14 @@ impl BinMapper {
 }
 
 
-pub fn create_bins(max_sample_size: usize, max_bin_size: usize, data_loader: &mut DataLoader) -> Vec<Bins> {
-    let feature_size = data_loader.get_feature_size();
-    let mut mappers: Vec<BinMapper> = Vec::with_capacity(feature_size);
+pub fn create_bins(max_sample_size: usize, max_bin_size: usize, range: &Range<usize>,
+                   data_loader: &mut DataLoader) -> Vec<Bins> {
+    let start = range.start;
+    let range_size = range.end - start;
+    let mut mappers: Vec<BinMapper> = Vec::with_capacity(range_size);
     let mut remaining_reads = max_sample_size;
 
-    for _ in 0..feature_size {
+    for _ in 0..range_size {
         mappers.push(BinMapper::new());
     }
     while remaining_reads > 0 {
@@ -77,9 +80,9 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize, data_loader: &mu
         data.iter().for_each(|example| {
             let features = example.get_features();
             mappers.iter_mut()
-                   .zip(0..feature_size)
-                   .for_each(|(mapper, idx)| {
-                       mapper.update(&(features[idx] as f32));
+                   .enumerate()
+                   .for_each(|(idx, mapper)| {
+                       mapper.update(&(features[idx + start] as f32));
                    });
         });
         remaining_reads -= data.len();
@@ -90,9 +93,9 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize, data_loader: &mu
 
     debug!("Bins are created.");
     ret.iter()
-       .zip(0..ret.len())
-       .for_each(|(bin, idx)| {
-           info!("{} thresholds are generated for the feature {}.", bin.len(), idx);
+       .enumerate()
+       .for_each(|(idx, bin)| {
+           info!("{} thresholds are generated for the feature {}.", bin.len(), idx + start);
        });
     ret
 }

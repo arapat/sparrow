@@ -138,6 +138,7 @@ impl DataLoader {
         )
     }
 
+    #[allow(dead_code)]
     pub fn get_feature_size(&self) -> usize {
         self.feature_size
     }
