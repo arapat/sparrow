@@ -107,9 +107,10 @@ impl<'a> Boosting<'a> {
         global_timer.start();
         while num_iterations <= 0 || iteration < num_iterations {
             if self.try_sample() {
-                global_timer.reset();
-                global_timer.start();
+                // TODO: update according to the actual number of examples being scannned
+                global_timer.update(self.training_loader_stack[0].get_num_examples() * 2);
             }
+
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
@@ -154,10 +155,11 @@ impl<'a> Boosting<'a> {
 
             self.handle_network();
             self.handle_persistent();
-            let (since_last_check, speed) = global_timer.get_performance();
+            let (since_last_check, count, duration, speed) = global_timer.get_performance();
             if since_last_check >= 10 {
-                debug!("Overall training speed is {} examples/second.", speed);
-                debug!("Learner speed is {} examples/second.", learner_timer.get_performance().1);
+                debug!("Overall training speed is {} examples in {} seconds ({}).", count, duration, speed);
+                let (_, count, duration, speed) = learner_timer.get_performance();
+                debug!("Learner speed is {} examples in {} seconds ({}).", count, duration, speed);
                 global_timer.reset_last_check();
                 learner_timer.reset_last_check();
             }

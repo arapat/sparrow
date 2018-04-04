@@ -156,9 +156,10 @@ impl PerformanceMonitor {
         self.status = PerformanceMonitorStatus::PAUSE;
     }
 
-    pub fn get_performance(&mut self) -> (i64, f32) {
+    pub fn get_performance(&mut self) -> (i64, usize, f32, f32) {
         let since_last_check = self.last_check.to(PreciseTime::now()).num_seconds();
-        (since_last_check, (self.counter as f32) / self.get_duration())
+        let duration = self.get_duration();
+        (since_last_check, self.counter, duration, (self.counter as f32) / duration)
     }
 
     pub fn reset_last_check(&mut self) {
