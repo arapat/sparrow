@@ -21,12 +21,18 @@ mod boosting;
 mod network;
 
 use std::env;
+
 use validator::get_adaboost_loss;
 use validator::get_auprc;
+use validator::validate;
+use data_loader::io::create_bufreader;
+use data_loader::io::read_k_lines;
+
 use data_loader::Format;
 use data_loader::DataLoader;
 use boosting::Boosting;
 use commons::LossFunc;
+use commons::Model;
 
 
 fn main() {
@@ -74,7 +80,7 @@ fn main() {
         Format::Binary, 573
         // Format::Text, 573
     );
-    let testing_loader = DataLoader::from_scratch(
+    let mut testing_loader = DataLoader::from_scratch(
         String::from("testing"), testing_data, testing_size, feature_size, batch_size,
         Format::Binary, 573
         // Format::Text, 573
@@ -89,24 +95,42 @@ fn main() {
     ];
 
     let args: Vec<String> = env::args().collect();
-    let range_1: usize = args[1].parse().unwrap();
-    let range_2: usize = args[2].parse().unwrap();
-    debug!("Range: {}..{}", range_1, range_2);
-    let mut boosting = Boosting::new(
-        training_loader,
-        testing_loader,
-        range_1..range_2,
-        max_sample_size,
-        max_bin_size,
-        sample_ratio,
-        ess_threshold,
-        default_rho_gamma,
-        eval_funcs
-    );
-    boosting.enable_network(&remote_ips, 8888);
-    boosting.training(
-        num_iterations,
-        max_trials_before_shrink,
-        validate_interval
-    );
+    if args[1] == "validate" {
+        let mut reader = create_bufreader(&args[2]);
+        let json = &read_k_lines(&mut reader, 1)[0];
+        let model: Model = serde_json::from_str(&json).expect(
+            &format!("Cannot parse the JSON description of the remote model. \
+                        The JSON string is `{}`.", json)
+        );
+        let mut k = 0;
+        while k * 10 <= model.len() {
+            let k10 = if k == 0 { 1 } else { k * 10 };
+            let model_subset = model[0..k10].to_vec();
+            let scores = validate(&mut testing_loader, &model_subset, &eval_funcs);
+            let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
+            info!("k={} - eval funcs: {}", k10, output.join(", "));
+            k += 1;
+        }
+    } else {
+        let range_1: usize = args[1].parse().unwrap();
+        let range_2: usize = args[2].parse().unwrap();
+        debug!("Range: {}..{}", range_1, range_2);
+        let mut boosting = Boosting::new(
+            training_loader,
+            testing_loader,
+            range_1..range_2,
+            max_sample_size,
+            max_bin_size,
+            sample_ratio,
+            ess_threshold,
+            default_rho_gamma,
+            eval_funcs
+        );
+        boosting.enable_network(&remote_ips, 8888);
+        boosting.training(
+            num_iterations,
+            max_trials_before_shrink,
+            validate_interval
+        );
+    }
 }
