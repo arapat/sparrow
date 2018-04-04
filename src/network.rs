@@ -64,11 +64,19 @@ fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
             let addr = remote_addr.clone();
             receivers.insert(remote_addr.clone());
             spawn(move|| {
-                let stream = BufStream::new(
-                    TcpStream::connect(remote_addr).expect(
-                        &format!("Failed to connect to remote address `{}`", remote_addr)
-                    )
-                );
+                let mut tcp_stream = None;
+                while tcp_stream.is_none() {
+                    tcp_stream = match TcpStream::connect(remote_addr) {
+                        Ok(_tcp_stream) => Some(_tcp_stream),
+                        Err(error) => {
+                            debug!("Failed to connect to remote address `{}`, retry in 2 secs.",
+                                   remote_addr);
+                            sleep(Duration::from_secs(2));
+                            None
+                        }
+                    };
+                }
+                let stream = BufStream::new(tcp_stream.unwrap());
                 receiver(addr, stream, chan);
             });
         } else {

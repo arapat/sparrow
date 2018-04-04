@@ -103,7 +103,7 @@ fn main() {
         default_rho_gamma,
         eval_funcs
     );
-    // boosting.enable_network(&remote_ips, 8888);
+    boosting.enable_network(&remote_ips, 8888);
     boosting.training(
         num_iterations,
         max_trials_before_shrink,
