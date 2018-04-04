@@ -20,6 +20,7 @@ mod validator;
 mod boosting;
 mod network;
 
+use std::env;
 use validator::get_adaboost_loss;
 use validator::get_auprc;
 use data_loader::Format;
@@ -87,10 +88,14 @@ fn main() {
         String::from("34.235.119.198")
     ];
 
+    let args: Vec<String> = env::args().collect();
+    let range_1: usize = args[1].parse().unwrap();
+    let range_2: usize = args[2].parse().unwrap();
+    debug!("Range: {}..{}", range_1, range_2);
     let mut boosting = Boosting::new(
         training_loader,
         testing_loader,
-        0..feature_size,
+        range_1..range_2,
         max_sample_size,
         max_bin_size,
         sample_ratio,
