@@ -7,6 +7,7 @@ use std::io::BufWriter;
 use commons::Example;
 use commons::get_symmetric_label;
 use commons::is_positive;
+use super::io::create_bufwriter;
 use super::io::write_to_binary_file;
 
 
@@ -70,7 +71,6 @@ impl Constructor {
     }
 }
 
-
 fn gen_filename() -> String {
     let random_str =
         rand::thread_rng()
@@ -78,9 +78,4 @@ fn gen_filename() -> String {
             .take(6)
             .collect::<String>();
     String::from("data-") + random_str.as_str() + ".bin"
-}
-
-fn create_bufwriter(filename: &String) -> BufWriter<File> {
-    let f = File::create(filename).unwrap();
-    BufWriter::new(f)
 }

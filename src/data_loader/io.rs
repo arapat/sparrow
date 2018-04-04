@@ -21,6 +21,11 @@ pub fn create_bufreader(filename: &String) -> BufReader<File> {
     BufReader::new(f)
 }
 
+pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
+    let f = File::create(filename).unwrap();
+    BufWriter::new(f)
+}
+
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
     let mut ret: Vec<String> = vec![String::new(); k];
     for mut string in &mut ret {
@@ -56,6 +61,9 @@ pub fn write_to_binary_file(writer: &mut BufWriter<File>, data: &Example) -> usi
     serialized.len()
 }
 
+pub fn write_to_text_file(writer: &mut BufWriter<File>, content: &String) {
+    writer.write(content.as_ref()).unwrap();
+}
 
 pub fn parse_libsvm_one_line<TFeature, TLabel>(
             raw_string: &String, missing_val: TFeature, size: usize

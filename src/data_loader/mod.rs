@@ -1,4 +1,4 @@
-mod io;
+pub mod io;
 mod constructor;
 
 use rand;

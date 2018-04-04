@@ -19,6 +19,8 @@ use bins::create_bins;
 use commons::get_weights;
 use commons::get_symmetric_label;
 use commons::is_positive;
+use data_loader::io::create_bufwriter;
+use data_loader::io::write_to_text_file;
 use network::start_network;
 use validator::validate;
 
@@ -151,6 +153,7 @@ impl<'a> Boosting<'a> {
             }
 
             self.handle_network();
+            self.handle_persistent();
             let (since_last_check, speed) = global_timer.get_performance();
             if since_last_check >= 10 {
                 debug!("Overall training speed is {} examples/second.", speed);
@@ -195,6 +198,16 @@ impl<'a> Boosting<'a> {
                 self.sender.as_ref().unwrap().send((self.model.clone(), self.sum_gamma)).unwrap();
                 self.prev_sum_gamma = self.sum_gamma;
             }
+        }
+    }
+
+    fn handle_persistent(&self) {
+        if self.model.len() % 100 == 0 {
+            let json = serde_json::to_string(&self.model).expect(
+                "Local model cannot be serialized."
+            );
+            let mut file_buffer = create_bufwriter(&format!("model-{}.json", self.model.len()));
+            write_to_text_file(&mut file_buffer, &json);
         }
     }
 
