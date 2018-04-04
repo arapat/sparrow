@@ -81,11 +81,11 @@ fn main() {
     );
 
     let remote_ips = vec![
-        String::from("18.232.106.228"),
-        String::from("34.207.76.228"),
-        String::from("54.224.67.100"),
-        String::from("34.229.241.77"),
-        String::from("34.235.119.198")
+        String::from("34.229.61.97"),
+        String::from("18.232.103.130"),
+        String::from("35.173.212.215"),
+        String::from("54.90.214.86"),
+        String::from("52.87.209.39")
     ];
 
     let args: Vec<String> = env::args().collect();
