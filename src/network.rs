@@ -157,11 +157,10 @@ fn sender_listener(
                     lock_w.push(BufStream::new(stream));
                 }
                 debug!("Remote server {} will receive our model from now on.", remote_addr);
-                // TODO: added the "follow up" feature after fixing the duplication during bi-direction connection
-                // receiver_ips.send(remote_addr.clone()).expect(
-                //     "Cannot send the received IP to the channel."
-                // );
-                // debug!("Remote server {} will be subscribed soon.", remote_addr);
+                receiver_ips.send(remote_addr.clone()).expect(
+                    "Cannot send the received IP to the channel."
+                );
+                debug!("Remote server {} will be subscribed soon.", remote_addr);
             }
         }
     }
