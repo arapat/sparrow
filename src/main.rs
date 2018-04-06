@@ -44,7 +44,7 @@ fn main() {
             let epoch_since_apr18: i64 = timestamp.sec - 1522540800;
             let formatted_ts = format!("{}.{:09}", epoch_since_apr18, timestamp.nsec);
             writeln!(
-                buf, "{} {}: {}, {}",
+                buf, "{}, {}, {}, {}",
                 record.level(), formatted_ts, record.module_path().unwrap(), record.args()
             )
         })
