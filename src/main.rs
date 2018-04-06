@@ -84,7 +84,6 @@ fn main() {
         &get_adaboost_loss,
         &get_auprc
     ];
-    let num_iterations = 0;
     let max_trials_before_shrink = 1000000;
     let validate_interval = 10;
 
@@ -127,6 +126,7 @@ fn main() {
     } else {
         let range_1: usize = args[1].parse().unwrap();
         let range_2: usize = args[2].parse().unwrap();
+        let num_iterations: u32 = args[3].parse().unwrap();
         debug!("range, {}, {}", range_1, range_2);
         let mut boosting = Boosting::new(
             training_loader,
