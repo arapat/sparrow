@@ -157,9 +157,9 @@ impl<'a> Boosting<'a> {
             self.handle_persistent();
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
             if since_last_check >= 10 {
-                debug!("global_speed, {}, {}, {}", duration, count, speed);
-                let (_, count, duration, speed) = learner_timer.get_performance();
-                debug!("learner_spped, {}, {}, {}", duration, count, speed);
+                let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();
+                debug!("boosting_speed, {}, {}, {}, {}, {}, {}",
+                       duration, count, speed, duration_learn, count_learn, speed_learn);
                 global_timer.reset_last_check();
                 learner_timer.reset_last_check();
             }
@@ -267,6 +267,6 @@ fn get_base_tree(max_sample_size: usize, data_loader: &mut DataLoader) -> (Tree,
     tree.release();
 
     info!("Root tree is added.");
-    debug!("new-tree-info, {}, {}, {}, {:?}", 1, max_sample_size, gamma, tree);
+    debug!("new-tree-info, {}, {}, {}, \"{:?}\"", 1, max_sample_size, gamma, tree);
     (tree, gamma)
 }

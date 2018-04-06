@@ -1,2 +1,2 @@
-RUST_LOG=DEBUG cargo run --release validate model.json 2> validate.log
+RUST_LOG=DEBUG cargo run --release validate $1 2> $2
 
