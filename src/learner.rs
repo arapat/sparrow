@@ -39,9 +39,8 @@ pub struct WeakRule {
 
 impl WeakRule {
     pub fn create_tree(&self) -> Tree {
-        debug!("A new tree is being created. Raw martingale: {}. \
-                sum_c_squared: {}. Stopping rule (sum_c): {} > {}",
-               self.raw_martingale, self.sum_c_squared, self.sum_c, self.bound);
+        debug!("new-tree-martingale, {}, {}, {}, {}",
+               self.raw_martingale, self.sum_c, self.sum_c_squared, self.bound);
         let mut tree = Tree::new(2);
         tree.split(0, self.feature, self.threshold, self.left_predict, self.right_predict);
         tree.release();
@@ -125,7 +124,7 @@ impl Learner {
         self.cur_rho_gamma = min(self.cur_rho_gamma, max_empirical_ratio) * 0.9;
         self.reset();
 
-        info!("Target advantage is shrinked: {} -> {}.", old_rho_gamma, self.cur_rho_gamma);
+        debug!("shrink-gamma, {}, {}", old_rho_gamma, self.cur_rho_gamma);
     }
 
     fn get_max_empirical_ratio(&self) -> f32 {

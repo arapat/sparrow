@@ -57,8 +57,7 @@ impl Constructor {
     }
 
     pub fn get_content(self) -> (String, Vec<f32>, usize, usize) {
-        debug!("A constructor is being consumed, which contains {} positive, {} negative.",
-               self.num_positive, self.num_negative);
+        debug!("constructor-consumed, {}, {}", self.num_positive, self.num_negative);
         (self.filename, self.scores, self.size, self.bytes_per_example)
     }
 

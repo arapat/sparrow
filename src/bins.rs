@@ -91,7 +91,7 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize, range: &Range<us
                                 .map(|mapper| Bins::new(max_bin_size, mapper))
                                 .collect();
 
-    debug!("Bins are created.");
+    info!("Bins are created.");
     ret.iter()
        .enumerate()
        .for_each(|(idx, bin)| {

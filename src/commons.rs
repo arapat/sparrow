@@ -128,6 +128,7 @@ impl PerformanceMonitor {
         }
     }
 
+    #[allow(dead_code)]
     pub fn reset(&mut self) {
         self.duration = 0;
         self.counter = 0;

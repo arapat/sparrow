@@ -96,14 +96,12 @@ impl<'a> Boosting<'a> {
             num_iterations: u32,
             max_trials_before_shrink: u32,
             validate_interval: u32) {
-        debug!("Start training.");
+        info!("Start training.");
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut iteration = 0;
-        let mut tree_timer = PerformanceMonitor::new();
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
-        tree_timer.start();
         global_timer.start();
         while num_iterations <= 0 || iteration < num_iterations {
             if self.try_sample() {
@@ -140,12 +138,14 @@ impl<'a> Boosting<'a> {
                     false
                 };
             if found_new_rule {
-                info!(
-                    "Clock {}. Tree {} is added: {:?}. Scanned {} examples. Advantage is {}.",
-                    tree_timer.get_duration(), iteration, self.model[iteration as usize],
-                    self.learner.get_count(), self.learner.get_rho_gamma()
-                );
                 iteration += 1;
+                debug!(
+                    "new-tree-info, {}, {}, {}, {:?}",
+                    self.model.len(),
+                    self.learner.get_count(),
+                    self.learner.get_rho_gamma(),
+                    self.model[self.model.len() - 1]
+                );
                 self.sum_gamma += self.learner.get_rho_gamma().powi(2);
                 self.learner.reset();
                 if interval > 0 && self.model.len() % interval == 0 {
@@ -157,19 +157,19 @@ impl<'a> Boosting<'a> {
             self.handle_persistent();
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
             if since_last_check >= 10 {
-                debug!("Overall training speed is {} examples in {} seconds ({}).", count, duration, speed);
+                debug!("global_speed, {}, {}, {}", duration, count, speed);
                 let (_, count, duration, speed) = learner_timer.get_performance();
-                debug!("Learner speed is {} examples in {} seconds ({}).", count, duration, speed);
+                debug!("learner_spped, {}, {}, {}", duration, count, speed);
                 global_timer.reset_last_check();
                 learner_timer.reset_last_check();
             }
         }
-        info!("Model = {}", serde_json::to_string(&self.model).unwrap());
+        info!("Model in JSON:\n{}", serde_json::to_string(&self.model).unwrap());
     }
 
     fn handle_network(&mut self) {
         if self.receiver.is_some() {
-            debug!("Processing models received from the network");
+            info!("Processing models received from the network");
             // handle receiving
             let recv = self.receiver.as_ref().unwrap();
             let mut best_model = None;
@@ -187,12 +187,10 @@ impl<'a> Boosting<'a> {
                 self.model = best_model.unwrap();
                 self.sum_gamma = max_score;
                 self.prev_sum_gamma = self.sum_gamma;
-                info!("A better model is received from the network: {} > {}. \
-                      Local model size: {}. Remote model size: {}. \
-                      Local model is replaced.",
-                      max_score, self.sum_gamma, old_model_size, self.model.len());
+                debug!("model-replaced, {}, {}, {}, {}",
+                       max_score, self.sum_gamma, self.model.len(), old_model_size);
             } else {
-                debug!("Remote models are not better. Skipped.");
+                info!("Remote models are not better. Skipped.");
             }
 
             // handle sending
@@ -217,8 +215,7 @@ impl<'a> Boosting<'a> {
         let ess_option = self.training_loader_stack[1].get_ess();
         if let Some(ess) = ess_option {
             if ess < self.ess_threshold {
-                debug!("ESS is below the threshold: {} < {}. A new sample will be generated.",
-                        ess, self.ess_threshold);
+                debug!("resample for ESS too low, {}, {}", ess, self.ess_threshold);
                 self.training_loader_stack.pop();
                 self.sample();
                 self.learner.reset_all();
@@ -236,11 +233,10 @@ impl<'a> Boosting<'a> {
     }
 
     fn _validate(&mut self) {
-        debug!("Validation is started.");
+        info!("Validation is started.");
         let scores = validate(&mut self.testing_loader, &self.model, &self.eval_funcs);
         let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
-        info!("Eval funcs: {}", output.join(", "));
-        debug!("Validation is completed.");
+        debug!("validation-results, {}", output.join(", "));
     }
 }
 
@@ -270,6 +266,7 @@ fn get_base_tree(max_sample_size: usize, data_loader: &mut DataLoader) -> (Tree,
     tree.split(0, 0, 0.0, prediction, prediction);
     tree.release();
 
-    debug!("Root tree is being added. Advantage is {}", gamma);
+    info!("Root tree is added.");
+    debug!("new-tree-info, {}, {}, {}, {:?}", 1, max_sample_size, gamma, tree);
     (tree, gamma)
 }

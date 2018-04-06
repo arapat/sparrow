@@ -71,9 +71,7 @@ impl DataLoader {
         let num_batch = size / batch_size + ((size % batch_size > 0) as usize);
         let relative_scores = vec![0.0; size];
         debug!(
-            "New DataLoader is created for `{}` \
-            (size = {}, feature_size = {}, batch_size = {}, base_node = {}, \
-            bytes_per_example = {})",
+            "new-data-loader, {}, {}, {}, {}, {}, {}",
             filename, size, feature_size, batch_size, base_node, bytes_per_example
         );
         DataLoader {
@@ -213,7 +211,7 @@ impl DataLoader {
             // update ESS
             let count = self.num_positive + self.num_negative;
             let ess = self.sum_weights.powi(2) / self.sum_weight_squared / (count as f32);
-            debug!("Loader `{}` will reset. {} positive. {} negative. ESS is updated: {}",
+            debug!("loader-reset, {}, {}, {}, {}",
                    self.name, self.num_positive, self.num_negative, ess);
             self.ess = Some(ess);
             self.num_positive = 0;
@@ -228,7 +226,7 @@ impl DataLoader {
         self.load_performance.pause();
         let (since_last_check, _, _, speed) = self.load_performance.get_performance();
         if since_last_check >= 10 {
-            debug!("{:?} loader `{}` loading speed is {}.", self.format, self.name, speed);
+            debug!("loader-loading-speed, {}, {:?}, {}", self.name, self.format, speed);
             self.load_performance.reset_last_check();
         }
     }
@@ -263,7 +261,7 @@ impl DataLoader {
         self.scores_performance.pause();
         let (since_last_check, _, _, speed) = self.scores_performance.get_performance();
         if since_last_check >= 10 {
-            debug!("{:?} loader `{}` fetching scores speed is {}.", self.format, self.name, speed);
+            debug!("loader-scoring-speed, {}, {:?}, {}", self.name, self.format, speed);
             self.scores_performance.reset_last_check();
         }
     }
@@ -301,9 +299,9 @@ impl DataLoader {
         let mut timer = PerformanceMonitor::new();
         timer.start();
 
-        debug!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
+        info!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
         let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio);
-        debug!("Sample size is estimated to be {}.", size);
+        info!("Sample size is estimated to be {}.", size);
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
         let mut constructor = Constructor::new(size);
@@ -328,7 +326,7 @@ impl DataLoader {
                 });
         }
         let ret = self.from_constructor(self.name.clone() + " sample", constructor, trees.len());
-        debug!("Sampling finished. Sampling time: {} seconds. Sample size is {}. Max repeat is {}.",
+        debug!("sampling-finished, {}, {}, {}",
                timer.get_duration(), ret.get_num_examples(), max_repeat);
         ret
     }
@@ -354,8 +352,7 @@ impl DataLoader {
         let sample_size = (sample_ratio * self.size as f32) as usize + 1;
         let interval = sum_weights / (sample_size as f32);
         let max_repeat = max_weight / interval;
-        debug!("Scanned {} examples. Estimated sum of weights: {}. Estimated interval: {}. \
-                Estimated max weight: {}. Max repeat is estimated to be {}.",
+        debug!("sample-estimate, {}, {}, {}, {}, {}",
                num_scanned, sum_weights, interval, max_weight, max_repeat);
         (interval, sample_size + 10)
     }

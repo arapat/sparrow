@@ -21,6 +21,8 @@ mod boosting;
 mod network;
 
 use std::env;
+use std::io::Write;
+use time::get_time;
 
 use validator::get_adaboost_loss;
 use validator::get_auprc;
@@ -36,7 +38,18 @@ use commons::Model;
 
 
 fn main() {
-    env_logger::init();
+    env_logger::Builder::from_default_env()
+        .format(|buf, record| {
+            let timestamp = get_time();
+            let epoch_since_apr18: i64 = timestamp.sec - 1522540800;
+            let formatted_ts = format!("{}.{:09}", epoch_since_apr18, timestamp.nsec);
+            writeln!(
+                buf, "{} {}: {}, {}",
+                record.level(), formatted_ts, record.module_path().unwrap(), record.args()
+            )
+        })
+        .init();
+
 
     // read from text
     // let home_dir = std::env::home_dir().unwrap().display().to_string() +
@@ -108,13 +121,13 @@ fn main() {
             let model_subset = model[0..k10].to_vec();
             let scores = validate(&mut testing_loader, &model_subset, &eval_funcs);
             let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
-            info!("k={} - eval funcs: {}", k10, output.join(", "));
+            info!("validate-only, {}, {}", k10, output.join(", "));
             k += 1;
         }
     } else {
         let range_1: usize = args[1].parse().unwrap();
         let range_2: usize = args[2].parse().unwrap();
-        debug!("Range: {}..{}", range_1, range_2);
+        debug!("range, {}, {}", range_1, range_2);
         let mut boosting = Boosting::new(
             training_loader,
             testing_loader,
