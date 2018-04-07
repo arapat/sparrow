@@ -158,8 +158,9 @@ impl<'a> Boosting<'a> {
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
             if since_last_check >= 10 {
                 let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();
-                debug!("boosting_speed, {}, {}, {}, {}, {}, {}",
-                       duration, count, speed, duration_learn, count_learn, speed_learn);
+                debug!("boosting_speed, {}, {}, {}, {}, {}, {}, {}",
+                       self.model.len(), duration, count, speed,
+                       duration_learn, count_learn, speed_learn);
                 global_timer.reset_last_check();
                 learner_timer.reset_last_check();
             }
