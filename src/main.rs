@@ -12,6 +12,7 @@ extern crate time;
 
 mod bins;
 mod commons;
+mod config;
 mod data_loader; 
 mod labeled_data;
 mod learner;
@@ -21,6 +22,7 @@ mod boosting;
 mod network;
 
 use std::env;
+use std::io::Read;
 use std::io::Write;
 use time::get_time;
 
@@ -30,11 +32,12 @@ use validator::validate;
 use data_loader::io::create_bufreader;
 use data_loader::io::read_k_lines;
 
-use data_loader::Format;
-use data_loader::DataLoader;
 use boosting::Boosting;
 use commons::LossFunc;
 use commons::Model;
+use config::Config;
+use data_loader::Format;
+use data_loader::DataLoader;
 
 
 fn main() {
@@ -98,13 +101,13 @@ fn main() {
         // Format::Text, 573
     );
 
-    let remote_ips = vec![
-        String::from("34.229.61.97"),
-        String::from("18.232.103.130"),
-        String::from("35.173.212.215"),
-        String::from("54.90.214.86"),
-        String::from("52.87.209.39")
-    ];
+    let mut reader = create_bufreader(&String::from("config.json"));
+    let mut json = String::new();
+    reader.read_to_string(&mut json).unwrap();
+    let config: Config = serde_json::from_str(&json).expect(
+        &format!("Cannot parse the config file.")
+    );
+    let remote_ips = config.network();
 
     let args: Vec<String> = env::args().collect();
     if args[1] == "validate" {
@@ -139,7 +142,7 @@ fn main() {
             default_rho_gamma,
             eval_funcs
         );
-        boosting.enable_network(&remote_ips, 8888);
+        boosting.enable_network(remote_ips, 8888);
         boosting.training(
             num_iterations,
             max_trials_before_shrink,
