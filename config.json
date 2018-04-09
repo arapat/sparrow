@@ -1,7 +1,11 @@
 {
+    "data_dir": "./bin-data"
     "network": [
-        "34.229.61.97",
-        "18.232.103.130",
-        "35.173.212.215"
+        "ec2-54-172-121-2.compute-1.amazonaws.com",
+        "ec2-54-237-240-178.compute-1.amazonaws.com",
+        "ec2-54-236-141-208.compute-1.amazonaws.com",
+        "ec2-34-235-135-227.compute-1.amazonaws.com",
+        "ec2-54-173-36-174.compute-1.amazonaws.com"
     ]
 }
+

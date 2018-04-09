@@ -53,6 +53,19 @@ fn main() {
         })
         .init();
 
+    // Read configurations
+    let mut reader = create_bufreader(&String::from("config.json"));
+    let mut json = String::new();
+    reader.read_to_string(&mut json).unwrap();
+    let config: Config = serde_json::from_str(&json).expect(
+        &format!("Cannot parse the config file.")
+    );
+
+    let mut home_dir = config.get_data_dir().clone();
+    let remote_ips = config.get_network();
+    if !home_dir.ends_with("/") {
+        home_dir.push('/');
+    }
 
     // read from text
     // let home_dir = std::env::home_dir().unwrap().display().to_string() +
@@ -61,7 +74,6 @@ fn main() {
     // let testing_data =  home_dir.clone() + "testing-shuffled.txt";
 
     // read from bin
-    let home_dir = String::from("./bin-data/");
     let training_data = home_dir.clone() + "training.bin";
     let testing_data = home_dir.clone() + "testing.bin";
 
@@ -100,14 +112,6 @@ fn main() {
         Format::Binary, 573
         // Format::Text, 573
     );
-
-    let mut reader = create_bufreader(&String::from("config.json"));
-    let mut json = String::new();
-    reader.read_to_string(&mut json).unwrap();
-    let config: Config = serde_json::from_str(&json).expect(
-        &format!("Cannot parse the config file.")
-    );
-    let remote_ips = config.network();
 
     let args: Vec<String> = env::args().collect();
     if args[1] == "validate" {
