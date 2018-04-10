@@ -35,6 +35,7 @@ pub struct Boosting<'a> {
 
     learner: Learner,
     model: Model,
+    last_backup: usize,
 
     sender: Option<Sender<ModelScore>>,
     receiver: Option<Receiver<ModelScore>>,
@@ -72,6 +73,7 @@ impl<'a> Boosting<'a> {
 
             learner: learner,
             model: model,
+            last_backup: 0,
 
             sender: None,
             receiver: None,
@@ -202,13 +204,15 @@ impl<'a> Boosting<'a> {
         }
     }
 
-    fn handle_persistent(&self) {
-        if self.model.len() % 100 == 0 {
+    fn handle_persistent(&mut self) {
+        if self.model.len() - self.last_backup >= 100 {
             let json = serde_json::to_string(&self.model).expect(
                 "Local model cannot be serialized."
             );
             let mut file_buffer = create_bufwriter(&format!("model-{}.json", self.model.len()));
             write_to_text_file(&mut file_buffer, &json);
+            self.last_backup = self.model.len();
+            info!("Model {} is write to disk.", self.last_backup);
         }
     }
 

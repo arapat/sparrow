@@ -103,10 +103,10 @@ fn receiver(remote_ip: SocketAddr, mut stream: BufStream<TcpStream>, chan: Sende
             chan.send((model, score)).expect(
                 "Failed to send the received model from the network to local channel."
             );
+            idx += 1;
         } else {
-            info!("Received an empty message from {}, message ID {}", remote_ip, idx)
+            trace!("Received an empty message from {}, message ID {}", remote_ip, idx)
         }
-        idx += 1;
     }
 }
 
