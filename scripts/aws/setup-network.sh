@@ -1,27 +1,40 @@
+nodes=(
+ec2-54-172-121-2.compute-1.amazonaws.com
+ec2-54-237-240-178.compute-1.amazonaws.com
+ec2-54-236-141-208.compute-1.amazonaws.com
+ec2-34-235-135-227.compute-1.amazonaws.com
+ec2-54-173-36-174.compute-1.amazonaws.com
+)
+
 export INIT_SCRIPT="/mnt/rust-boost/scripts/init-c3_xlarge-ubuntu.sh"
+export IDENT_FILE=""
+export GIT_REPO="https://github.com/arapat/rust-boost.git"
+export GIT_BRANCH="~/jalafate-dropbox.pem"
 
-cd /mnt
+for i in "${!nodes[@]}";
+do
+    # Copy init script
+    scp -o StrictHostKeyChecking=no -i $IDENT_FILE $INIT_SCRIPT ubuntu@$url:~
 
-# Copy init script
-scp -o StrictHostKeyChecking=no -i ~/jalafate-dropbox.pem $INIT_SCRIPT ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com:~
+    # Execute init script
+    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo bash ~/init.sh
 
-# Execute init script
-ssh -o StrictHostKeyChecking=no -i ~/jalafate-dropbox.pem ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com sudo bash ~/init.sh
+    # Copy data
+    scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/*.bin ubuntu@$url:/mnt
 
-# Copy data
-scp -o StrictHostKeyChecking=no -i ~/jalafate-dropbox.pem /mnt/*.bin ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com:/mnt
+    # Clone repository
+    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url git clone $GIT_REPO /mnt/rust-boost
 
-# Clone repository
-ssh -o StrictHostKeyChecking=no -i ~/jalafate-dropbox.pem ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com git clone https://github.com/arapat/rust-boost.git /mnt/rust-boost
+    # Install cargo
+    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get update
+    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get install -y cargo
 
-# Copy config file
-scp -o StrictHostKeyChecking=no -i ~/jalafate-dropbox.pem /mnt/rust-boost/config.json ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com:/mnt/rust-boost/config.json
+    # Build package
+    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
+        cd /mnt/rust-boost && git checkout -- . && git fetch --all &&
+        git checkout $GIT_BRANCH && git pull && cargo build --release"
 
-# Install cargo
-ssh -o StrictHostKeyChecking=no -i ./jalafate-dropbox.pem ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com sudo apt-get update
-
-ssh -o StrictHostKeyChecking=no -i ./jalafate-dropbox.pem ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com sudo apt-get install -y cargo
-
-# Build package
-ssh -o StrictHostKeyChecking=no -i ~/jalafate-dropbox.pem ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com "cd /mnt/rust-boost && cargo build --release"
+    # Copy config file
+    scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/rust-boost/config.json ubuntu@$url:/mnt/rust-boost/config.json
+done
 
