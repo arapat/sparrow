@@ -141,7 +141,7 @@ fn sender_listener(
     for stream in listener.incoming() {
         match stream {
             Err(_) => error!("Sender received an error connection."),
-            Ok(mut stream) => {
+            Ok(stream) => {
                 let remote_addr = stream.peer_addr().expect(
                     "Cannot unwrap the remote address from the incoming stream."
                 );

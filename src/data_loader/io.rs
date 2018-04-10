@@ -28,7 +28,7 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
 
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
     let mut ret: Vec<String> = vec![String::new(); k];
-    for mut string in &mut ret {
+    for string in &mut ret {
         reader.read_line(string).unwrap();
     }
     ret
