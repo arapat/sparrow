@@ -20,6 +20,7 @@ use std::time::Duration;
 use commons::ModelScore;
 
 type StreamLockVec = Arc<RwLock<Vec<BufStream<TcpStream>>>>;
+type PacketLoad = (u32, ModelScore);
 
 
 pub fn start_network(
@@ -95,11 +96,14 @@ fn receiver(remote_ip: SocketAddr, mut stream: BufStream<TcpStream>, chan: Sende
             "Cannot read the remote model from network."
         );
         if json.trim().len() != 0 {
-            let (model, score): ModelScore = serde_json::from_str(&json).expect(
+            let (remote_idx, model_score): PacketLoad = serde_json::from_str(&json).expect(
                 &format!("Cannot parse the JSON description of the remote model from {}. \
                           Message ID {}, JSON string is `{}`.", remote_ip, idx, json)
             );
-            debug!("message-received, {}, {}, {}, {}, {}", idx, remote_ip, score, json.len(), json);
+            let model = model_score.0;
+            let score = model_score.1;
+            debug!("message-received, {}, {}, {}, {}, {}, {}",
+                   idx, remote_ip, remote_idx, score, json.len(), json);
             chan.send((model, score)).expect(
                 "Failed to send the received model from the network to local channel."
             );
@@ -175,7 +179,7 @@ fn sender(streams: StreamLockVec, chan: Receiver<ModelScore>) {
         );
         debug!("network-to-send-out, {}, {}", idx, score);
 
-        let json = serde_json::to_string(&(model, score)).expect(
+        let json = serde_json::to_string(&(idx, (model, score))).expect(
             "Local model cannot be serialized."
         );
         let num_computers = {

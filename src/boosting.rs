@@ -187,11 +187,12 @@ impl<'a> Boosting<'a> {
             }
             if max_score > self.sum_gamma {
                 let old_model_size = self.model.len();
+                let old_model_score = self.sum_gamma;
                 self.model = best_model.unwrap();
                 self.sum_gamma = max_score;
                 self.prev_sum_gamma = self.sum_gamma;
                 debug!("model-replaced, {}, {}, {}, {}",
-                       max_score, self.sum_gamma, self.model.len(), old_model_size);
+                       self.sum_gamma, old_model_score, self.model.len(), old_model_size);
             } else {
                 info!("Remote models are not better. Skipped.");
             }
