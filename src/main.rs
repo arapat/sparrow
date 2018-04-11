@@ -133,7 +133,7 @@ fn main() {
     } else {
         let range_1: usize = args[1].parse().unwrap();
         let range_2: usize = args[2].parse().unwrap();
-        let num_iterations: u32 = args[3].parse().unwrap();
+        let num_iterations: usize = args[3].parse().unwrap();
         debug!("range, {}, {}", range_1, range_2);
         let mut boosting = Boosting::new(
             training_loader,

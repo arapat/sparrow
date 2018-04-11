@@ -95,17 +95,16 @@ impl<'a> Boosting<'a> {
 
     pub fn training(
             &mut self,
-            num_iterations: u32,
+            num_iterations: usize,
             max_trials_before_shrink: u32,
             validate_interval: u32) {
         info!("Start training.");
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
-        let mut iteration = 0;
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
-        while num_iterations <= 0 || iteration < num_iterations {
+        while num_iterations <= 0 || self.model.len() < num_iterations {
             if self.try_sample() {
                 // TODO: update according to the actual number of examples being scannned
                 global_timer.update(self.training_loader_stack[0].get_num_examples() * 2);
@@ -140,7 +139,6 @@ impl<'a> Boosting<'a> {
                     false
                 };
             if found_new_rule {
-                iteration += 1;
                 debug!(
                     "new-tree-info, {}, {}, {}, {:?}",
                     self.model.len(),
