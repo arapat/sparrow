@@ -139,14 +139,15 @@ impl<'a> Boosting<'a> {
                     false
                 };
             if found_new_rule {
+                self.sum_gamma += self.learner.get_rho_gamma().powi(2);
                 debug!(
-                    "new-tree-info, {}, {}, {}, {:?}",
+                    "new-tree-info, {}, {}, {}, {}, {:?}",
                     self.model.len(),
                     self.learner.get_count(),
                     self.learner.get_rho_gamma(),
+                    self.sum_gamma,
                     self.model[self.model.len() - 1]
                 );
-                self.sum_gamma += self.learner.get_rho_gamma().powi(2);
                 self.learner.reset();
                 if interval > 0 && self.model.len() % interval == 0 {
                     self._validate();
