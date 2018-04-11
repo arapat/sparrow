@@ -7,27 +7,36 @@ ec2-54-173-36-174.compute-1.amazonaws.com
 )
 
 export INIT_SCRIPT="/mnt/rust-boost/scripts/init-c3_xlarge-ubuntu.sh"
-export IDENT_FILE=""
+export IDENT_FILE="~/jalafate-dropbox.pem"
 export GIT_REPO="https://github.com/arapat/rust-boost.git"
-export GIT_BRANCH="~/jalafate-dropbox.pem"
+export GIT_BRANCH="aws"
+
+if [[ $# -eq 0 ]] ; then
+    for i in "${!nodes[@]}";
+    do
+        url=${nodes[$i]}
+
+        # Copy init script
+        scp -o StrictHostKeyChecking=no -i $IDENT_FILE $INIT_SCRIPT ubuntu@$url:~
+
+        # Execute init script
+        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo bash ~/init.sh
+
+        # Copy data
+        scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/*.bin ubuntu@$url:/mnt
+
+        # Clone repository
+        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url git clone $GIT_REPO /mnt/rust-boost
+
+        # Install cargo
+        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get update
+        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get install -y cargo
+    done
+fi
 
 for i in "${!nodes[@]}";
 do
-    # Copy init script
-    scp -o StrictHostKeyChecking=no -i $IDENT_FILE $INIT_SCRIPT ubuntu@$url:~
-
-    # Execute init script
-    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo bash ~/init.sh
-
-    # Copy data
-    scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/*.bin ubuntu@$url:/mnt
-
-    # Clone repository
-    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url git clone $GIT_REPO /mnt/rust-boost
-
-    # Install cargo
-    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get update
-    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get install -y cargo
+    url=${nodes[$i]}
 
     # Build package
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
@@ -37,4 +46,11 @@ do
     # Copy config file
     scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/rust-boost/config.json ubuntu@$url:/mnt/rust-boost/config.json
 done
+
+init=" NOT"
+if [[ $# -eq 0 ]] ; then
+    init=""
+fi
+echo "Initialization was$init executed."
+echo "Package build was executed."
 
