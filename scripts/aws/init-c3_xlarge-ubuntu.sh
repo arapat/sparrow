@@ -7,3 +7,5 @@ sudo chown -R ubuntu /mnt
 git config --global user.name "Julaiti Alafate"
 git config --global user.email "Julaiti Alafate"
 
+echo "export EDITOR=vim" >> ~/.bashrc
+
