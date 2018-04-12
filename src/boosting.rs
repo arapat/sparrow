@@ -178,7 +178,7 @@ impl<'a> Boosting<'a> {
         if self.receiver.is_some() {
             info!("Processing models received from the network");
             // handle receiving
-            let recv = self.receiver.as_ref().unwrap();
+            let recv = self.receiver.as_ref().unwrap();  // safe, guaranteed in the IF statement
             let mut best_model = None;
             let mut max_score = 0.0;
             // process all models received so far
@@ -192,7 +192,7 @@ impl<'a> Boosting<'a> {
             if max_score > self.sum_gamma {
                 let old_model_size = self.model.len();
                 let old_model_score = self.sum_gamma;
-                self.model = best_model.unwrap();
+                self.model = best_model.unwrap();  // safe
                 self.sum_gamma = max_score;
                 self.prev_sum_gamma = self.sum_gamma;
                 debug!("model-replaced, {}, {}, {}, {}",
@@ -203,8 +203,16 @@ impl<'a> Boosting<'a> {
 
             // handle sending
             if self.sum_gamma > self.prev_sum_gamma {
-                self.sender.as_ref().unwrap().send((self.model.clone(), self.sum_gamma)).unwrap();
-                self.prev_sum_gamma = self.sum_gamma;
+                let send_result = self.sender.as_ref().unwrap()
+                                      .send((self.model.clone(), self.sum_gamma));
+                if let Err(err) = send_result {
+                    error!("Attempt to send the local model
+                            to the network module but failed. Error: {}", err);
+                } else {
+                    info!("Sent the local model to the network module, {}, {}",
+                          self.prev_sum_gamma, self.sum_gamma);
+                    self.prev_sum_gamma = self.sum_gamma;
+                }
             }
         }
     }

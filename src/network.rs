@@ -95,22 +95,29 @@ fn receiver(name: String, remote_ip: SocketAddr,
     let mut idx = 0;
     loop {
         let mut json = String::new();
-        stream.read_line(&mut json).expect(
-            "Cannot read the remote model from network."
-        );
+        let read_result = stream.read_line(&mut json);
+        if let Err(_) = read_result {
+            error!("Cannot read the remote model from network.");
+            continue;
+        }
+
         if json.trim().len() != 0 {
-            let (remote_name, remote_idx, model_score): PacketLoad =
-                serde_json::from_str(&json).expect(
-                    &format!("Cannot parse the JSON description of the remote model from {}. \
-                              Message ID {}, JSON string is `{}`.", remote_ip, idx, json)
-                );
-            let model = model_score.0;
-            let score = model_score.1;
-            debug!("message-received, {}, {}, {}, {}, {}, {}, {}, \"{:?}\"",
-                   name, idx, remote_name, remote_idx, remote_ip, score, json.len(), model);
-            chan.send((model, score)).expect(
-                "Failed to send the received model from the network to local channel."
-            );
+            let remote_packet = serde_json::from_str(&json);
+            if let Err(err) = remote_packet {
+                error!("Cannot parse the JSON description of the remote model from {}. \
+                        Message ID {}, JSON string is `{}`. Error: {}", remote_ip, idx, json, err);
+            } else {
+                let (remote_name, remote_idx, model_score): PacketLoad = remote_packet.unwrap();
+                let model = model_score.0;
+                let score = model_score.1;
+                debug!("message-received, {}, {}, {}, {}, {}, {}, {}, \"{:?}\"",
+                    name, idx, remote_name, remote_idx, remote_ip, score, json.len(), model);
+                let send_result = chan.send((model, score));
+                if let Err(err) = send_result {
+                    error!("Failed to send the received model from the network
+                            to local channel. Error: {}", err);
+                }
+            }
             idx += 1;
         } else {
             trace!("Received an empty message from {}, message ID {}", remote_ip, idx)
@@ -181,9 +188,12 @@ fn sender(name: String, streams: StreamLockVec, chan: Receiver<ModelScore>) {
 
     let mut idx = 0;
     loop {
-        let (model, score): ModelScore = chan.recv().expect(
-            "Network module cannot receive the local model."
-        );
+        let model_score = chan.recv();
+        if let Err(err) = model_score {
+            error!("Network module cannot receive the local model. Error: {}", err);
+            continue;
+        }
+        let (model, score): ModelScore = model_score.unwrap();
         debug!("network-to-send-out, {}, {}, {}", name, idx, score);
 
         let packet_load: PacketLoad = (name.clone(), idx, (model, score));
