@@ -148,7 +148,9 @@ fn main() {
             default_rho_gamma,
             eval_funcs
         );
-        boosting.enable_network(local_name, remote_ips, 8888);
+        if remote_ips.len() > 0 {
+            boosting.enable_network(local_name, remote_ips, 8888);
+        }
         boosting.training(
             num_iterations,
             max_trials_before_shrink,
@@ -156,3 +158,4 @@ fn main() {
         );
     }
 }
+

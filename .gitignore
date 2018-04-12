@@ -4,4 +4,5 @@
 *.log
 .ipynb_checkpoints
 nohup.out
+*.bin
 
