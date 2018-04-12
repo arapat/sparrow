@@ -6,3 +6,9 @@
 nohup.out
 *.bin
 
+bin-data
+logs.tar
+logs-analysis/local/run*
+logs-analysis/network/*-nodes
+logs-analysis/network/node-*
+

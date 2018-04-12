@@ -145,7 +145,7 @@ impl<'a> Boosting<'a> {
             if found_new_rule {
                 self.sum_gamma += self.learner.get_rho_gamma().powi(2);
                 debug!(
-                    "new-tree-info, {}, {}, {}, {}, {:?}",
+                    "new-tree-info, {}, {}, {}, {}, \"{:?}\"",
                     self.model.len(),
                     self.learner.get_count(),
                     self.learner.get_rho_gamma(),
@@ -286,6 +286,6 @@ fn get_base_tree(max_sample_size: usize, data_loader: &mut DataLoader) -> (Tree,
     tree.release();
 
     info!("Root tree is added.");
-    debug!("new-tree-info, {}, {}, {}, \"{:?}\"", 1, max_sample_size, gamma, tree);
+    debug!("new-tree-info, {}, {}, {}, {}, \"{:?}\"", 1, max_sample_size, gamma, gamma, tree);
     (tree, gamma)
 }
