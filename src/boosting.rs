@@ -83,12 +83,12 @@ impl<'a> Boosting<'a> {
     }
 
 
-    pub fn enable_network(&mut self, remote_ips: &Vec<String>, port: u16) {
+    pub fn enable_network(&mut self, name: String, remote_ips: &Vec<String>, port: u16) {
         let (local_send, local_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
         let (other_send, other_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
         self.sender = Some(local_send);
         self.receiver = Some(other_recv);
-        start_network(remote_ips, port, other_send, local_recv)
+        start_network(name, remote_ips, port, other_send, local_recv)
     }
 
     pub fn training(
