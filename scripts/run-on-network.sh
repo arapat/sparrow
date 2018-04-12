@@ -12,7 +12,7 @@ ec2-54-158-129-205.compute-1.amazonaws.com
 )
 ITERATION=500
 FEATURES=564
-NUM_NODES=${#array[@]}
+NUM_NODES=${#nodes[@]}
 WORK_LOAD=$((($FEATURES+$NUM_NODES-1)/$NUM_NODES))
 
 SETUP_COMMAND="killall rust-boost; cd /mnt/rust-boost; rm *.bin *.log model-*.json"
@@ -21,15 +21,16 @@ for i in `seq 1 $NUM_NODES`; do
     NAME="Node $i"
     BEGI=$((i * WORK_LOAD - WORK_LOAD))
     FINI=$((i * WORK_LOAD))
-    if [ "$i" -eq "$num_nodes" ]; then
+    if [ "$i" == "$NUM_NODES" ]; then
         FINI=$FEATURES
     fi
 
-    url=${nodes[$i]}
+    url=${nodes[$((i - 1))]}
 
     echo
     echo "===== Launching on $url ====="
     echo
+    echo "Parameters: $NAME, $BEGI, $FINI, $ITERATION"
 
     ssh -n -o StrictHostKeyChecking=no -i /mnt/jalafate-dropbox.pem ubuntu@$url "
         $SETUP_COMMAND;
