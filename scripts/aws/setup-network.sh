@@ -68,21 +68,20 @@ if [[ $# -eq 0 ]] ; then
     done
 fi
 
+# Build package
 for i in "${!nodes[@]}";
 do
     url=${nodes[$i]}
-    echo
-    echo "===== Building $url ====="
-    echo
+    echo "Building $url"
 
-    # Build package
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
         cd /mnt/rust-boost && git checkout -- . && git fetch --all &&
-        git checkout $GIT_BRANCH && git pull && cargo build --release"
-
-    # Copy config file
-    scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/rust-boost/config.json ubuntu@$url:/mnt/rust-boost/config.json
+        git checkout $GIT_BRANCH && git pull &&
+        cargo build --release" && \
+    scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/rust-boost/config.json ubuntu@$url:/mnt/rust-boost/config.json &
 done
+
+wait
 
 init=" NOT"
 if [[ $# -eq 0 ]] ; then

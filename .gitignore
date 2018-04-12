@@ -3,3 +3,5 @@
 **/*.rs.bk
 *.log
 .ipynb_checkpoints
+nohup.out
+
