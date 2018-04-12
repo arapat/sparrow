@@ -4,9 +4,14 @@ ec2-54-237-240-178.compute-1.amazonaws.com
 ec2-54-236-141-208.compute-1.amazonaws.com
 ec2-34-235-135-227.compute-1.amazonaws.com
 ec2-54-173-36-174.compute-1.amazonaws.com
+ec2-54-85-123-49.compute-1.amazonaws.com
+ec2-34-230-8-187.compute-1.amazonaws.com
+ec2-184-73-60-48.compute-1.amazonaws.com
+ec2-35-173-138-175.compute-1.amazonaws.com
+ec2-54-158-129-205.compute-1.amazonaws.com
 )
 
-export INIT_SCRIPT="/mnt/rust-boost/scripts/init-c3_xlarge-ubuntu.sh"
+export INIT_SCRIPT="/mnt/rust-boost/scripts/aws/init-c3_xlarge-ubuntu.sh"
 export IDENT_FILE="~/jalafate-dropbox.pem"
 export GIT_REPO="https://github.com/arapat/rust-boost.git"
 export GIT_BRANCH="aws"
@@ -15,28 +20,53 @@ if [[ $# -eq 0 ]] ; then
     for i in "${!nodes[@]}";
     do
         url=${nodes[$i]}
+        echo
+        echo "===== Initializing $url ====="
+        echo
 
-        # Copy init script
-        scp -o StrictHostKeyChecking=no -i $IDENT_FILE $INIT_SCRIPT ubuntu@$url:~
+        if ssh -o StrictHostKeyChecking=no -i $IDENT_FILE $url test -f /mnt/init-done.txt \> /dev/null 2\>\&1
+        then
+            echo "The node has been initialized. Skipped."
+        else
+            # Copy init script
+            scp -o StrictHostKeyChecking=no -i $IDENT_FILE $INIT_SCRIPT ubuntu@$url:~/init.sh
 
-        # Execute init script
-        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo bash ~/init.sh
+            # Execute init script
+            ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo bash ~/init.sh
 
-        # Copy data
-        scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/*.bin ubuntu@$url:/mnt
+            # Copy data
+            if ssh -o StrictHostKeyChecking=no -i $IDENT_FILE $url test -f /mnt/training.bin \> /dev/null 2\>\&1
+            then
+                echo "Training file exists."
+            else
+                scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/training.bin ubuntu@$url:/mnt
+            fi
+            if ssh -o StrictHostKeyChecking=no -i $IDENT_FILE $url test -f /mnt/testing.bin \> /dev/null 2\>\&1
+            then
+                echo "Testing file exists."
+            else
+                scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/testing.bin ubuntu@$url:/mnt
+            fi
 
-        # Clone repository
-        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url git clone $GIT_REPO /mnt/rust-boost
+            # Clone repository
+            ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url git clone $GIT_REPO /mnt/rust-boost
 
-        # Install cargo
-        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get update
-        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get install -y cargo
+            # Install cargo
+            ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get update
+            ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url sudo apt-get install -y cargo
+
+            ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url touch /mnt/init-done.txt
+            echo "Initialization is completed."
+        fi
     done
 fi
 
 for i in "${!nodes[@]}";
 do
     url=${nodes[$i]}
+    echo
+    echo "===== Building $url ====="
+    echo
 
     # Build package
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "

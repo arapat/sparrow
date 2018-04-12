@@ -1,16 +1,37 @@
-echo "Launching on this computer"
-killall rust-boost
-cd /mnt/rust-boost
-rm *.bin
-RUST_LOG=DEBUG nohup cargo run --release 0 164 300 2> run-network.log &
-COMMAND="killall rust-boost; cd /mnt/rust-boost; rm *.bin *.log model-*.json; RUST_LOG=DEBUG nohup cargo run --release 164 264 500 2> run-network.log 1>&2 < /dev/null &"
+nodes=(
+ec2-54-172-121-2.compute-1.amazonaws.com
+ec2-54-237-240-178.compute-1.amazonaws.com
+ec2-54-236-141-208.compute-1.amazonaws.com
+ec2-34-235-135-227.compute-1.amazonaws.com
+ec2-54-173-36-174.compute-1.amazonaws.com
+ec2-54-85-123-49.compute-1.amazonaws.com
+ec2-34-230-8-187.compute-1.amazonaws.com
+ec2-184-73-60-48.compute-1.amazonaws.com
+ec2-35-173-138-175.compute-1.amazonaws.com
+ec2-54-158-129-205.compute-1.amazonaws.com
+)
+ITERATION=500
+FEATURES=564
+NUM_NODES=${#array[@]}
+WORK_LOAD=$((($FEATURES+$NUM_NODES-1)/$NUM_NODES))
 
-echo "Launching on computer 1"
-ssh -n -o StrictHostKeyChecking=no -i /mnt/jalafate-dropbox.pem ubuntu@ec2-54-237-240-178.compute-1.amazonaws.com "$COMMAND"
-echo "Launching on computer 2"
-ssh -n -o StrictHostKeyChecking=no -i /mnt/jalafate-dropbox.pem ubuntu@ec2-54-236-141-208.compute-1.amazonaws.com "$COMMAND"
-echo "Launching on computer 3"
-ssh -n -o StrictHostKeyChecking=no -i /mnt/jalafate-dropbox.pem ubuntu@ec2-34-235-135-227.compute-1.amazonaws.com "$COMMAND"
-echo "Launching on computer 4"
-ssh -n -o StrictHostKeyChecking=no -i /mnt/jalafate-dropbox.pem ubuntu@ec2-54-173-36-174.compute-1.amazonaws.com  "$COMMAND"
+SETUP_COMMAND="killall rust-boost; cd /mnt/rust-boost; rm *.bin *.log model-*.json"
+
+for i in `seq 1 $NUM_NODES`; do
+    BEGI=$((i * WORK_LOAD - WORK_LOAD))
+    FINI=$((i * WORK_LOAD))
+    if [ "$i" -eq "$num_nodes" ]; then
+        FINI=$FEATURES
+    fi
+
+    url=${nodes[$i]}
+
+    echo
+    echo "===== Launching on $url ====="
+    echo
+
+    ssh -n -o StrictHostKeyChecking=no -i /mnt/jalafate-dropbox.pem ubuntu@$url "
+        $SETUP_COMMAND;
+        RUST_LOG=DEBUG nohup cargo run --release $BEGI $FINI $ITERATION 2> run-network.log 1>&2 < /dev/null &"
+done
 
