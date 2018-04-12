@@ -17,6 +17,13 @@ export GIT_REPO="https://github.com/arapat/rust-boost.git"
 export GIT_BRANCH="aws"
 
 if [[ $# -eq 0 ]] ; then
+    echo "Initialize all computers. Are you sure? (y/N)"
+    read yesno
+    if [[ "$yesno" != "y" ]] ; then
+        echo "Aborted."
+        exit 1
+    fi
+
     for i in "${!nodes[@]}";
     do
         url=${nodes[$i]}
