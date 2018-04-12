@@ -63,7 +63,7 @@ impl<'a> Boosting<'a> {
         let gamma_squared = gamma.powi(2);
         let model = vec![base_tree];
 
-        let mut boosting = Boosting {
+        Boosting {
             training_loader_stack: vec![training_loader],
             testing_loader: testing_loader,
             eval_funcs: eval_funcs,
@@ -79,9 +79,7 @@ impl<'a> Boosting<'a> {
             receiver: None,
             sum_gamma: gamma_squared.clone(),
             prev_sum_gamma: gamma_squared
-        };
-        boosting.sample();
-        boosting
+        }
     }
 
 
@@ -102,13 +100,18 @@ impl<'a> Boosting<'a> {
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut global_timer = PerformanceMonitor::new();
+        let mut sampler_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
+
+        if self.training_loader_stack.len() <= 1 {
+            info!("Initial sampling.");
+            self.sample(&mut sampler_timer);
+        }
+
         while num_iterations <= 0 || self.model.len() < num_iterations {
-            if self.try_sample() {
-                // TODO: update according to the actual number of examples being scannned
-                global_timer.update(self.training_loader_stack[0].get_num_examples() * 2);
-            }
+            let sampler_scanned = self.try_sample(&mut sampler_timer);
+            global_timer.update(sampler_scanned);
 
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
@@ -124,8 +127,9 @@ impl<'a> Boosting<'a> {
                 learner_timer.resume();
                 self.learner.update(data, &weights);
 
-                global_timer.update(data.len());
-                learner_timer.update(data.len());
+                let scanned = data.len();
+                learner_timer.update(scanned);
+                global_timer.update(scanned);
                 learner_timer.pause();
             }
 
@@ -157,13 +161,14 @@ impl<'a> Boosting<'a> {
             self.handle_network();
             self.handle_persistent();
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
-            if since_last_check >= 10 {
+            if since_last_check >= 2 {
                 let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();
-                debug!("boosting_speed, {}, {}, {}, {}, {}, {}, {}",
+                let (_, count_sampler, duration_sampler, speed_sampler) = sampler_timer.get_performance();
+                debug!("boosting_speed, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                        self.model.len(), duration, count, speed,
-                       duration_learn, count_learn, speed_learn);
+                       duration_learn, count_learn, speed_learn,
+                       duration_sampler, count_sampler, speed_sampler);
                 global_timer.reset_last_check();
-                learner_timer.reset_last_check();
             }
         }
         info!("Model in JSON:\n{}", serde_json::to_string(&self.model).unwrap());
@@ -216,23 +221,24 @@ impl<'a> Boosting<'a> {
         }
     }
 
-    fn try_sample(&mut self) -> bool {
+    fn try_sample(&mut self, sampler_timer: &mut PerformanceMonitor) -> usize {
         let ess_option = self.training_loader_stack[1].get_ess();
         if let Some(ess) = ess_option {
             if ess < self.ess_threshold {
                 debug!("resample for ESS too low, {}, {}", ess, self.ess_threshold);
                 self.training_loader_stack.pop();
-                self.sample();
+                let prev_count = sampler_timer.get_performance().1;
+                self.sample(sampler_timer);
                 self.learner.reset_all();
-                return true;
+                return sampler_timer.get_performance().1 - prev_count;
             }
         }
-        false
+        0
     }
 
-    fn sample(&mut self) {
+    fn sample(&mut self, sampler_timer: &mut PerformanceMonitor) {
         info!("Re-sampling is started.");
-        let new_sample = self.training_loader_stack[0].sample(&self.model, self.sample_ratio);
+        let new_sample = self.training_loader_stack[0].sample(&self.model, self.sample_ratio, sampler_timer);
         self.training_loader_stack.push(new_sample);
         info!("A new sample is generated.");
     }
