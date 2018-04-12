@@ -15,6 +15,8 @@ FEATURES=564
 NUM_NODES=${#nodes[@]}
 WORK_LOAD=$((($FEATURES+$NUM_NODES-1)/$NUM_NODES))
 
+IDENT_FILE=~/jalafate-dropbox.pem
+
 SETUP_COMMAND="killall rust-boost; cd /mnt/rust-boost; rm *.bin *.log model-*.json"
 
 for i in `seq 1 $NUM_NODES`; do
@@ -32,9 +34,12 @@ for i in `seq 1 $NUM_NODES`; do
     echo
     echo "Parameters: $NAME, $BEGI, $FINI, $ITERATION"
 
-    ssh -n -o StrictHostKeyChecking=no -i /mnt/jalafate-dropbox.pem ubuntu@$url "
+    scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/rust-boost/config.json ubuntu@$url:/mnt/rust-boost/config.json
+    ssh -n -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
         $SETUP_COMMAND;
         RUST_LOG=DEBUG nohup cargo run --release $NAME $BEGI $FINI $ITERATION 2> run-network.log 1>&2 < /dev/null &"
 done
+echo
+cat /mnt/rust-boost/config.json
 echo
 
