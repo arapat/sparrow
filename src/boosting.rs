@@ -286,6 +286,6 @@ fn get_base_tree(max_sample_size: usize, data_loader: &mut DataLoader) -> (Tree,
     tree.release();
 
     info!("Root tree is added.");
-    debug!("new-tree-info, {}, {}, {}, {}, \"{:?}\"", 1, max_sample_size, gamma, gamma, tree);
+    debug!("new-tree-info, {}, {}, {}, {}, \"{:?}\"", 1, max_sample_size, gamma, gamma * gamma, tree);
     (tree, gamma)
 }
