@@ -295,12 +295,14 @@ impl DataLoader {
     }
 
     // TODO: implement stratified sampling version
-    pub fn sample(&mut self, trees: &Model, sample_ratio: f32) -> DataLoader {
+    pub fn sample(&mut self, trees: &Model, sample_ratio: f32,
+                  sampler_timer: &mut PerformanceMonitor) -> DataLoader {
         let mut timer = PerformanceMonitor::new();
         timer.start();
+        sampler_timer.resume();
 
         info!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
-        let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio);
+        let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio, sampler_timer);
         info!("Sample size is estimated to be {}.", size);
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
@@ -324,14 +326,19 @@ impl DataLoader {
                     });
                     sum_weights = next_sum_weight - num_copies as f32 * interval;
                 });
+            sampler_timer.update(data.len());
         }
+
+        sampler_timer.pause();
+
         let ret = self.from_constructor(self.name.clone() + " sample", constructor, trees.len());
         debug!("sampling-finished, {}, {}, {}",
                timer.get_duration(), ret.get_num_examples(), max_repeat);
         ret
     }
 
-    fn get_estimated_interval_and_size(&mut self, trees: &Model, sample_ratio: f32) -> (f32, usize) {
+    fn get_estimated_interval_and_size(&mut self, trees: &Model, sample_ratio: f32,
+                                       sampler_timer: &mut PerformanceMonitor) -> (f32, usize) {
         let mut sum_weights = 0.0;
         let mut max_weight = 0.0;
         let mut num_scanned = 0;
@@ -348,6 +355,8 @@ impl DataLoader {
             });
             sum_weights += local_sum;
             num_scanned += ws.len();
+
+            sampler_timer.update(data.len());
         }
         let sample_size = (sample_ratio * self.size as f32) as usize + 1;
         let interval = sum_weights / (sample_size as f32);

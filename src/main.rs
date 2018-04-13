@@ -100,7 +100,7 @@ fn main() {
         &get_auprc
     ];
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 10;
+    let validate_interval = 0;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
@@ -131,9 +131,11 @@ fn main() {
             k += 1;
         }
     } else {
-        let range_1: usize = args[1].parse().unwrap();
-        let range_2: usize = args[2].parse().unwrap();
-        let num_iterations: u32 = args[3].parse().unwrap();
+        assert_eq!(args.len(), 5);
+        let local_name: String = args[1].clone();
+        let range_1: usize = args[2].parse().unwrap();
+        let range_2: usize = args[3].parse().unwrap();
+        let num_iterations: usize = args[4].parse().unwrap();
         debug!("range, {}, {}", range_1, range_2);
         let mut boosting = Boosting::new(
             training_loader,
@@ -146,7 +148,9 @@ fn main() {
             default_rho_gamma,
             eval_funcs
         );
-        boosting.enable_network(remote_ips, 8888);
+        if remote_ips.len() > 0 {
+            boosting.enable_network(local_name, remote_ips, 8888);
+        }
         boosting.training(
             num_iterations,
             max_trials_before_shrink,
@@ -154,3 +158,4 @@ fn main() {
         );
     }
 }
+

@@ -20,14 +20,15 @@ use std::time::Duration;
 use commons::ModelScore;
 
 type StreamLockVec = Arc<RwLock<Vec<BufStream<TcpStream>>>>;
+type PacketLoad = (String, u32, ModelScore);
 
 
 pub fn start_network(
-        init_remote_ips: &Vec<String>, port: u16,
+        name: String, init_remote_ips: &Vec<String>, port: u16,
         model_send: Sender<ModelScore>, model_recv: Receiver<ModelScore>) {
     let (ip_send, ip_recv): (Sender<SocketAddr>, Receiver<SocketAddr>) = mpsc::channel();
-    start_sender(port, model_recv, ip_send.clone());
-    start_receiver(port, model_send, ip_recv);
+    start_sender(name.clone(), port, model_recv, ip_send.clone());
+    start_receiver(name, port, model_send, ip_recv);
 
     // wait for other computers to be up and ready
     // TODO: waiting is not necessary if receive listener can handle
@@ -44,14 +45,15 @@ pub fn start_network(
     });
 }
 
-fn start_receiver(port: u16, model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
+fn start_receiver(name: String, port: u16,
+                  model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
     spawn(move|| {
-        receivers_listener(port, model_send, remote_ip_recv);
+        receivers_listener(name, port, model_send, remote_ip_recv);
     });
 }
 
-fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
-                      remote_ip_recv: Receiver<SocketAddr>) {
+fn receivers_listener(name: String, port: u16,
+                      model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
     info!("now entering receivers listener");
     let mut receivers = HashSet::new();
     loop {
@@ -60,6 +62,7 @@ fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
         );
         remote_addr.set_port(port);
         if !receivers.contains(&remote_addr) {
+            let name_clone = name.clone();
             let chan = model_send.clone();
             let addr = remote_addr.clone();
             receivers.insert(remote_addr.clone());
@@ -78,7 +81,7 @@ fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
                     };
                 }
                 let stream = BufStream::new(tcp_stream.unwrap());
-                receiver(addr, stream, chan);
+                receiver(name_clone, addr, stream, chan);
             });
         } else {
             info!("(Skipped) Receiver exists for {}", remote_addr);
@@ -86,52 +89,67 @@ fn receivers_listener(port: u16, model_send: Sender<ModelScore>,
     }
 }
 
-fn receiver(remote_ip: SocketAddr, mut stream: BufStream<TcpStream>, chan: Sender<ModelScore>) {
-    info!("Receiver started for {}", remote_ip);
+fn receiver(name: String, remote_ip: SocketAddr,
+            mut stream: BufStream<TcpStream>, chan: Sender<ModelScore>) {
+    info!("Receiver started from {} to {}", name, remote_ip);
     let mut idx = 0;
     loop {
         let mut json = String::new();
-        stream.read_line(&mut json).expect(
-            "Cannot read the remote model from network."
-        );
-        if json.trim().len() != 0 {
-            let (model, score): ModelScore = serde_json::from_str(&json).expect(
-                &format!("Cannot parse the JSON description of the remote model from {}. \
-                          Message ID {}, JSON string is `{}`.", remote_ip, idx, json)
-            );
-            debug!("message-received, {}, {}, {}, {}, {}", idx, remote_ip, score, json.len(), json);
-            chan.send((model, score)).expect(
-                "Failed to send the received model from the network to local channel."
-            );
-        } else {
-            info!("Received an empty message from {}, message ID {}", remote_ip, idx)
+        let read_result = stream.read_line(&mut json);
+        if let Err(_) = read_result {
+            error!("Cannot read the remote model from network.");
+            continue;
         }
-        idx += 1;
+
+        if json.trim().len() != 0 {
+            let remote_packet = serde_json::from_str(&json);
+            if let Err(err) = remote_packet {
+                error!("Cannot parse the JSON description of the remote model from {}. \
+                        Message ID {}, JSON string is `{}`. Error: {}", remote_ip, idx, json, err);
+            } else {
+                let (remote_name, remote_idx, model_score): PacketLoad = remote_packet.unwrap();
+                let model = model_score.0;
+                let score = model_score.1;
+                debug!("message-received, {}, {}, {}, {}, {}, {}, {}, \"{:?}\"",
+                       name, idx, remote_name, remote_idx, remote_ip, score, json.len(), model);
+                let send_result = chan.send((model, score));
+                if let Err(err) = send_result {
+                    error!("Failed to send the received model from the network
+                            to local channel. Error: {}", err);
+                }
+            }
+            idx += 1;
+        } else {
+            trace!("Received an empty message from {}, message ID {}", remote_ip, idx)
+        }
     }
 }
 
-fn start_sender(port: u16, model_recv: Receiver<ModelScore>, remote_ip_send: Sender<SocketAddr>) {
+fn start_sender(name: String, port: u16,
+                model_recv: Receiver<ModelScore>, remote_ip_send: Sender<SocketAddr>) {
     let streams: Vec<BufStream<TcpStream>> = vec![];
     let streams_arc = Arc::new(RwLock::new(streams));
 
     let arc_w = streams_arc.clone();
+    let name_clone = name.clone();
     spawn(move|| {
-        sender_listener(port, arc_w, remote_ip_send);
+        sender_listener(name_clone, port, arc_w, remote_ip_send);
     });
 
     spawn(move|| {
-        sender(streams_arc, model_recv);
+        sender(name, streams_arc, model_recv);
     });
 }
 
 fn sender_listener(
+        name: String,
         port: u16,
         sender_streams: StreamLockVec,
         receiver_ips: Sender<SocketAddr>) {
     // Sender listener is responsible for:
     //     1. Add new incoming stream to sender (via streams RwLock)
     //     2. Send new incoming address to receiver so that it connects to the new machine
-    info!("now entering sender listener");
+    info!("{} entering sender listener", name);
     let local_addr: SocketAddr =
         (String::from("0.0.0.0:") + port.to_string().as_str()).parse().expect(
             &format!("Cannot parse the port number `{}`.", port)
@@ -165,17 +183,21 @@ fn sender_listener(
     }
 }
 
-fn sender(streams: StreamLockVec, chan: Receiver<ModelScore>) {
+fn sender(name: String, streams: StreamLockVec, chan: Receiver<ModelScore>) {
     info!("Sender has started.");
 
     let mut idx = 0;
     loop {
-        let (model, score): ModelScore = chan.recv().expect(
-            "Network module cannot receive the local model."
-        );
-        debug!("network-to-send-out, {}, {}", idx, score);
+        let model_score = chan.recv();
+        if let Err(err) = model_score {
+            error!("Network module cannot receive the local model. Error: {}", err);
+            continue;
+        }
+        let (model, score): ModelScore = model_score.unwrap();
+        debug!("network-to-send-out, {}, {}, {}", name, idx, score);
 
-        let json = serde_json::to_string(&(model, score)).expect(
+        let packet_load: PacketLoad = (name.clone(), idx, (model, score));
+        let json = serde_json::to_string(&packet_load).expect(
             "Local model cannot be serialized."
         );
         let num_computers = {
@@ -192,7 +214,7 @@ fn sender(streams: StreamLockVec, chan: Receiver<ModelScore>) {
             });
             lock_r.len()
         };
-        debug!("network-sent-out, {}, {}, {}", idx, score, num_computers);
+        debug!("network-sent-out, {}, {}, {}, {}", name, idx, score, num_computers);
         idx += 1;
     }
 }

@@ -1,5 +1,14 @@
-
+.*.swp
 /target/
 **/*.rs.bk
 *.log
 .ipynb_checkpoints
+nohup.out
+*.bin
+
+bin-data
+logs.tar
+logs-analysis/local/run*
+logs-analysis/network/*-nodes
+logs-analysis/network/node-*
+
