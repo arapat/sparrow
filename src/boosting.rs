@@ -107,6 +107,7 @@ impl<'a> Boosting<'a> {
         if self.training_loader_stack.len() <= 1 {
             info!("Initial sampling.");
             self.sample(&mut sampler_timer);
+            global_timer.update(sampler_timer.get_performance().1);
         }
 
         while num_iterations <= 0 || self.model.len() < num_iterations {
