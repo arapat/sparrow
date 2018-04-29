@@ -167,7 +167,7 @@ impl<'a> Boosting<'a> {
             self.handle_network();
             self.handle_persistent();
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
-            if since_last_check >= 2 {
+            if speed_test || since_last_check >= 2 {
                 let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();
                 let (_, count_sampler, duration_sampler, speed_sampler) = sampler_timer.get_performance();
                 debug!("boosting_speed, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
