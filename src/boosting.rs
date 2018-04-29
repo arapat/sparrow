@@ -104,22 +104,27 @@ impl<'a> Boosting<'a> {
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
-        if self.training_loader_stack.len() <= 1 {
+        let speed_test = true;
+        let stack_index = if speed_test { 0 } else { 1 };
+
+        if !speed_test && self.training_loader_stack.len() <= 1 {
             info!("Initial sampling.");
             self.sample(&mut sampler_timer);
             global_timer.update(sampler_timer.get_performance().1);
         }
 
         while num_iterations <= 0 || self.model.len() < num_iterations {
-            let sampler_scanned = self.try_sample(&mut sampler_timer);
-            global_timer.update(sampler_scanned);
+            if !speed_test {
+                let sampler_scanned = self.try_sample(&mut sampler_timer);
+                global_timer.update(sampler_scanned);
+            }
 
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
 
             {
-                let training_loader = &mut self.training_loader_stack[1];
+                let training_loader = &mut self.training_loader_stack[stack_index];
                 training_loader.fetch_next_batch();
                 training_loader.fetch_scores(&self.model);
                 let data = training_loader.get_curr_batch();
