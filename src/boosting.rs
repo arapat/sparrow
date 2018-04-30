@@ -105,6 +105,7 @@ impl<'a> Boosting<'a> {
         global_timer.start();
 
         let speed_test = true;
+        let mut speed_read = 0;
         let stack_index = if speed_test { 0 } else { 1 };
 
         if !speed_test && self.training_loader_stack.len() <= 1 {
@@ -175,6 +176,11 @@ impl<'a> Boosting<'a> {
                        duration_learn, count_learn, speed_learn,
                        duration_sampler, count_sampler, speed_sampler);
                 global_timer.reset_last_check();
+
+                speed_read += 1;
+                if speed_test && speed_read >= 10 {
+                    return;
+                }
             }
         }
         info!("Model in JSON:\n{}", serde_json::to_string(&self.model).unwrap());

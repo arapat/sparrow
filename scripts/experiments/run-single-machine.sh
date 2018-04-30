@@ -28,7 +28,8 @@ for i in `seq 1 282`; do
     head=$((282 - i * 1))
     tail=$((282 + i * 1))
     echo "Testing on range [$head, $tail]"
-    RUST_LOG=DEBUG timeout $TIMEOUT cargo run --release single $head $tail 100 2> run-$i.log
+    # RUST_LOG=DEBUG timeout $TIMEOUT cargo run --release single $head $tail 100 2> run-$i.log
+    RUST_LOG=DEBUG cargo run --release single $head $tail 100 2> run-$i.log
     mkdir timeout-$i
     mv model-*.json timeout-$i/
     mv run-$i.log timeout-$i/run-$i-$j.log
