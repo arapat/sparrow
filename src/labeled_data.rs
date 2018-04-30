@@ -1,7 +1,7 @@
 use std::cmp::PartialEq;
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LabeledData<TFeature, TLabel> {
     features: Vec<TFeature>,
     label: TLabel
