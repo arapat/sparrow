@@ -1,4 +1,4 @@
-export TIMEOUT=5
+export TIMEOUT=0.5
 
 killall rust-boost
 cd /mnt/rust-boost/
