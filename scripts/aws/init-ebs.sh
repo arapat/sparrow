@@ -15,3 +15,4 @@ git fetch --all
 git checkout $GIT_BRANCH
 git pull
 cargo build --release
+
