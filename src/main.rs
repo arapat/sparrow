@@ -88,7 +88,7 @@ fn main() {
     // let training_data = home_dir.clone() + "testing.bin";
 
     let feature_size = 564;
-    let batch_size = 1000;
+    let batch_size = 10000;
 
     let max_sample_size = 10000;
     let max_bin_size = 2;

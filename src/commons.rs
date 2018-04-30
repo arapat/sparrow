@@ -153,7 +153,7 @@ impl PerformanceMonitor {
 
     pub fn pause(&mut self) {
         assert!(self.status == PerformanceMonitorStatus::RUNNING);
-        self.duration += self.start_time.to(PreciseTime::now()).num_microseconds();
+        self.duration += self.start_time.to(PreciseTime::now()).num_microseconds().unwrap();
         self.status = PerformanceMonitorStatus::PAUSE;
     }
 
@@ -170,7 +170,7 @@ impl PerformanceMonitor {
     pub fn get_duration(&self) -> f32 {
         let microseconds = self.duration +
             if self.status == PerformanceMonitorStatus::RUNNING {
-                self.start_time.to(PreciseTime::now()).num_microseconds()
+                self.start_time.to(PreciseTime::now()).num_microseconds().unwrap()
             } else {
                 0
             };
