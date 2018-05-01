@@ -29,6 +29,7 @@ if is_master:
     for addr in remain:
         command = "ssh -o StrictHostKeyChecking=no -i {} {} rm {}" \
                         .format(ident_file, addr, neighbor_path)
+        print("\nRunning `{}`\n".format(command))
         proc_init = subprocess.Popen(command.split())
         proc_init.wait()
     with open(neighbor_path, 'w') as f:
@@ -40,13 +41,15 @@ while childs or remain:
         remain = remain[1:]
         command = "ssh -o StrictHostKeyChecking=no -i {} {} test -f {}" \
                         .format(ident_file, next_remote, neighbor_path)
+        print("\nRunning `{}`\n".format(command))
         proc_check = subprocess.Popen(command.split())
         proc_check.wait()
         if proc_check.returncode == 0:
             print("{} has already been working.".format(next_remote))
             continue
-        command = "ssh -o StrictHostKeyChecking=no -i {} {} test -f /mnt/training.bin" \
+        command = "ssh -o StrictHostKeyChecking=no -i {} {} test -f /mnt/testing.bin" \
                         .format(ident_file, next_remote)
+        print("\nRunning `{}`\n".format(command))
         proc_check_file = subprocess.Popen(command.split())
         proc_check_file.wait()
         if proc_check_file.returncode == 0:
@@ -55,6 +58,7 @@ while childs or remain:
         else:
             command = "scp -o StrictHostKeyChecking=no -i {} /mnt/training.bin /mnt/testing.bin ubuntu@{}:/mnt" \
                             .format(ident_file, next_remote)
+            print("\nRunning `{}`\n".format(command))
             proc_send_file = subprocess.Popen(command.split())
             print("Sending files to {}...".format(next_remote))
 
@@ -65,20 +69,32 @@ while childs or remain:
 
     if cur_remote is not None and len(remain) >= 2:
         print("launching new worker at {}.".format(cur_remote))
+        # 1. Send neighbor file
         mid = int(len(remain) / 2)
         filepath = "/tmp/load_{}.txt".format(cur_remote)
         with open(filepath, 'w') as f:
             f.write('\n'.join(remain[:mid]))
         command = "scp -o StrictHostKeyChecking=no -i {} {} ubuntu@{}:{}" \
                         .format(ident_file, filepath, cur_remote, neighbor_path)
+        print("\nRunning `{}`\n".format(command))
         proc_send_neighbor = subprocess.Popen(command.split())
         proc_send_neighbor.wait()
-        command = "scp -o StrictHostKeyChecking=no -i {} {} ubuntu@{}:{}" \
-                        .format(ident_file, ident_file, cur_remote, ident_file)
-        proc_send_neighbor2 = subprocess.Popen(command.split())
-        proc_send_neighbor2.wait()
+        # 2. Send pem file
+        command = "ssh -o StrictHostKeyChecking=no -i {} {} test -f {}" \
+                        .format(ident_file, next_remote, ident_file)
+        print("\nRunning `{}`\n".format(command))
+        proc_check_ident = subprocess.Popen(command.split())
+        proc_check_ident.wait()
+        if proc_check_ident.returncode != 0:
+            command = "scp -o StrictHostKeyChecking=no -i {} {} ubuntu@{}:{}" \
+                            .format(ident_file, ident_file, cur_remote, ident_file)
+            print("\nRunning `{}`\n".format(command))
+            proc_send_neighbor2 = subprocess.Popen(command.split())
+            proc_send_neighbor2.wait()
+        # 3. Launch worker
         command = "ssh -o StrictHostKeyChecking=no -i {} {} python3 {} false" \
                         .format(ident_file, cur_remote, this_file)
+        print("\nRunning `{}`\n".format(command))
         proc_helper = subprocess.Popen(command.split())
         childs.append((cur_remote, proc_helper))
         print("Launched a new helper at {} with {} neighbors.".format(cur_remote, mid))
