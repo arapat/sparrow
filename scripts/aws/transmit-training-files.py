@@ -1,12 +1,14 @@
 import os
 import subprocess
+import sys
 import time
 
 base_dir = "/mnt"
 neighbors = "neighbors.txt"
-ident_file = "~/jalafate-dropbox.pem"
+ident_file = "/home/ubuntu/jalafate-dropbox.pem"
 # NOTE: we assume all computers have this file at this path
 this_file = "/mnt/rust-boost/scripts/aws/transmit-training-files.py"
+is_master = (sys.argv[1].strip() == "true")
 
 childs = []
 
@@ -21,13 +23,16 @@ cur_remote = None
 next_remote = None
 proc_send_file = None
 
-for addr in remain:
-    command = "ssh -o StrictHostKeyChecking=no -i {} {} rm {}" \
-                    .format(ident_file, addr, neighbor_path)
-    proc_init = subprocess.Popen(command.split())
-    proc_init.wait()
-with open(neighbor_path, 'w') as f:
-    f.write('\n'.join(remain))
+if is_master:
+    print("This node is the master node. Initiating the transferring process.")
+    time.sleep(1)
+    for addr in remain:
+        command = "ssh -o StrictHostKeyChecking=no -i {} {} rm {}" \
+                        .format(ident_file, addr, neighbor_path)
+        proc_init = subprocess.Popen(command.split())
+        proc_init.wait()
+    with open(neighbor_path, 'w') as f:
+        f.write('\n'.join(remain))
 
 while childs or remain:
     if proc_send_file is None and remain:
@@ -48,7 +53,7 @@ while childs or remain:
             cur_remote = next_remote
             print("{} has already obtained files.".format(next_remote))
         else:
-            command = "scp -o StrictHostKeyChecking=no -i {} /mnt/*.bin ubuntu@{}:/mnt" \
+            command = "scp -o StrictHostKeyChecking=no -i {} /mnt/training.bin /mnt/testing.bin ubuntu@{}:/mnt" \
                             .format(ident_file, next_remote)
             proc_send_file = subprocess.Popen(command.split())
             print("Sending files to {}...".format(next_remote))
@@ -72,7 +77,7 @@ while childs or remain:
                         .format(ident_file, ident_file, cur_remote, ident_file)
         proc_send_neighbor2 = subprocess.Popen(command.split())
         proc_send_neighbor2.wait()
-        command = "ssh -o StrictHostKeyChecking=no -i {} {} python3 {}" \
+        command = "ssh -o StrictHostKeyChecking=no -i {} {} python3 {} false" \
                         .format(ident_file, cur_remote, this_file)
         proc_helper = subprocess.Popen(command.split())
         childs.append((cur_remote, proc_helper))
