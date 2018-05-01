@@ -68,6 +68,10 @@ while childs or remain:
                         .format(ident_file, filepath, cur_remote, neighbor_path)
         proc_send_neighbor = subprocess.Popen(command.split())
         proc_send_neighbor.wait()
+        command = "scp -o StrictHostKeyChecking=no -i {} {} ubuntu@{}:{}" \
+                        .format(ident_file, ident_file, cur_remote, ident_file)
+        proc_send_neighbor2 = subprocess.Popen(command.split())
+        proc_send_neighbor2.wait()
         command = "ssh -o StrictHostKeyChecking=no -i {} {} python3 {}" \
                         .format(ident_file, cur_remote, this_file)
         proc_helper = subprocess.Popen(command.split())

@@ -1,13 +1,23 @@
 nodes=(
+ec2-34-230-68-167.compute-1.amazonaws.com
+ec2-54-173-173-8.compute-1.amazonaws.com
+ec2-34-238-168-230.compute-1.amazonaws.com
 ec2-54-145-49-12.compute-1.amazonaws.com
+ec2-34-235-163-2.compute-1.amazonaws.com
+ec2-54-86-52-193.compute-1.amazonaws.com
 ec2-54-91-21-47.compute-1.amazonaws.com
 ec2-54-172-162-139.compute-1.amazonaws.com
+ec2-18-232-62-108.compute-1.amazonaws.com
+ec2-52-90-71-139.compute-1.amazonaws.com
 ec2-34-201-217-224.compute-1.amazonaws.com
 ec2-54-84-91-228.compute-1.amazonaws.com
 ec2-52-91-139-75.compute-1.amazonaws.com
+ec2-54-173-162-25.compute-1.amazonaws.com
 ec2-54-152-238-186.compute-1.amazonaws.com
+ec2-54-89-44-26.compute-1.amazonaws.com
 ec2-54-234-106-123.compute-1.amazonaws.com
 ec2-54-84-254-69.compute-1.amazonaws.com
+ec2-54-89-134-139.compute-1.amazonaws.com
 ec2-204-236-252-111.compute-1.amazonaws.com
 )
 
