@@ -104,7 +104,7 @@ impl<'a> Boosting<'a> {
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
-        let speed_test = true;
+        let speed_test = false;
         let mut speed_read = 0;
         let stack_index = if speed_test { 0 } else { 1 };
 

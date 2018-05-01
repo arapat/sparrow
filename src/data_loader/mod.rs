@@ -1,5 +1,6 @@
 pub mod io;
 mod constructor;
+mod examples_in_mem;
 
 use rand;
 use rand::Rng;
@@ -18,13 +19,21 @@ use commons::Model;
 use commons::PerformanceMonitor;
 
 use self::constructor::Constructor;
+use self::examples_in_mem::Examples;
 use self::io::*;
 
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum Format {
     Binary,
-    Text
+    Text,
+    InMemory
+}
+
+#[derive(Debug)]
+enum Reader {
+    DiskReader(BufReader<File>),
+    MemReader(Examples)
 }
 
 #[derive(Debug)]
@@ -45,7 +54,7 @@ pub struct DataLoader {
     sum_weight_squared: f32,
     ess: Option<f32>,
 
-    _reader: BufReader<File>,
+    _reader: Reader,
     _curr_loc: usize,
     _cursor: usize,
     _curr_batch: Vec<Example>,
@@ -63,16 +72,21 @@ pub struct DataLoader {
 
 // TODO: write scores to disk
 impl DataLoader {
-    fn new(name: String, filename: String, size: usize, feature_size: usize,
-           batch_size: usize, format: Format, bytes_per_example: usize, base_node: usize,
+    fn new(name: String, filename: String, examples: Option<Examples>,
+           size: usize, feature_size: usize, batch_size: usize,
+           format: Format, bytes_per_example: usize, base_node: usize,
            scores: Vec<f32>) -> DataLoader {
         assert!(batch_size <= size);
-        let reader = create_bufreader(&filename);
         let num_batch = size / batch_size + ((size % batch_size > 0) as usize);
         let relative_scores = vec![0.0; size];
+        let reader = if format == Format::InMemory {
+            Reader::MemReader(examples.unwrap())
+        } else {
+            Reader::DiskReader(create_bufreader(&filename))
+        };
         debug!(
-            "new-data-loader, {}, {}, {}, {}, {}, {}",
-            filename, size, feature_size, batch_size, base_node, bytes_per_example
+            "new-data-loader, {}, {:?}, {}, {}, {}, {}, {}",
+            filename, format, size, feature_size, batch_size, base_node, bytes_per_example
         );
         DataLoader {
             name: name,
@@ -110,26 +124,31 @@ impl DataLoader {
 
     pub fn from_scratch(name: String, filename: String, size: usize, feature_size: usize,
                         batch_size: usize, format: Format, bytes_per_example: usize) -> DataLoader {
-        let mut ret = DataLoader::new(name, filename, size, feature_size, batch_size,
+        assert!(format != Format::InMemory);
+        let mut ret = DataLoader::new(name, filename, None, size, feature_size, batch_size,
                                       format, bytes_per_example, 0, vec![0.0; size]);
         if ret.format == Format::Text {
-            ret.binary_constructor = Some(Constructor::new(size));
+            ret.binary_constructor = Some(Constructor::new(size, false));
         }
         ret
     }
 
     pub fn from_constructor(&self, name: String, constructor: Constructor,
                             base_node: usize) -> DataLoader {
-        let (filename, mut scores, size, bytes_per_example): (String, Vec<f32>, usize, usize) =
-            constructor.get_content();
+        let (filename, some_examples, mut scores, size, bytes_per_example)
+                :(String, Option<Examples>, Vec<f32>, usize, usize) = constructor.get_content();
+        assert!(some_examples.is_some());
         scores.shrink_to_fit();
+        let mut examples = some_examples.unwrap();
+        examples.shrink_to_fit();
         DataLoader::new(
             name,
             filename,
+            Some(examples),
             size,
             self.feature_size,
             self.batch_size,
-            Format::Binary,
+            Format::InMemory,
             bytes_per_example,
             base_node,
             scores
@@ -183,18 +202,27 @@ impl DataLoader {
             self._cursor = 0;
             tail_remains
         };
-        self._curr_batch = if self.format == Format::Text {
-            let batch: Vec<Example> =
-                read_k_labeled_data(&mut self._reader, batch_size, 0 as TLabel, self.feature_size);
-            if let Some(ref mut constructor) = self.binary_constructor {
-                batch.iter().for_each(|data| {
-                    constructor.append_data(data, 0.0);
-                });
-            }
-            batch
-        } else {
-            read_k_labeled_data_from_binary_file(&mut self._reader, batch_size, self.bytes_per_example)
-        };
+        self._curr_batch =
+            match self._reader {
+                Reader::DiskReader(ref mut reader) => {
+                    if self.format == Format::Text {
+                        let batch: Vec<Example> =
+                            read_k_labeled_data(reader, batch_size, 0 as TLabel, self.feature_size);
+                        if let Some(ref mut constructor) = self.binary_constructor {
+                            batch.iter().for_each(|data| {
+                                constructor.append_data(data, 0.0);
+                            });
+                        }
+                        batch
+                    } else {
+                        read_k_labeled_data_from_binary_file(
+                            reader, batch_size, self.bytes_per_example)
+                    }
+                },
+                Reader::MemReader(ref mut examples) => {
+                    examples.fetch(batch_size)
+                }
+            };
         self._scores_synced = false;
 
         if loader_reset {
@@ -291,7 +319,11 @@ impl DataLoader {
     }
 
     fn set_bufrader(&mut self) {
-        self._reader = create_bufreader(&self.filename);
+        if let Reader::MemReader(ref mut examples) = self._reader {
+            examples.reset();
+        } else {
+            self._reader = Reader::DiskReader(create_bufreader(&self.filename));
+        }
     }
 
     // TODO: implement stratified sampling version
@@ -303,10 +335,10 @@ impl DataLoader {
 
         info!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
         let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio, sampler_timer);
-        info!("Sample size is estimated to be {}.", size);
+        info!("Sample size is estimated to be {}. Interval is {}.", size, interval);
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
-        let mut constructor = Constructor::new(size);
+        let mut constructor = Constructor::new(size, true);
         let mut max_repeat = 0;
         for _ in 0..self.num_batch {
             self.fetch_next_batch();
@@ -342,7 +374,8 @@ impl DataLoader {
         let mut sum_weights = 0.0;
         let mut max_weight = 0.0;
         let mut num_scanned = 0;
-        for _ in 0..self.num_batch {
+        while num_scanned <= 500000 {
+        // for _ in 0..self.num_batch {
             self.fetch_next_batch();
             self.fetch_scores(trees);
             let data = self.get_curr_batch();
@@ -358,11 +391,11 @@ impl DataLoader {
 
             sampler_timer.update(data.len());
         }
-        let sample_size = (sample_ratio * self.size as f32) as usize + 1;
+        let sample_size = (sample_ratio * num_scanned as f32) as usize + 1;
         let interval = sum_weights / (sample_size as f32);
         let max_repeat = max_weight / interval;
         debug!("sample-estimate, {}, {}, {}, {}, {}",
                num_scanned, sum_weights, interval, max_weight, max_repeat);
-        (interval, sample_size + 10)
+        (interval, (sample_ratio * self.size as f32) as usize)
     }
 }
