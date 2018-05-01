@@ -3,7 +3,7 @@ import subprocess
 import sys
 import time
 
-log_path = "~/transmit.log"
+log_path = "/home/ubuntu/transmit.log"
 base_dir = "/mnt"
 neighbors = "neighbors.txt"
 ident_file = "/home/ubuntu/jalafate-dropbox.pem"
