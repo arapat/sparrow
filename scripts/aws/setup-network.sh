@@ -1,14 +1,14 @@
 nodes=(
-ec2-54-172-121-2.compute-1.amazonaws.com
-ec2-54-237-240-178.compute-1.amazonaws.com
-ec2-54-236-141-208.compute-1.amazonaws.com
-ec2-34-235-135-227.compute-1.amazonaws.com
-ec2-54-173-36-174.compute-1.amazonaws.com
-ec2-54-85-123-49.compute-1.amazonaws.com
-ec2-34-230-8-187.compute-1.amazonaws.com
-ec2-184-73-60-48.compute-1.amazonaws.com
-ec2-35-173-138-175.compute-1.amazonaws.com
-ec2-54-158-129-205.compute-1.amazonaws.com
+ec2-54-145-49-12.compute-1.amazonaws.com
+ec2-54-91-21-47.compute-1.amazonaws.com
+ec2-54-172-162-139.compute-1.amazonaws.com
+ec2-34-201-217-224.compute-1.amazonaws.com
+ec2-54-84-91-228.compute-1.amazonaws.com
+ec2-52-91-139-75.compute-1.amazonaws.com
+ec2-54-152-238-186.compute-1.amazonaws.com
+ec2-54-234-106-123.compute-1.amazonaws.com
+ec2-54-84-254-69.compute-1.amazonaws.com
+ec2-204-236-252-111.compute-1.amazonaws.com
 )
 
 export INIT_SCRIPT="/mnt/rust-boost/scripts/aws/init-two_ssd.sh"
@@ -46,13 +46,13 @@ if [[ $# -eq 0 ]] ; then
             then
                 echo "Training file exists."
             else
-                scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/training.bin ubuntu@$url:/mnt
+                scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/training.bin ubuntu@$url:/mnt &
             fi
             if ssh -o StrictHostKeyChecking=no -i $IDENT_FILE $url test -f /mnt/testing.bin \> /dev/null 2\>\&1
             then
                 echo "Testing file exists."
             else
-                scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/testing.bin ubuntu@$url:/mnt
+                scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/testing.bin ubuntu@$url:/mnt &
             fi
 
             # Clone repository
@@ -67,6 +67,11 @@ if [[ $# -eq 0 ]] ; then
         fi
     done
 fi
+
+echo
+echo "Now waiting for training/testing files to be transmitted to all other computers..."
+echo
+wait
 
 # Build package
 for i in "${!nodes[@]}";
