@@ -27,13 +27,11 @@ pub fn start_network(
         name: String, init_remote_ips: &Vec<String>, port: u16,
         model_send: Sender<ModelScore>, model_recv: Receiver<ModelScore>) {
     let (ip_send, ip_recv): (Sender<SocketAddr>, Receiver<SocketAddr>) = mpsc::channel();
+    // sender accepts remote connections
     start_sender(name.clone(), port, model_recv, ip_send.clone());
+    // receiver initiates remote connections
     start_receiver(name, port, model_send, ip_recv);
 
-    // wait for other computers to be up and ready
-    // TODO: waiting is not necessary if receive listener can handle
-    // the connection refused exception
-    sleep(Duration::from_secs(5));
     init_remote_ips.iter().for_each(|ip| {
         let socket_addr: SocketAddr =
             (ip.clone() + ":" + port.to_string().as_str()).parse().expect(
@@ -132,10 +130,12 @@ fn start_sender(name: String, port: u16,
 
     let arc_w = streams_arc.clone();
     let name_clone = name.clone();
+    // accepts remote connections
     spawn(move|| {
         sender_listener(name_clone, port, arc_w, remote_ip_send);
     });
 
+    // Actually sending out models to the remote connections established so far
     spawn(move|| {
         sender(name, streams_arc, model_recv);
     });

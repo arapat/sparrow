@@ -106,9 +106,8 @@ impl<'a> Boosting<'a> {
 
         let speed_test = false;
         let mut speed_read = 0;
-        let stack_index = if speed_test { 0 } else { 1 };
 
-        if !speed_test && self.training_loader_stack.len() <= 1 {
+        if self.training_loader_stack.len() <= 1 {
             info!("Initial sampling.");
             self.sample(&mut sampler_timer);
             global_timer.update(sampler_timer.get_performance().1);
@@ -125,7 +124,7 @@ impl<'a> Boosting<'a> {
             }
 
             {
-                let training_loader = &mut self.training_loader_stack[stack_index];
+                let training_loader = &mut self.training_loader_stack[1];
                 training_loader.fetch_next_batch();
                 training_loader.fetch_scores(&self.model);
                 let data = training_loader.get_curr_batch();
