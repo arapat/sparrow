@@ -62,7 +62,7 @@ while childs or remain:
             proc_send_file = subprocess.Popen(command.split())
             print("Sending files to {}...".format(next_remote))
 
-    if proc_send_file is not None and proc_send_file.poll() is None:
+    if proc_send_file is not None and proc_send_file.poll() is not None:
         print("Files have been sent to {}.".format(next_remote))
         cur_remote = next_remote
         proc_send_file = None
