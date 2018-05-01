@@ -39,6 +39,7 @@ while childs or remain:
     if proc_send_file is None and remain:
         next_remote = remain[0]
         remain = remain[1:]
+        print("Processing 1 neighbor. Remaining neighbors: %d" % len(remain))
         command = "ssh -o StrictHostKeyChecking=no -i {} {} test -f {}" \
                         .format(ident_file, next_remote, neighbor_path)
         print("\nRunning `{}`\n".format(command))
@@ -101,6 +102,7 @@ while childs or remain:
 
         cur_remote = None
         remain = remain[mid:]
+        print("Splitted neighbors with workers. Remaining neighbors: %d" % len(remain))
 
     new_childs = []
     for url, p in childs:
