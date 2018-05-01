@@ -26,7 +26,7 @@ export IDENT_FILE="~/jalafate-dropbox.pem"
 export GIT_REPO="https://github.com/arapat/rust-boost.git"
 export GIT_BRANCH="aws-scale"
 
-if [[ $# -eq 0 ]] ; then
+if [ $1 = "init" ]; then
     echo "Initialize all computers. Are you sure? (y/N)"
     read yesno
     if [[ "$yesno" != "y" ]] ; then
@@ -76,32 +76,28 @@ if [[ $# -eq 0 ]] ; then
             echo "Initialization is completed."
         fi
     done
-fi
 
-echo
-echo "Now waiting for training/testing files to be transmitted to all other computers..."
-echo
-wait
+    echo
+    echo "Now waiting for training/testing files to be transmitted to all other computers..."
+    echo
+    wait
+fi
 
 # Build package
-for i in "${!nodes[@]}";
-do
-    url=${nodes[$i]}
-    echo "Building $url"
+if [ $1 = "build" ]; then
+    for i in "${!nodes[@]}";
+    do
+        url=${nodes[$i]}
+        echo "Building $url"
 
-    ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
-        cd /mnt/rust-boost && git checkout -- . && git fetch --all &&
-        git checkout $GIT_BRANCH && git pull &&
-        cargo build --release" && \
-    scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/rust-boost/config.json ubuntu@$url:/mnt/rust-boost/config.json &
-done
+        ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
+            cd /mnt/rust-boost && git checkout -- . && git fetch --all &&
+            git checkout $GIT_BRANCH && git pull &&
+            cargo build --release" && \
+        scp -o StrictHostKeyChecking=no -i $IDENT_FILE /mnt/rust-boost/config.json ubuntu@$url:/mnt/rust-boost/config.json &
+    done
 
-wait
+    wait
 
-init=" NOT"
-if [[ $# -eq 0 ]] ; then
-    init=""
+    echo "Package build was executed."
 fi
-echo "Initialization was$init executed."
-echo "Package build was executed."
-
