@@ -85,8 +85,8 @@ impl DataLoader {
             Reader::DiskReader(create_bufreader(&filename))
         };
         debug!(
-            "new-data-loader, {}, {}, {}, {}, {}, {}",
-            filename, size, feature_size, batch_size, base_node, bytes_per_example
+            "new-data-loader, {}, {:?}, {}, {}, {}, {}, {}",
+            filename, format, size, feature_size, batch_size, base_node, bytes_per_example
         );
         DataLoader {
             name: name,
@@ -135,22 +135,20 @@ impl DataLoader {
 
     pub fn from_constructor(&self, name: String, constructor: Constructor,
                             base_node: usize) -> DataLoader {
-        let (filename, mut examples, mut scores, size, bytes_per_example)
+        let (filename, some_examples, mut scores, size, bytes_per_example)
                 :(String, Option<Examples>, Vec<f32>, usize, usize) = constructor.get_content();
-        if examples.is_some() {
-            let mut _e = examples.unwrap();
-            _e.shrink_to_fit();
-            examples = Some(_e);
-        }
+        assert!(some_examples.is_some());
         scores.shrink_to_fit();
+        let mut examples = some_examples.unwrap();
+        examples.shrink_to_fit();
         DataLoader::new(
             name,
             filename,
-            examples,
+            Some(examples),
             size,
             self.feature_size,
             self.batch_size,
-            Format::Binary,
+            Format::InMemory,
             bytes_per_example,
             base_node,
             scores
@@ -324,7 +322,7 @@ impl DataLoader {
         if let Reader::MemReader(ref mut examples) = self._reader {
             examples.reset();
         } else {
-            Reader::DiskReader(create_bufreader(&self.filename));
+            self._reader = Reader::DiskReader(create_bufreader(&self.filename));
         }
     }
 
@@ -337,7 +335,7 @@ impl DataLoader {
 
         info!("Sampling started. Sample ratio is {}. Data size is {}.", sample_ratio, self.size);
         let (interval, size) = self.get_estimated_interval_and_size(trees, sample_ratio, sampler_timer);
-        info!("Sample size is estimated to be {}.", size);
+        info!("Sample size is estimated to be {}. Interval is {}.", size, interval);
 
         let mut sum_weights = (rand::thread_rng().gen::<f32>()) * interval;
         let mut constructor = Constructor::new(size, true);
@@ -376,7 +374,8 @@ impl DataLoader {
         let mut sum_weights = 0.0;
         let mut max_weight = 0.0;
         let mut num_scanned = 0;
-        for _ in 0..self.num_batch {
+        while num_scanned <= 500000 {
+        // for _ in 0..self.num_batch {
             self.fetch_next_batch();
             self.fetch_scores(trees);
             let data = self.get_curr_batch();
@@ -392,11 +391,11 @@ impl DataLoader {
 
             sampler_timer.update(data.len());
         }
-        let sample_size = (sample_ratio * self.size as f32) as usize + 1;
+        let sample_size = (sample_ratio * num_scanned as f32) as usize + 1;
         let interval = sum_weights / (sample_size as f32);
         let max_repeat = max_weight / interval;
         debug!("sample-estimate, {}, {}, {}, {}, {}",
                num_scanned, sum_weights, interval, max_weight, max_repeat);
-        (interval, sample_size + 10)
+        (interval, (sample_ratio * self.size as f32) as usize)
     }
 }

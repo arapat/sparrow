@@ -1,5 +1,5 @@
 {
-    "data_dir": "/mnt",
+    "data_dir": "./bin-data",
     "network": [
     ]
 }
