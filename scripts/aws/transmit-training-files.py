@@ -43,7 +43,7 @@ if is_master:
     with open(neighbor_path, 'w') as f:
         f.write('\n'.join(remain))
 
-while childs or remain:
+while childs or remain or proc_send_file is not None:
     if proc_send_file is None and remain:
         next_remote = remain[0]
         remain = remain[1:]
@@ -72,7 +72,8 @@ while childs or remain:
             write_log("Sending files to {}...".format(next_remote))
 
     if proc_send_file is not None and proc_send_file.poll() is not None:
-        write_log("Files have been sent to {}.".format(next_remote))
+        write_log("Files have been sent to {} with returncode {}"
+                      .format(next_remote, proc_send_file.returncode))
         cur_remote = next_remote
         proc_send_file = None
 
@@ -114,7 +115,7 @@ while childs or remain:
 
     new_childs = []
     for url, p in childs:
-        if p.poll() is None:
+        if p.poll() is not None:
             write_log("{} is exited with the returncode {}.".format(url, p.returncode))
         else:
             new_childs.append((url, p))
