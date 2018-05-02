@@ -16,6 +16,7 @@ f_log = open(log_path, 'w')
 
 def write_log(s):
     f_log.write(s + '\n')
+    f_log.flush()
 
 
 childs = []
