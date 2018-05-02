@@ -113,6 +113,8 @@ do
     "cd /mnt/rust-boost;
      export output=\$(ls -rt ./model-* | tail -1);
      nohup ./scripts/validate.sh \$output ./validate.log 2> /dev/null 1>&2 < /dev/null &"
+#     echo "scripts/validate.sh logs-analysis/network/node-$i/model-9*.json logs-analysis/network/node-$i/validate.log"
+#     scripts/validate.sh logs-analysis/network/20-nodes/node-$i/model-9*.json logs-analysis/network/20-nodes/node-$i/validate.log
 done
 
 wait
