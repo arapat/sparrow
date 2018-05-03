@@ -26,15 +26,15 @@ for i in `seq 1 $NUM_NODES`; do
     url=${nodes[$((i - 1))]}
 
     echo
-    echo "Building $url..."
-    echo
+    echo "===== Building $url ====="
 
     scp -o StrictHostKeyChecking=no -i $IDENT_FILE $BASE_DIR/rust-boost/config.json ubuntu@$url:$BASE_DIR/rust-boost/config.json
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
         $SETUP_COMMAND;
         cd $BASE_DIR/rust-boost && git checkout -- . && git fetch --all &&
-        git checkout $GIT_BRANCH && git pull &&
+        git checkout $GIT_BRANCH && git pull;
         cargo build --release"
+    echo
 done
 
 
