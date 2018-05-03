@@ -8,6 +8,11 @@ WORK_LOAD=$((($FEATURES+$NUM_NODES-1)/$NUM_NODES))
 
 IDENT_FILE=$BASE_DIR/jalafate-dropbox.pem
 
+if [ ! -f $IDENT_FILE ]; then
+    echo "Identification file not found!"
+    exit 1
+fi
+ 
 echo
 cat $BASE_DIR/rust-boost/config.json
 echo
