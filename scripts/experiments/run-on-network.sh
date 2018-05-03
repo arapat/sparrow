@@ -1,4 +1,4 @@
-ITERATION=1000
+ITERATION=10000
 FEATURES=564
 BASE_DIR="/home/ubuntu"
 readarray -t nodes < $BASE_DIR/neighbors.txt
