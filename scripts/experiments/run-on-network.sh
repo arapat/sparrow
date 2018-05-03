@@ -49,6 +49,8 @@ for i in `seq 1 $NUM_NODES`; do
         FINI=$FEATURES
     fi
 
+    url=${nodes[$((i - 1))]}
+
     echo
     echo "===== Launching on $url ====="
     echo "Parameters: $NAME, $BEGI, $FINI, $ITERATION"
