@@ -20,7 +20,10 @@ echo "Ready to launch on $NUM_NODES machines?"
 read enter
 
 
-SETUP_COMMAND="killall rust-boost; cd $BASE_DIR/rust-boost; rm *.bin *.log model-*.json"
+SETUP_COMMAND="
+killall rust-boost;
+cd $BASE_DIR/rust-boost;
+rm *.bin *.log model-*.json"
 
 for i in `seq 1 $NUM_NODES`; do
     url=${nodes[$((i - 1))]}
@@ -49,9 +52,11 @@ for i in `seq 1 $NUM_NODES`; do
     echo
     echo "===== Launching on $url ====="
     echo "Parameters: $NAME, $BEGI, $FINI, $ITERATION"
-    echo
 
     ssh -n -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
+        cd $BASE_DIR;
         RUST_LOG=DEBUG nohup cargo run --release $NAME $BEGI $FINI $ITERATION 2> run-network.log 1>&2 < /dev/null &"
+    echo "Launched."
+    echo
 done
 
