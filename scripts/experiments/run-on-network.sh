@@ -56,7 +56,7 @@ for i in `seq 1 $NUM_NODES`; do
     echo "Parameters: $NAME, $BEGI, $FINI, $ITERATION"
 
     ssh -n -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
-        cd $BASE_DIR;
+        cd $BASE_DIR/rust-boost;
         RUST_LOG=DEBUG nohup cargo run --release $NAME $BEGI $FINI $ITERATION 2> run-network.log 1>&2 < /dev/null &"
     echo "Launched."
     echo
