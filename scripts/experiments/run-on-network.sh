@@ -1,4 +1,4 @@
-ITERATION=10000
+ITERATION=$1
 FEATURES=564
 BASE_DIR="/home/ubuntu"
 readarray -t nodes < $BASE_DIR/neighbors.txt
@@ -8,6 +8,10 @@ WORK_LOAD=$((($FEATURES+$NUM_NODES-1)/$NUM_NODES))
 
 IDENT_FILE=$BASE_DIR/jalafate-dropbox.pem
 
+if [[ $# -eq 0 ]] ; then
+    echo "Please provide the number of iterations."
+    exit 1
+fi
 if [ ! -f $IDENT_FILE ]; then
     echo "Identification file not found!"
     exit 1
@@ -16,7 +20,8 @@ fi
 echo
 cat $BASE_DIR/rust-boost/config.json
 echo
-echo "Ready to launch on $NUM_NODES machines?"
+echo "$NUM_NODES machines. $ITERATION iterations.
+Ready to launch?"
 read enter
 
 
