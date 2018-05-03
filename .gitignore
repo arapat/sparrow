@@ -6,6 +6,7 @@
 .ipynb_checkpoints
 nohup.out
 *.bin
+config.json
 
 bin-data
 logs.tar
