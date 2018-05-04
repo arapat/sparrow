@@ -1,7 +1,10 @@
 BASE_DIR="/home/ubuntu"
-IDENT_FILE="~/Dropbox/documents/vault/aws/jalafate-dropbox.pem"
+IDENT_FILE="$BASE_DIR/jalafate-dropbox.pem"
 
 readarray -t nodes < $BASE_DIR/neighbors.txt
+
+echo "Start validating?"
+read enter
 
 for i in "${!nodes[@]}";
 do
