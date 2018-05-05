@@ -18,8 +18,7 @@ do
     "(sudo apt-get install -y python3-pip;
       sudo pip3 install pandas;
       cd $BASE_DIR/rust-boost; git pull; cd $BASE_DIR;
-      python3 rust-boost/notebooks/python/gen-pandas.py $i)"
-# 2> /dev/null 1>&2 < /dev/null &"
+      python3 rust-boost/notebooks/python/gen-pandas.py $i) 2> /dev/null 1>&2 < /dev/null &"
 
     echo
 done
