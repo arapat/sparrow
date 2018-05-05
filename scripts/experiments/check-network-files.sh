@@ -14,6 +14,7 @@ do
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE $url "
         ls -rt $BASE_DIR/rust-boost/model* | tail -2;
         ls -rt $BASE_DIR/rust-boost/*.log;
+        ls -rt $BASE_DIR/rust-boost/*.pkl;
         ps aux | grep [t]arget/release/rust-boost
     "
     read enter
