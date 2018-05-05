@@ -5,7 +5,7 @@ import sys
 import numpy as np
 from io import StringIO
 
-BASE_DIR = "/home/ubuntu/"
+BASE_DIR = "/home/ubuntu/rust-boost"
 
 
 def create_dataframe(csv_string, col_names):
