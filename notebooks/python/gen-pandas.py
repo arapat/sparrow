@@ -5,7 +5,7 @@ import sys
 import numpy as np
 from io import StringIO
 
-BASE_DIR = "/home/ubuntu/"
+BASE_DIR = "/home/ubuntu/rust-boost"
 
 
 def create_dataframe(csv_string, col_names):
@@ -137,7 +137,8 @@ def get_df(base_path, idx):
     to_save = [trees, true_z, model_replace, tree_info]
     names = ["trees", "true_z", "model_repalce", "tree_info"]
     for var, name in zip(to_save, names):
-        with open("{}-{}.pkl".format(name, idx), 'wb') as f:
+        path = os.path.join(base_path, "{}-{}.pkl".format(name, idx))
+        with open(path, 'wb') as f:
             pickle.dump(var, f)
 
 

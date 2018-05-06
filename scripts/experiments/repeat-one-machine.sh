@@ -40,10 +40,15 @@ for i in `seq 1 $NUM_NODES`; do
         $SETUP_COMMAND;
         cd $BASE_DIR/rust-boost && git checkout -- . && git fetch --all &&
         git checkout $GIT_BRANCH && git pull;
-        cargo build --release"
+        cargo build --release 2> run-network.log 1>&2 < /dev/null &"
     echo
 done
 
+ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
+    $SETUP_COMMAND;
+    cd $BASE_DIR/rust-boost && git checkout -- . && git fetch --all &&
+    git checkout $GIT_BRANCH && git pull;
+    cargo build --release"
 
 for i in `seq 1 $NUM_NODES`; do
     NAME="Node-$i"
