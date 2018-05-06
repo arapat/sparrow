@@ -135,7 +135,7 @@ def get_df(base_path, idx):
     # network_out = network_out.drop(columns=["level", "module", "log-type"])
 
     to_save = [trees, true_z, model_replace, tree_info]
-    names = ["trees", "true_z", "model_repalce", "tree_infi"]
+    names = ["trees", "true_z", "model_repalce", "tree_info"]
     for var, name in zip(to_save, names):
         with open("{}-{}.pkl".format(name, idx), 'wb') as f:
             pickle.dump(var, f)
