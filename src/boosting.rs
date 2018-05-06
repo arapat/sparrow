@@ -206,6 +206,7 @@ impl<'a> Boosting<'a> {
                 self.model = best_model.unwrap();  // safe
                 self.sum_gamma = max_score;
                 self.prev_sum_gamma = self.sum_gamma;
+                self.learner.reset();
                 debug!("model-replaced, {}, {}, {}, {}",
                        self.sum_gamma, old_model_score, self.model.len(), old_model_size);
             } else {
