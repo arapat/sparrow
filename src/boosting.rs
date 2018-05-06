@@ -267,7 +267,7 @@ impl<'a> Boosting<'a> {
         info!("Validation is started.");
         let scores = validate(&mut self.testing_loader, &self.model, &self.eval_funcs);
         let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
-        debug!("validation-results, {}", output.join(", "));
+        debug!("validation-results, {}, {}", self.model.len(), output.join(", "));
     }
 }
 

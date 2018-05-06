@@ -76,9 +76,14 @@ fn main() {
     // read from bin
     let training_data = home_dir.clone() + "training.bin";
     let testing_data = home_dir.clone() + "testing.bin";
+    let testing_data = home_dir.clone() + "training.bin";
 
+    // let training_size = 50000000;
     let training_size = 50000000;
     let testing_size = 4627840;
+
+    let training_size = 10000;
+    let testing_size = 10000;
 
     // use testing for training
     // let training_size = 4627840;
@@ -88,11 +93,11 @@ fn main() {
     // let training_data = home_dir.clone() + "testing.bin";
 
     let feature_size = 564;
-    let batch_size = 10000;
+    let batch_size = 100;
 
     let max_sample_size = 10000;
     let max_bin_size = 2;
-    let sample_ratio = 0.05;
+    let sample_ratio = 0.8;
     let ess_threshold = 0.5;
     let default_rho_gamma = 0.25;
     let eval_funcs: Vec<&LossFunc> = vec![
@@ -100,7 +105,7 @@ fn main() {
         &get_auprc
     ];
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 0;
+    let validate_interval = 1;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
