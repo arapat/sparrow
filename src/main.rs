@@ -105,7 +105,14 @@ fn main() {
     } else {
         1000000
     };
-    let validate_interval = 1;
+    let validate_interval = 0;
+
+    // debugging
+    // let training_size = 100000;
+    // let testing_size = 100000;
+    // let testing_data = home_dir.clone() + "training.bin";
+    // let sample_ratio = 0.8;
+    // let validate_interval = 1;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
