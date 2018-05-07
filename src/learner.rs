@@ -348,7 +348,7 @@ impl Learner {
                                     } else {
                                         gamma
                                     };
-                                    let (left_predict, right_predict) = get_prediction(k, gamma);
+                                    let (left_predict, right_predict) = get_prediction(k, _gamma);
                                     ret = Some(WeakRule {
                                         feature: i + self.range_start,
                                         threshold: threshold,
