@@ -34,12 +34,18 @@ pub struct WeakRule {
     raw_martingale: f32,
     sum_c: f32,
     sum_c_squared: f32,
-    bound: f32
+    bound: f32,
+
+    left_positive: f32,
+    left_negative: f32,
+    right_positive: f32,
+    right_negative: f32
 }
 
 impl WeakRule {
     pub fn create_tree(&self) -> Tree {
-        debug!("new-tree-martingale, {}, {}, {}, {}",
+        debug!("new-tree-martingale, {}, {}, {}, {}, {}, {}, {}, {}",
+               self.left_positive, self.left_negative, self.right_positive, self.right_negative,
                self.raw_martingale, self.sum_c, self.sum_c_squared, self.bound);
         let mut tree = Tree::new(2);
         tree.split(0, self.feature, self.threshold, self.left_predict, self.right_predict);
@@ -58,6 +64,11 @@ pub struct Learner {
     sum_c:            ScoreBoard,
     sum_c_squared:    ScoreBoard,
 
+    left_positive:    ScoreBoard,
+    left_negative:    ScoreBoard,
+    right_positive:   ScoreBoard,
+    right_negative:   ScoreBoard,
+
     count: usize,
     sum_weights: f32,
     sum_weights_squared: f32,
@@ -71,6 +82,10 @@ impl Learner {
         let b1 = get_score_board(&bins);
         let b2 = get_score_board(&bins);
         let b3 = get_score_board(&bins);
+        let b4 = get_score_board(&bins);
+        let b5 = get_score_board(&bins);
+        let b6 = get_score_board(&bins);
+        let b7 = get_score_board(&bins);
         Learner {
             bins: bins,
             range_start: range.start,
@@ -80,6 +95,11 @@ impl Learner {
             weak_rules_score: b1,
             sum_c:            b2,
             sum_c_squared:    b3,
+
+            left_positive:    b4,
+            left_negative:    b5,
+            right_positive:   b6,
+            right_negative:   b7,
 
             count: 0,
             sum_weights: 0.0,
@@ -94,6 +114,11 @@ impl Learner {
         reset_score_board(&mut self.weak_rules_score);
         reset_score_board(&mut self.sum_c);
         reset_score_board(&mut self.sum_c_squared);
+
+        reset_score_board(&mut self.left_positive);
+        reset_score_board(&mut self.left_negative);
+        reset_score_board(&mut self.right_positive);
+        reset_score_board(&mut self.right_negative);
 
         self.count = 0;
         self.sum_weights = 0.0;
@@ -155,7 +180,8 @@ impl Learner {
                 let weighted_label = weight * label;
                 let w_pos = (label - 2.0 * gamma) * weight;
                 let w_neg = (-label - 2.0 * gamma) * weight;
-                let w_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                // let w_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                let w_sq = ((1.0 + 2.0 * gamma) * 1.0).powi(2);
                 /*
                     1. Left +1, Right +1;
                     2. Left +1, Right -1;
@@ -187,10 +213,21 @@ impl Learner {
                     self.sum_c_squared.par_iter_mut()
                 )
             )
+        ).zip(
+            self.left_positive.par_iter_mut().zip(
+                self.left_negative.par_iter_mut()
+            ).zip(
+                self.right_positive.par_iter_mut().zip(
+                    self.right_negative.par_iter_mut()
+                )
+            )
         ).enumerate().for_each(
-            |(i, (bin, (weak_rules_score, (sum_c, sum_c_squared))))| {
+            |(i, ((bin, (weak_rules_score, (sum_c, sum_c_squared))),
+                  ((left_pos, left_neg), (right_pos, right_neg))))| {
                 examples.iter().for_each(|&(example, goes_to_left, goes_to_right)| {
                     let feature_val = example.get_features()[i + range_start] as f32;
+                    let label = get_symmetric_label(example);
+                    let weight = (goes_to_left.0).0 * label;
                     bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
                         let direction =
                             if feature_val <= *threshold {
@@ -212,21 +249,60 @@ impl Learner {
                         sum_c_squared[j][1]    += (direction.2).1;
                         sum_c_squared[j][2]    += (direction.2).2;
                         sum_c_squared[j][3]    += (direction.2).3;
+
+                        if feature_val <= *threshold {
+                            if label > 0.0 {
+                                left_pos[j][0] += weight;
+                                left_pos[j][1] += weight;
+                                left_pos[j][2] += weight;
+                                left_pos[j][3] += weight;
+                            } else {
+                                left_neg[j][0] += weight;
+                                left_neg[j][1] += weight;
+                                left_neg[j][2] += weight;
+                                left_neg[j][3] += weight;
+                            }
+                        } else {
+                            if label > 0.0 {
+                                right_pos[j][0] += weight;
+                                right_pos[j][1] += weight;
+                                right_pos[j][2] += weight;
+                                right_pos[j][3] += weight;
+                            } else {
+                                right_neg[j][0] += weight;
+                                right_neg[j][1] += weight;
+                                right_neg[j][2] += weight;
+                                right_neg[j][3] += weight;
+                            }
+                        }
                     });
                 });
         });
     }
 
-    pub fn get_new_weak_rule(&mut self) -> &Option<WeakRule> {
-        if self.outdated {
-            self.set_valid_weak_rule();
+    pub fn get_new_weak_rule(&mut self, cur_best: bool) -> &Option<WeakRule> {
+        if self.outdated || (cur_best && self.valid_weak_rule.is_none()) {
+            self.set_valid_weak_rule(cur_best);
             self.outdated = false;
         }
         &self.valid_weak_rule
     }
 
-    fn set_valid_weak_rule(&mut self) {
+    fn set_valid_weak_rule(&mut self, cur_best: bool) {
+        let mut max_score = 0.0;
+        if cur_best {
+            for i in 0..self.weak_rules_score.len() {
+                for j in 0..self.weak_rules_score[i].len() {
+                    for k in 0..4 {
+                        if self.weak_rules_score[i][j][k] > max_score {
+                            max_score = self.weak_rules_score[i][j][k];
+                        }
+                    }
+                }
+            }
+        }
         let gamma = self.cur_rho_gamma;
+        let sum_weights = self.sum_weights;
         let ret =
             self.bins.par_iter().zip(
                 self.weak_rules_score.par_iter().zip(
@@ -234,8 +310,17 @@ impl Learner {
                         self.sum_c_squared.par_iter()
                     )
                 )
+            ).zip(
+                self.left_positive.par_iter().zip(
+                    self.left_negative.par_iter()
+                ).zip(
+                    self.right_positive.par_iter().zip(
+                        self.right_negative.par_iter()
+                    )
+                )
             ).enumerate().map(
-                |(i, (bin, (weak_rules_score, (sum_c, sum_c_squared))))| {
+                |(i, ((bin, (weak_rules_score, (sum_c, sum_c_squared))),
+                      ((left_positive, left_negative), (right_positive, right_negative))))| {
                     let mut ret = None;
                     let cur_bin = bin.get_vals();
                     for j in 0..cur_bin.len() {
@@ -244,8 +329,25 @@ impl Learner {
                             let _sum_c = sum_c[j][k];
                             let _sum_c_squared = sum_c_squared[j][k];
                             let _score = weak_rules_score[j][k];
-                            if let Some(bound) = get_bound(&_sum_c, &_sum_c_squared) {
+
+                            let _left_pos = left_positive[j][k];
+                            let _left_neg = left_negative[j][k];
+                            let _right_pos = right_positive[j][k];
+                            let _right_neg = right_negative[j][k];
+
+                            let some_bound = get_bound(&_sum_c, &_sum_c_squared);
+                            if cur_best && _score >= max_score || some_bound.is_some() {
+                                let bound = if !cur_best {
+                                    some_bound.unwrap()
+                                } else {
+                                    -1.0
+                                };
                                 if _sum_c > bound {
+                                    let _gamma = if bound < 0.0 {
+                                        _score / sum_weights / 2.0
+                                    } else {
+                                        gamma
+                                    };
                                     let (left_predict, right_predict) = get_prediction(k, gamma);
                                     ret = Some(WeakRule {
                                         feature: i + self.range_start,
@@ -256,7 +358,12 @@ impl Learner {
                                         raw_martingale: _score,
                                         sum_c: _sum_c,
                                         sum_c_squared: _sum_c_squared,
-                                        bound: bound
+                                        bound: bound,
+
+                                        left_positive: _left_pos,
+                                        left_negative: _left_neg,
+                                        right_positive: _right_pos,
+                                        right_negative: _right_neg
                                     });
                                     break;
                                 }

@@ -39,6 +39,7 @@ use config::Config;
 use data_loader::Format;
 use data_loader::DataLoader;
 
+use commons::get_symmetric_label;
 
 fn main() {
     env_logger::Builder::from_default_env()
@@ -76,14 +77,9 @@ fn main() {
     // read from bin
     let training_data = home_dir.clone() + "training.bin";
     let testing_data = home_dir.clone() + "testing.bin";
-    let testing_data = home_dir.clone() + "training.bin";
 
-    // let training_size = 50000000;
     let training_size = 50000000;
     let testing_size = 4627840;
-
-    let training_size = 10000;
-    let testing_size = 10000;
 
     // use testing for training
     // let training_size = 4627840;
@@ -93,9 +89,9 @@ fn main() {
     // let training_data = home_dir.clone() + "testing.bin";
 
     let feature_size = 564;
-    let batch_size = 100;
+    let batch_size = 10000;
 
-    let max_sample_size = 10000;
+    let max_sample_size = 100000;
     let max_bin_size = 2;
     let sample_ratio = 0.8;
     let ess_threshold = 0.5;
@@ -104,7 +100,11 @@ fn main() {
         &get_adaboost_loss,
         &get_auprc
     ];
-    let max_trials_before_shrink = 1000000;
+    let max_trials_before_shrink = if training_size < 1000000 {
+        training_size as u32
+    } else {
+        1000000
+    };
     let validate_interval = 1;
 
     let training_loader = DataLoader::from_scratch(
@@ -135,6 +135,59 @@ fn main() {
             info!("validate-only, {}, {}", k10, output.join(", "));
             k += 1;
         }
+    } else if args[1] == "count" {
+        let training_data = home_dir.clone() + "training.bin";
+        let testing_data = home_dir.clone() + "testing.bin";
+        let training_size = 50000000;
+        let testing_size = 4627840;
+        let mut training_loader = DataLoader::from_scratch(
+            String::from("training"), training_data, training_size, feature_size, batch_size,
+            Format::Binary, 573
+            // Format::Text, 573
+        );
+        let mut testing_loader = DataLoader::from_scratch(
+            String::from("testing"), testing_data, testing_size, feature_size, batch_size,
+            Format::Binary, 573
+        );
+        let num_batches = training_loader.get_num_batches();
+        let mut pos = 0.0;
+        let mut neg = 0.0;
+        (0..num_batches).for_each(|_| {
+            training_loader.fetch_next_batch();
+            let data = training_loader.get_curr_batch();
+            let labels: Vec<f32> = data.iter()
+                        .map(|d| get_symmetric_label(d))
+                        .collect();
+            labels.iter().for_each(|t| {
+                if *t > 0.0 {
+                    pos += 1.0;
+                } else {
+                    neg += 1.0;
+                }
+            });
+            print!("{}, ", pos);
+        });
+        println!();
+
+        let num_batches = testing_loader.get_num_batches();
+        let mut pos = 0.0;
+        let mut neg = 0.0;
+        (0..num_batches).for_each(|_| {
+            testing_loader.fetch_next_batch();
+            let data = testing_loader.get_curr_batch();
+            let labels: Vec<f32> = data.iter()
+                        .map(|d| get_symmetric_label(d))
+                        .collect();
+            labels.iter().for_each(|t| {
+                if *t > 0.0 {
+                    pos += 1.0;
+                } else {
+                    neg += 1.0;
+                }
+            });
+            print!("{}, ", pos);
+        });
+        println!();
     } else {
         assert_eq!(args.len(), 5);
         let local_name: String = args[1].clone();

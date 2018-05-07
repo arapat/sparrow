@@ -119,11 +119,8 @@ impl<'a> Boosting<'a> {
                 global_timer.update(sampler_scanned);
             }
 
-            if self.learner.get_count() >= timeout {
-                self.learner.shrink_target();
-            }
-
-            {
+            let is_timeout = self.learner.get_count() >= timeout;
+            if !is_timeout {
                 let training_loader = &mut self.training_loader_stack[1];
                 training_loader.fetch_next_batch();
                 training_loader.fetch_scores(&self.model);
@@ -139,16 +136,60 @@ impl<'a> Boosting<'a> {
                 learner_timer.pause();
             }
 
-            let found_new_rule =
-                if let &Some(ref weak_rule) = self.learner.get_new_weak_rule() {
-                    self.model.push(
-                        weak_rule.create_tree()
-                    );
-                    true
-                } else {
-                    false
-                };
-            if found_new_rule {
+            // if is_timeout {
+            let mut new_tree = None;
+            if let &Some(ref weak_rule) = self.learner.get_new_weak_rule(is_timeout) {
+                new_tree = Some(weak_rule.create_tree());
+            }
+            if new_tree.is_some() {
+                let this_tree = new_tree.unwrap();
+
+                // Validation, only used in debugging
+                /*
+                let split_idx = this_tree.get_split_index();
+                let split_val = this_tree.get_split_value();
+                let num_batches = self.training_loader_stack[0].get_num_batches();
+                let mut left_pos = 0.0;
+                let mut left_neg = 0.0;
+                let mut right_pos = 0.0;
+                let mut right_neg = 0.0;
+                (0..num_batches).for_each(|_| {
+                    let all_data = &mut self.training_loader_stack[0];
+                    all_data.fetch_next_batch();
+                    all_data.fetch_scores(&self.model);
+                    let data = all_data.get_curr_batch();
+                    let labels: Vec<f32> = all_data.get_curr_batch()
+                                .iter()
+                                .map(|d| get_symmetric_label(d))
+                                .collect();
+                    let scores: Vec<f32> = all_data.get_absolute_scores()
+                                .iter()
+                                .cloned()
+                                .collect();
+                    let weights = get_weights(data, &scores);
+                    data.iter().map(
+                        |example| example.get_features()[split_idx]
+                    ).zip(weights.iter()).zip(labels).for_each(|((feature_val, weight), label)| {
+                        if feature_val as f32 <= split_val {
+                            if label > 0.0 {
+                                left_pos += weight;
+                            } else {
+                                left_neg += weight;
+                            }
+                        } else {
+                            if label > 0.0 {
+                                right_pos += weight;
+                            } else {
+                                right_neg += weight;
+                            }
+                        }
+                    });
+                });
+                error!("verify, {}, {}, {}, {}", left_pos, left_neg, right_pos, right_neg);
+                */
+                // -- validation done --
+
+                self.model.push(this_tree);
                 self.sum_gamma += self.learner.get_rho_gamma().powi(2);
                 debug!(
                     "new-tree-info, {}, {}, {}, {}, \"{:?}\"",
@@ -164,8 +205,14 @@ impl<'a> Boosting<'a> {
                 }
             }
 
+            if is_timeout {
+                self.learner.shrink_target();
+            }
+
             self.handle_network();
             self.handle_persistent();
+            // }
+
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
             if speed_test || since_last_check >= 2 {
                 let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();

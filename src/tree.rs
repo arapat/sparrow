@@ -116,4 +116,14 @@ impl Tree {
         self.leaf_value.push(leaf_value);
         self.leaf_depth.push(depth);
     }
+
+    #[allow(dead_code)]
+    pub fn get_split_index(&self) -> usize {
+        self.split_feature[0].unwrap() as usize
+    }
+
+    #[allow(dead_code)]
+    pub fn get_split_value(&self) -> f32 {
+        self.threshold[0]
+    }
 }
