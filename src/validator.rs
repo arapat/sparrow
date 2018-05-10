@@ -65,7 +65,7 @@ pub fn get_auprc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     let recall: Vec<f32> = tps.par_iter()
                               .map(|tp| (*tp as f32) / num_positive)
                               .collect();
-    let area_first_seg = 2.0 * (precision[0] as f32) * (recall[0] as f32);
+    let area_first_seg = (precision[0] as f32) * (recall[0] as f32);
     let mut points: Vec<(f32, f32)> = recall.into_iter()
                                             .zip(precision.into_iter())
                                             .collect();
