@@ -1,4 +1,5 @@
-
+use rand::Rng;
+use rand::thread_rng;
 use commons::Example;
 
 #[derive(Debug)]
@@ -34,5 +35,9 @@ impl Examples {
 
     pub fn reset(&mut self) {
         self.cursor = 0;
+    }
+
+    pub fn shuffle(&mut self) {
+        thread_rng().shuffle(&mut self.data);
     }
 }

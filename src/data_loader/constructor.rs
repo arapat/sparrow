@@ -80,8 +80,11 @@ impl Constructor {
         self.size += 1;
     }
 
-    pub fn get_content(self) -> (String, Option<Examples>, Vec<f32>, usize, usize) {
+    pub fn get_content(mut self) -> (String, Option<Examples>, Vec<f32>, usize, usize) {
         debug!("constructor-consumed, {}, {}", self.num_positive, self.num_negative);
+        if let Some(ref mut examples) = self.examples {
+            examples.shuffle();
+        }
         (self.filename, self.examples, self.scores, self.size, self.bytes_per_example)
     }
 
