@@ -1,7 +1,7 @@
-BASE_DIR="/home/ubuntu"
+BASE_DIR="/mnt"
 CONFIG_PATH=$BASE_DIR/rust-boost/config.json
 
-readarray -t nodes < $BASE_DIR/neighbors.txt
+readarray -t nodes < /home/ubuntu/neighbors.txt
 
 echo "{
     \"data_dir\": \"$BASE_DIR\",

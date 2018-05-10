@@ -1,12 +1,13 @@
 ITERATION=$1
 FEATURES=564
-BASE_DIR="/home/ubuntu"
-readarray -t nodes < $BASE_DIR/neighbors.txt
+BASE_DIR="/mnt"
+GIT_BRANCH="adaboost"
+readarray -t nodes < /home/ubuntu/neighbors.txt
 
 NUM_NODES=${#nodes[@]}
 WORK_LOAD=$((($FEATURES+$NUM_NODES-1)/$NUM_NODES))
 
-IDENT_FILE=$BASE_DIR/jalafate-dropbox.pem
+IDENT_FILE=/home/ubuntu/jalafate-dropbox.pem
 
 if [[ $# -eq 0 ]] ; then
     echo "Please provide the number of iterations."
