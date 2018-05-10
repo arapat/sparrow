@@ -76,14 +76,10 @@ fn main() {
     // read from bin
     let training_data = home_dir.clone() + "training.bin";
     let testing_data = home_dir.clone() + "testing.bin";
-    let testing_data = home_dir.clone() + "training.bin";
 
     // let training_size = 50000000;
     let training_size = 50000000;
     let testing_size = 4627840;
-
-    let training_size = 10000;
-    let testing_size = 10000;
 
     // use testing for training
     // let training_size = 4627840;
@@ -105,7 +101,13 @@ fn main() {
         &get_auprc
     ];
     let max_trials_before_shrink = 1000000;
-    let validate_interval = 1;
+    let validate_interval = 0;
+
+    // for debugging
+    // let testing_data = home_dir.clone() + "training.bin";
+    // let training_size = 10000;
+    // let testing_size = 10000;
+    // let validate_interval = 1;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
