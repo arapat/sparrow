@@ -369,6 +369,23 @@ impl DataLoader {
         ret
     }
 
+    pub fn load_to_memory(&mut self) -> DataLoader {
+        info!("Creating an in-memory version of the current loader.");
+
+        let mut constructor = Constructor::new(self.size, true);
+        for _ in 0..self.num_batch {
+            self.fetch_next_batch();
+            let data = self.get_curr_batch();
+            data.iter()
+                .for_each(|d| {
+                    constructor.append_data(d, 0.0);
+                });
+        }
+        let ret = self.from_constructor(self.name.clone() + " in memory", constructor, 0);
+        info!("In-memory conversion finished.");
+        ret
+    }
+
     fn get_estimated_interval_and_size(&mut self, trees: &Model, sample_ratio: f32,
                                        sampler_timer: &mut PerformanceMonitor) -> (f32, usize) {
         let mut sum_weights = 0.0;
