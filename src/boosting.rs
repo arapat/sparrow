@@ -183,6 +183,7 @@ impl<'a> Boosting<'a> {
             }
         }
         info!("Model in JSON:\n{}", serde_json::to_string(&self.model).unwrap());
+        self.handle_persistent();
     }
 
     fn handle_network(&mut self) {
