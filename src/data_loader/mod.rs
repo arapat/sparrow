@@ -253,7 +253,7 @@ impl DataLoader {
         self.load_performance.update(self._curr_batch.len());
         self.load_performance.pause();
         let (since_last_check, _, _, speed) = self.load_performance.get_performance();
-        if since_last_check >= 10 {
+        if since_last_check >= 300 {
             debug!("loader-loading-speed, {}, {:?}, {}", self.name, self.format, speed);
             self.load_performance.reset_last_check();
         }
@@ -288,7 +288,7 @@ impl DataLoader {
         self.scores_performance.update(tail - head);
         self.scores_performance.pause();
         let (since_last_check, _, _, speed) = self.scores_performance.get_performance();
-        if since_last_check >= 10 {
+        if since_last_check >= 300 {
             debug!("loader-scoring-speed, {}, {:?}, {}", self.name, self.format, speed);
             self.scores_performance.reset_last_check();
         }
