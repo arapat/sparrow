@@ -1,7 +1,7 @@
-BASE_DIR="/home/ubuntu"
-IDENT_FILE="$BASE_DIR/jalafate-dropbox.pem"
+BASE_DIR="/mnt"
+IDENT_FILE="/home/ubuntu/jalafate-dropbox.pem"
 
-readarray -t nodes < $BASE_DIR/neighbors.txt
+readarray -t nodes < /home/ubuntu/neighbors.txt
 
 echo "Start validating?"
 read enter
