@@ -108,8 +108,8 @@ fn receiver(name: String, remote_ip: SocketAddr,
                 let (remote_name, remote_idx, model_score): PacketLoad = remote_packet.unwrap();
                 let model = model_score.0;
                 let score = model_score.1;
-                debug!("message-received, {}, {}, {}, {}, {}, {}, {}, \"{:?}\"",
-                       name, idx, remote_name, remote_idx, remote_ip, score, json.len(), model);
+                debug!("message-received, {}, {}, {}, {}, {}, {}, {}, \"model skipped\"",
+                       name, idx, remote_name, remote_idx, remote_ip, score, json.len());
                 let send_result = chan.send((model, score));
                 if let Err(err) = send_result {
                     error!("Failed to send the received model from the network

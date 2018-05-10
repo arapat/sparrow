@@ -188,7 +188,7 @@ impl<'a> Boosting<'a> {
 
     fn handle_network(&mut self) {
         if self.receiver.is_some() {
-            info!("Processing models received from the network");
+            // info!("Processing models received from the network");
             // handle receiving
             let recv = self.receiver.as_ref().unwrap();  // safe, guaranteed in the IF statement
             let mut best_model = None;
@@ -211,7 +211,7 @@ impl<'a> Boosting<'a> {
                 debug!("model-replaced, {}, {}, {}, {}",
                        self.sum_gamma, old_model_score, self.model.len(), old_model_size);
             } else {
-                info!("Remote models are not better. Skipped.");
+                // info!("Remote models are not better. Skipped.");
             }
 
             // handle sending
