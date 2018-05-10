@@ -93,7 +93,7 @@ fn main() {
 
     let max_sample_size = 10000;
     let max_bin_size = 2;
-    let sample_ratio = 0.8;
+    let sample_ratio = 0.05;
     let ess_threshold = 0.5;
     let default_rho_gamma = 0.25;
     let eval_funcs: Vec<&LossFunc> = vec![
@@ -108,6 +108,7 @@ fn main() {
     // let training_size = 10000;
     // let testing_size = 10000;
     // let validate_interval = 1;
+    // let sample_ratio = 0.8;
 
     let training_loader = DataLoader::from_scratch(
         String::from("training"), training_data, training_size, feature_size, batch_size,
