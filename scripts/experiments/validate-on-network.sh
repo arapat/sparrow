@@ -12,10 +12,9 @@ do
     echo "Validating on $url"
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url \
     "cd $BASE_DIR/rust-boost;
-     export output=\$(ls -rt ./model-* | tail -1);
      killall rust-boost;
      rm ./validate.log;
      git pull;
-     nohup ./scripts/validate.sh \$output ./validate.log 2> /dev/null 1>&2 < /dev/null &"
+     nohup ./scripts/validate.sh ./ ./validate.log 2> /dev/null 1>&2 < /dev/null &"
 done
 
