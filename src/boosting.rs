@@ -35,7 +35,8 @@ pub struct Boosting<'a> {
 
     learner: Learner,
     model: Model,
-    last_backup: usize,
+    last_backup_time: f32,
+    persist_id: u32,
 
     sender: Option<Sender<ModelScore>>,
     receiver: Option<Receiver<ModelScore>>,
@@ -73,7 +74,8 @@ impl<'a> Boosting<'a> {
 
             learner: learner,
             model: model,
-            last_backup: 0,
+            last_backup_time: 0.0,
+            persist_id: 0,
 
             sender: None,
             receiver: None,
@@ -103,6 +105,8 @@ impl<'a> Boosting<'a> {
         let mut sampler_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
+
+        let mut model_ts = global_timer.get_duration();
 
         let speed_test = false;
         let mut speed_read = 0;
@@ -158,14 +162,21 @@ impl<'a> Boosting<'a> {
                     self.sum_gamma,
                     self.model[self.model.len() - 1]
                 );
+                model_ts = global_timer.get_duration();
                 self.learner.reset();
                 if interval > 0 && self.model.len() % interval == 0 {
                     self._validate();
                 }
             }
 
-            self.handle_network();
-            self.handle_persistent();
+            if self.handle_network() {
+                model_ts = global_timer.get_duration();
+            }
+            if model_ts - self.last_backup_time >= 5.0 {
+                self.handle_persistent(model_ts);
+                self.last_backup_time = model_ts;
+            }
+
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
             if speed_test || since_last_check >= 2 {
                 let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();
@@ -183,10 +194,14 @@ impl<'a> Boosting<'a> {
             }
         }
         info!("Model in JSON:\n{}", serde_json::to_string(&self.model).unwrap());
-        self.handle_persistent();
+        if model_ts - self.last_backup_time > 1e-8 {
+            self.handle_persistent(model_ts);
+            self.last_backup_time = model_ts;
+        }
     }
 
-    fn handle_network(&mut self) {
+    fn handle_network(&mut self) -> bool {
+        let mut replaced = false;
         if self.receiver.is_some() {
             // info!("Processing models received from the network");
             // handle receiving
@@ -208,6 +223,7 @@ impl<'a> Boosting<'a> {
                 self.sum_gamma = max_score;
                 self.prev_sum_gamma = self.sum_gamma;
                 self.learner.reset();
+                replaced = true;
                 debug!("model-replaced, {}, {}, {}, {}",
                        self.sum_gamma, old_model_score, self.model.len(), old_model_size);
             } else {
@@ -228,18 +244,17 @@ impl<'a> Boosting<'a> {
                 }
             }
         }
+        replaced
     }
 
-    fn handle_persistent(&mut self) {
-        if self.model.len() - self.last_backup >= 100 {
-            let json = serde_json::to_string(&self.model).expect(
-                "Local model cannot be serialized."
-            );
-            let mut file_buffer = create_bufwriter(&format!("model-{}.json", self.model.len()));
-            write_to_text_file(&mut file_buffer, &json);
-            self.last_backup = self.model.len();
-            info!("Model {} is write to disk.", self.last_backup);
-        }
+    fn handle_persistent(&mut self, ts: f32) {
+        let json = serde_json::to_string(&(ts, &self.model)).expect(
+            "Local model cannot be serialized."
+        );
+        let mut file_buffer = create_bufwriter(&format!("model-{}.json", self.persist_id));
+        self.persist_id += 1;
+        write_to_text_file(&mut file_buffer, &json);
+        // info!("Model {} is write to disk.", self.last_backup);
     }
 
     fn try_sample(&mut self, sampler_timer: &mut PerformanceMonitor) -> usize {
