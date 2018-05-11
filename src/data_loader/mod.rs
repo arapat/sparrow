@@ -415,4 +415,9 @@ impl DataLoader {
                num_scanned, sum_weights, interval, max_weight, max_repeat);
         (interval, (sample_ratio * self.size as f32) as usize)
     }
+
+    pub fn reset_scores(&mut self) {
+        self.scores_version = vec![0; self.num_batch];
+        self.scores = vec![0.0; self.scores.len()];
+    }
 }

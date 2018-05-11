@@ -22,6 +22,7 @@ mod boosting;
 mod network;
 
 use std::env;
+use std::fs;
 use std::io::Read;
 use std::io::Write;
 use time::get_time;
@@ -123,21 +124,22 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
     if args[1] == "validate" {
-        let mut reader = create_bufreader(&args[2]);
-        let json = &read_k_lines(&mut reader, 1)[0];
-        let model: Model = serde_json::from_str(&json).expect(
-            &format!("Cannot parse the JSON description of the remote model. \
-                        The JSON string is `{}`.", json)
-        );
         let mut in_memory_testing_loader = testing_loader.load_to_memory();
-        let mut k = 0;
-        while k * 10 <= model.len() {
-            let k10 = if k == 0 { 1 } else { k * 10 };
-            let model_subset = model[0..k10].to_vec();
-            let scores = validate(&mut in_memory_testing_loader, &model_subset, &eval_funcs);
-            let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
-            info!("validate-only, {}, {}", k10, output.join(", "));
-            k += 1;
+        let paths = fs::read_dir(&args[2]).unwrap();
+        for p in paths {
+            let path = format!("{}", p.unwrap().path().display());
+            if path.contains("model-") {
+                let mut reader = create_bufreader(&path);
+                let json = &read_k_lines(&mut reader, 1)[0];
+                let (ts, model): (f32, Model) = serde_json::from_str(&json).expect(
+                    &format!("Cannot parse the JSON description of the remote model. \
+                                The JSON string is `{}`.", json)
+                );
+                let scores = validate(&mut in_memory_testing_loader, &model, &eval_funcs);
+                let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
+                info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
+            }
+            in_memory_testing_loader.reset_scores();
         }
     } else {
         assert_eq!(args.len(), 5);
