@@ -9,12 +9,13 @@ read enter
 for i in "${!nodes[@]}";
 do
     url=${nodes[$i]}
+    echo
     echo "Validating on $url"
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url \
     "cd $BASE_DIR/rust-boost;
-     export output=\$(ls -rt ./model-* | tail -1);
      killall rust-boost;
      rm ./validate.log;
-     nohup ./scripts/validate.sh \$output ./validate.log 2> /dev/null 1>&2 < /dev/null &"
+     git pull;
+     nohup ./scripts/validate.sh ./ ./validate.log 2> /dev/null 1>&2 < /dev/null &"
 done
 
