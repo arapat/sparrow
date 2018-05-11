@@ -1,5 +1,6 @@
 BASE_DIR="/mnt"
 IDENT_FILE="/home/ubuntu/jalafate-dropbox.pem"
+RESET="noreset"
 
 readarray -t nodes < /home/ubuntu/neighbors.txt
 
@@ -16,6 +17,6 @@ do
      killall rust-boost;
      rm ./validate.log;
      git pull;
-     nohup ./scripts/validate.sh ./ ./validate.log 2> /dev/null 1>&2 < /dev/null &"
+     nohup ./scripts/validate.sh $RESET ./ ./validate.log 2> /dev/null 1>&2 < /dev/null &"
 done
 

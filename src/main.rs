@@ -124,8 +124,10 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
     if args[1] == "validate" {
+        assert_eq!(args.len(), 4);
+        assert!(args[2] == "reset" || args[2] == "noreset");
         let mut in_memory_testing_loader = testing_loader.load_to_memory();
-        let mut paths: Vec<String> = fs::read_dir(&args[2]).unwrap()
+        let mut paths: Vec<String> = fs::read_dir(&args[3]).unwrap()
                                         .map(|p| format!("{}", p.unwrap().path().display()))
                                         .filter(|s| s.contains("model-"))
                                         .collect();
