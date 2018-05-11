@@ -125,21 +125,28 @@ fn main() {
     let args: Vec<String> = env::args().collect();
     if args[1] == "validate" {
         let mut in_memory_testing_loader = testing_loader.load_to_memory();
-        let paths = fs::read_dir(&args[2]).unwrap();
-        for p in paths {
-            let path = format!("{}", p.unwrap().path().display());
-            if path.contains("model-") {
-                let mut reader = create_bufreader(&path);
-                let json = &read_k_lines(&mut reader, 1)[0];
-                let (ts, model): (f32, Model) = serde_json::from_str(&json).expect(
-                    &format!("Cannot parse the JSON description of the remote model. \
-                                The JSON string is `{}`.", json)
-                );
-                let scores = validate(&mut in_memory_testing_loader, &model, &eval_funcs);
-                let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
-                info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
+        let mut paths: Vec<String> = fs::read_dir(&args[2]).unwrap()
+                                        .map(|p| format!("{}", p.unwrap().path().display()))
+                                        .filter(|s| s.contains("model-"))
+                                        .collect();
+        paths.sort_by(|a, b| {
+            let a_i: u32 = extract_num(a);
+            let b_i: u32 = extract_num(b);
+            a_i.cmp(&b_i)
+        });
+        for path in paths {
+            let mut reader = create_bufreader(&path);
+            let json = &read_k_lines(&mut reader, 1)[0];
+            let (ts, model): (f32, Model) = serde_json::from_str(&json).expect(
+                &format!("Cannot parse the JSON description of the remote model. \
+                            The JSON string is `{}`.", json)
+            );
+            let scores = validate(&mut in_memory_testing_loader, &model, &eval_funcs);
+            let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
+            info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
+            if args[2] == "reset" {
+                in_memory_testing_loader.reset_scores();
             }
-            in_memory_testing_loader.reset_scores();
         }
     } else {
         assert_eq!(args.len(), 5);
@@ -170,3 +177,10 @@ fn main() {
     }
 }
 
+
+fn extract_num(s: &String) -> u32 {
+    let filename = s.split(".").next().unwrap();
+    let mut segs = filename.split("-");
+    segs.next();
+    segs.next().unwrap().parse().unwrap()
+}
