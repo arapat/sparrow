@@ -9,6 +9,7 @@ read enter
 for i in "${!nodes[@]}";
 do
     url=${nodes[$i]}
+    echo
     echo "Validating on $url"
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url \
     "cd $BASE_DIR/rust-boost;
