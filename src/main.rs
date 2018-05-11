@@ -131,12 +131,14 @@ fn main() {
                                         .map(|p| format!("{}", p.unwrap().path().display()))
                                         .filter(|s| s.contains("model-"))
                                         .collect();
+        info!("Collected {} model files.", paths.len());
         paths.sort_by(|a, b| {
             let a_i: u32 = extract_num(a);
             let b_i: u32 = extract_num(b);
             a_i.cmp(&b_i)
         });
         for path in paths {
+            info!("Processing {}", path);
             let mut reader = create_bufreader(&path);
             let json = &read_k_lines(&mut reader, 1)[0];
             let (ts, model): (f32, Model) = serde_json::from_str(&json).expect(
@@ -181,8 +183,8 @@ fn main() {
 
 
 fn extract_num(s: &String) -> u32 {
-    let filename = s.split(".").next().unwrap();
-    let mut segs = filename.split("-");
-    segs.next();
-    segs.next().unwrap().parse().unwrap()
+    let filename = s.split("/").last().unwrap().split(".").next().unwrap();
+    filename.split("-")
+            .last().expect("s does not contain the right side of '-'")
+            .parse().expect("s does not contain an integer.")
 }
