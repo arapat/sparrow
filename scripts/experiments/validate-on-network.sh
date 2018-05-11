@@ -15,6 +15,7 @@ do
      export output=\$(ls -rt ./model-* | tail -1);
      killall rust-boost;
      rm ./validate.log;
+     git pull;
      nohup ./scripts/validate.sh \$output ./validate.log 2> /dev/null 1>&2 < /dev/null &"
 done
 
