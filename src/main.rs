@@ -132,6 +132,12 @@ fn main() {
                                         .filter(|s| s.contains("model-"))
                                         .collect();
         info!("Collected {} model files.", paths.len());
+        if args[2] == "reset" {
+            info!("Running the reset version.");
+        } else {
+            info!("Running the noreset version.");
+        }
+        info!("Collected {} model files.", paths.len());
         paths.sort_by(|a, b| {
             let a_i: u32 = extract_num(a);
             let b_i: u32 = extract_num(b);
