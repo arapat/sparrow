@@ -1,7 +1,7 @@
 ITERATION=$1
 FEATURES=564
 BASE_DIR="/mnt"
-GIT_BRANCH="adaboost"
+GIT_BRANCH="adaboost-debug"
 readarray -t nodes < /home/ubuntu/neighbors.txt
 
 NUM_NODES=${#nodes[@]}
