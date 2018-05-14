@@ -23,7 +23,7 @@ cat $BASE_DIR/rust-boost/config.json
 echo
 echo "$NUM_NODES machines. $ITERATION iterations.
 Ready to launch?"
-if [ "$#" -ne 1 ]; then
+if [ "$#" -ne 2 ]; then
     read enter
 fi
 
