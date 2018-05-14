@@ -197,22 +197,30 @@ fn sender(name: String, streams: StreamLockVec, chan: Receiver<ModelScore>) {
         debug!("network-to-send-out, {}, {}, {}", name, idx, score);
 
         let packet_load: PacketLoad = (name.clone(), idx, (model, score));
-        let json = serde_json::to_string(&packet_load).expect(
-            "Local model cannot be serialized."
-        );
+        let safe_json = serde_json::to_string(&packet_load);
+        if let Err(err) = safe_json {
+            error!("Local model cannot be serialized. Error: {}", err);
+            continue;
+        }
+        let json = safe_json.unwrap();
         let num_computers = {
-            let mut lock_r = streams.write().expect(
-                "Failed to obtain the lock for writing to sender_streams."
-            );
-            lock_r.iter_mut().for_each(|stream| {
-                stream.write_fmt(format_args!("{}\n", json)).expect(
-                    "Cannot write into one of the streams."
-                );
-                stream.flush().expect(
-                    "Cannot flush one of the streams."
-                );
-            });
-            lock_r.len()
+            let safe_lock_r = streams.write();
+            if let Err(err) = safe_lock_r {
+                error!("Failed to obtain the lock for writing to sender_streams. Error: {}", err);
+                0
+            } else {
+                let mut lock_r = safe_lock_r.unwrap();
+                lock_r.iter_mut().for_each(|stream| {
+                    if let Err(err) = stream.write_fmt(format_args!("{}\n", json)) {
+                        error!("Cannot write into one of the streams. Error: {}", err);
+                    } else {
+                        if let Err(err) = stream.flush() {
+                            error!("Cannot flush one of the streams. Error: {}", err);
+                        }
+                    }
+                });
+                lock_r.len()
+            }
         };
         debug!("network-sent-out, {}, {}, {}, {}", name, idx, score, num_computers);
         idx += 1;
