@@ -17,7 +17,7 @@ pub type ModelScore = (Model, f32);
 pub type LossFunc = Fn(&Vec<(f32, f32)>) -> f32;
 
 const DELTA: f32  = 0.0001;
-const SHRINK: f32 = 5.0;
+const SHRINK: f32 = 1.0;
 const THRESHOLD_FACTOR: f32 = 6.0;
 const ALMOST_ZERO: f32 = 1e-8;
 
