@@ -60,8 +60,10 @@ for i in `seq 1 $NUM_NODES`; do
     BEGI=$((i * WORK_LOAD - WORK_LOAD))
     FINI=$((i * WORK_LOAD))
     if [ "$BEGI" -ge "$FEATURES" ]; then
-        BEGI=$((FEATURES - BEGI + FEATURES - 1))
-        FINI=$((BEGI + WORK_LOAD))
+        # BEGI=$((FEATURES - BEGI + FEATURES - 1))
+        # FINI=$((BEGI + WORK_LOAD))
+        echo "Node $i is redundant."
+        continue
     fi
     if [ "$FINI" -gt "$FEATURES" ]; then
         FINI=$FEATURES
