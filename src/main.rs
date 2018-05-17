@@ -143,6 +143,7 @@ fn main() {
             let b_i: u32 = extract_num(b);
             a_i.cmp(&b_i)
         });
+        let mut old_model = None;
         for path in paths {
             info!("Processing {}", path);
             let mut reader = create_bufreader(&path);
@@ -154,9 +155,10 @@ fn main() {
             let scores = validate(&mut in_memory_testing_loader, &model, &eval_funcs);
             let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
             info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
-            if args[2] == "reset" {
+            if args[2] == "reset" && !is_seq_model(&old_model, &model) {
                 in_memory_testing_loader.reset_scores();
             }
+            old_model = Some(model);
         }
     } else {
         assert_eq!(args.len(), 5);
@@ -184,6 +186,23 @@ fn main() {
             max_trials_before_shrink,
             validate_interval
         );
+    }
+}
+
+
+fn is_seq_model(old_model: &Option<Model>, new_model: &Model) -> bool {
+    if let &Some(ref model) = old_model {
+        if model.len() > new_model.len() {
+            return false;
+        }
+        for i in 0..model.len() {
+            if model[i] != new_model[i] {
+                return false;
+            }
+        }
+        true
+    } else {
+        false
     }
 }
 

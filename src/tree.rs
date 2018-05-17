@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 
 use commons::Example;
+use commons::is_zero;
 
 type DimScaleType = u16;
 
@@ -117,3 +118,25 @@ impl Tree {
         self.leaf_depth.push(depth);
     }
 }
+
+impl PartialEq for Tree {
+    fn eq(&self, other: &Tree) -> bool {
+        let k = self.num_leaves as usize;
+        if k == other.num_leaves as usize &&
+           self.split_feature[0..k] == other.split_feature[0..k] &&
+           self.left_child[0..k] == other.right_child[0..k] &&
+           self.right_child[0..k] == other.right_child[0..k] {
+               for i in 0..k {
+                   if !is_zero(self.threshold[i] - other.threshold[i]) ||
+                      !is_zero(self.leaf_value[i] - other.leaf_value[i]) {
+                          return false;
+                      }
+               }
+               return true;
+        }
+        false
+    }
+}
+
+
+impl Eq for Tree {}
