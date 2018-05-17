@@ -156,6 +156,7 @@ fn main() {
             let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
             info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
             if args[2] == "reset" && !is_seq_model(&old_model, &model) {
+                info!("now reset");
                 in_memory_testing_loader.reset_scores();
             }
             old_model = Some(model);
@@ -193,15 +194,19 @@ fn main() {
 fn is_seq_model(old_model: &Option<Model>, new_model: &Model) -> bool {
     if let &Some(ref model) = old_model {
         if model.len() > new_model.len() {
+            info!("Not match. Old model is longer.");
             return false;
         }
         for i in 0..model.len() {
             if model[i] != new_model[i] {
+                info!("Not match. First mismatch at tree {}.", i);
                 return false;
             }
         }
+        info!("Match!");
         true
     } else {
+        info!("Not match. Old model is none.");
         false
     }
 }
