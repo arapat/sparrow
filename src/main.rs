@@ -94,14 +94,14 @@ fn main() {
 
     let max_sample_size = 10000;
     let max_bin_size = 2;
-    let sample_ratio = 0.05;
+    let sample_ratio = 0.1;
     let ess_threshold = 0.5;
     let default_rho_gamma = 0.25;
     let eval_funcs: Vec<&LossFunc> = vec![
         &get_adaboost_loss,
         &get_auprc
     ];
-    let max_trials_before_shrink = 1000000;
+    let max_trials_before_shrink = 5000000;
     let validate_interval = 0;
 
     // for debugging
