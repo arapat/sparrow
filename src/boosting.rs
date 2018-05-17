@@ -111,6 +111,8 @@ impl<'a> Boosting<'a> {
         let speed_test = false;
         let mut speed_read = 0;
 
+        let mut counter = 0;
+
         if self.training_loader_stack.len() <= 1 {
             info!("Initial sampling.");
             self.sample(&mut sampler_timer);
@@ -138,6 +140,7 @@ impl<'a> Boosting<'a> {
                 self.learner.update(data, &weights);
 
                 let scanned = data.len();
+                counter += scanned;
                 learner_timer.update(scanned);
                 global_timer.update(scanned);
                 learner_timer.pause();
@@ -154,6 +157,8 @@ impl<'a> Boosting<'a> {
                 };
             if found_new_rule {
                 self.sum_gamma += self.learner.get_rho_gamma().powi(2);
+                debug!("new-tree-count, {}", counter);
+                counter = 0;
                 debug!(
                     "new-tree-info, {}, {}, {}, {}, \"{:?}\"",
                     self.model.len(),
