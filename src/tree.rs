@@ -124,7 +124,7 @@ impl PartialEq for Tree {
         let k = self.num_leaves as usize;
         if k == other.num_leaves as usize &&
            self.split_feature[0..k] == other.split_feature[0..k] &&
-           self.left_child[0..k] == other.right_child[0..k] &&
+           self.left_child[0..k] == other.left_child[0..k] &&
            self.right_child[0..k] == other.right_child[0..k] {
                for i in 0..k {
                    if !is_zero(self.threshold[i] - other.threshold[i]) ||
