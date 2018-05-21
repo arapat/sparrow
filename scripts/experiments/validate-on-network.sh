@@ -1,6 +1,6 @@
 BASE_DIR="/mnt"
 IDENT_FILE="/home/ubuntu/jalafate-dropbox.pem"
-RESET="noreset"
+RESET="reset"
 
 readarray -t nodes < /home/ubuntu/neighbors.txt
 
