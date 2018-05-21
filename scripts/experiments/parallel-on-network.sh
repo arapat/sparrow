@@ -43,7 +43,6 @@ for i in `seq 1 $NUM_NODES`; do
         $SETUP_COMMAND;
         cd $BASE_DIR/rust-boost && git checkout -- . && git fetch --all &&
         git checkout $GIT_BRANCH && git pull;"
-    scp -o StrictHostKeyChecking=no -i $IDENT_FILE $BASE_DIR/rust-boost/config.json ubuntu@$url:$BASE_DIR/rust-boost/config.json
     ssh -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
         cargo build --release 2> /dev/null 1>&2 < /dev/null &"
     echo
@@ -75,6 +74,7 @@ for i in `seq 1 $NUM_NODES`; do
     echo "===== Launching on $url ====="
     echo "Parameters: $NAME, $BEGI, $FINI, $ITERATION"
 
+    scp -o StrictHostKeyChecking=no -i $IDENT_FILE $BASE_DIR/rust-boost/config.json ubuntu@$url:$BASE_DIR/rust-boost/config.json
     ssh -n -o StrictHostKeyChecking=no -i $IDENT_FILE ubuntu@$url "
         cd $BASE_DIR/rust-boost;
         RUST_BACKTRACE=1 RUST_LOG=DEBUG nohup cargo run --release $NAME $BEGI $FINI $ITERATION 2> run-network.log 1>&2 < /dev/null &"

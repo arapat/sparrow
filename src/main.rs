@@ -94,14 +94,14 @@ fn main() {
 
     let max_sample_size = 10000;
     let max_bin_size = 2;
-    let sample_ratio = 0.05;
+    let sample_ratio = 0.1;
     let ess_threshold = 0.5;
     let default_rho_gamma = 0.25;
     let eval_funcs: Vec<&LossFunc> = vec![
         &get_adaboost_loss,
         &get_auprc
     ];
-    let max_trials_before_shrink = 1000000;
+    let max_trials_before_shrink = 5000000;
     let validate_interval = 0;
 
     // for debugging
@@ -143,6 +143,7 @@ fn main() {
             let b_i: u32 = extract_num(b);
             a_i.cmp(&b_i)
         });
+        let mut old_model = None;
         for path in paths {
             info!("Processing {}", path);
             let mut reader = create_bufreader(&path);
@@ -154,9 +155,11 @@ fn main() {
             let scores = validate(&mut in_memory_testing_loader, &model, &eval_funcs);
             let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
             info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
-            if args[2] == "reset" {
+            if args[2] == "reset" && !is_seq_model(&old_model, &model) {
+                info!("now reset");
                 in_memory_testing_loader.reset_scores();
             }
+            old_model = Some(model);
         }
     } else {
         assert_eq!(args.len(), 5);
@@ -184,6 +187,27 @@ fn main() {
             max_trials_before_shrink,
             validate_interval
         );
+    }
+}
+
+
+fn is_seq_model(old_model: &Option<Model>, new_model: &Model) -> bool {
+    if let &Some(ref model) = old_model {
+        if model.len() > new_model.len() {
+            info!("Not match. Old model is longer.");
+            return false;
+        }
+        for i in 0..model.len() {
+            if model[i] != new_model[i] {
+                info!("Not match. First mismatch at tree {}.", i);
+                return false;
+            }
+        }
+        info!("Match!");
+        true
+    } else {
+        info!("Not match. Old model is none.");
+        false
     }
 }
 
