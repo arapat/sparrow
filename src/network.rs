@@ -210,16 +210,19 @@ fn sender(name: String, streams: StreamLockVec, chan: Receiver<ModelScore>) {
                 0
             } else {
                 let mut lock_r = safe_lock_r.unwrap();
+                let mut sent_out = 0;
                 lock_r.iter_mut().for_each(|stream| {
                     if let Err(err) = stream.write_fmt(format_args!("{}\n", json)) {
                         error!("Cannot write into one of the streams. Error: {}", err);
                     } else {
                         if let Err(err) = stream.flush() {
                             error!("Cannot flush one of the streams. Error: {}", err);
+                        } else {
+                            sent_out += 1;
                         }
                     }
                 });
-                lock_r.len()
+                sent_out
             }
         };
         debug!("network-sent-out, {}, {}, {}, {}", name, idx, score, num_computers);
