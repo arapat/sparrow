@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 
-use data_loader::DataLoader;
+use data_loader::normal_loader::NormalLoader;
 use commons::Model;
 use commons::LossFunc;
 use commons::is_positive;
@@ -8,8 +8,8 @@ use commons::is_zero;
 use commons::get_symmetric_label;
 
 
-pub fn validate(
-            data_loader: &mut DataLoader, trees: &Model, eval_funcs: &Vec<&LossFunc>
+pub fn validate (
+            data_loader: &mut NormalLoader, trees: &Model, eval_funcs: &Vec<&LossFunc>
         ) -> Vec<f32> {
     let num_batches = data_loader.get_num_batches();
     let mut scores_labels: Vec<(f32, f32)> = (0..num_batches).flat_map(|_| {

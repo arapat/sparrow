@@ -3,10 +3,10 @@ use ordered_float::NotNaN;
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use data_loader::DataLoader;
+use data_loader::normal_loader::NormalLoader;
 
 
-// TODO: support NaN feature values
+/// TODO: support NaN feature values
 pub struct Bins {
     size: usize,
     vals: Vec<f32>
@@ -64,8 +64,8 @@ impl BinMapper {
 }
 
 
-pub fn create_bins(max_sample_size: usize, max_bin_size: usize, range: &Range<usize>,
-                   data_loader: &mut DataLoader) -> Vec<Bins> {
+pub fn create_bins(max_sample_size: usize, max_bin_size: usize,
+                   range: &Range<usize>, data_loader: &mut NormalLoader) -> Vec<Bins> {
     let start = range.start;
     let range_size = range.end - start;
     let mut mappers: Vec<BinMapper> = Vec::with_capacity(range_size);

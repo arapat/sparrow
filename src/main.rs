@@ -27,18 +27,20 @@ use std::io::Read;
 use std::io::Write;
 use time::get_time;
 
+use data_loader::io::create_bufreader;
+use data_loader::io::read_k_lines;
+use data_loader::normal_loader::get_on_disk_reader;
+use data_loader::normal_loader::get_data_reader;
+use data_loader::normal_loader::get_scores_keeper;
+use data_loader::normal_loader::get_normal_loader;
 use validator::get_adaboost_loss;
 use validator::get_auprc;
 use validator::validate;
-use data_loader::io::create_bufreader;
-use data_loader::io::read_k_lines;
 
 use boosting::Boosting;
 use commons::LossFunc;
 use commons::Model;
 use config::Config;
-use data_loader::Format;
-use data_loader::DataLoader;
 
 
 fn main() {
@@ -71,12 +73,12 @@ fn main() {
     // read from text
     // let home_dir = std::env::home_dir().unwrap().display().to_string() +
     //                "/Downloads/splice/";
-    // let training_data = home_dir.clone() + "training-shuffled.txt";
-    // let testing_data =  home_dir.clone() + "testing-shuffled.txt";
+    // let training_data_filename = home_dir.clone() + "training-shuffled.txt";
+    // let testing_data_filename =  home_dir.clone() + "testing-shuffled.txt";
 
     // read from bin
-    let training_data = home_dir.clone() + "training.bin";
-    let testing_data = home_dir.clone() + "testing.bin";
+    let training_data_filename = home_dir.clone() + "training.bin";
+    let testing_data_filename = home_dir.clone() + "testing.bin";
 
     // let training_size = 50000000;
     let training_size = 50000000;
@@ -85,9 +87,9 @@ fn main() {
     // use testing for training
     // let training_size = 4627840;
     // --> Text
-    // let training_data = home_dir + "testing-shuffled.txt";
+    // let training_data_filename = home_dir + "testing-shuffled.txt";
     // --> Binary
-    // let training_data = home_dir.clone() + "testing.bin";
+    // let training_data_filename = home_dir.clone() + "testing.bin";
 
     let feature_size = 564;
     let batch_size = 100;
@@ -105,28 +107,33 @@ fn main() {
     let validate_interval = 0;
 
     // for debugging
-    // let testing_data = home_dir.clone() + "training.bin";
+    // let testing_data_filename = home_dir.clone() + "training.bin";
     // let training_size = 10000;
     // let testing_size = 10000;
     // let validate_interval = 1;
     // let sample_ratio = 0.8;
 
-    let training_loader = DataLoader::from_scratch(
-        String::from("training"), training_data, training_size, feature_size, batch_size,
-        Format::Binary, 573
-        // Format::Text, 573
-    );
-    let mut testing_loader = DataLoader::from_scratch(
-        String::from("testing"), testing_data, testing_size, feature_size, batch_size,
-        Format::Binary, 573
-        // Format::Text, 573
-    );
+    let bytes_per_example = 573;
+
+    let training_disk_reader = get_on_disk_reader(
+        training_data_filename, true, training_size, feature_size, bytes_per_example);
+    let training_reader = get_data_reader(training_size, batch_size, training_disk_reader);
+    let training_scores_keeper = get_scores_keeper(training_size, batch_size);
+    let training_loader = get_normal_loader(
+        String::from("training"), training_size, training_reader, training_scores_keeper);
+
+    let testing_disk_reader = get_on_disk_reader(
+        testing_data_filename, true, testing_size, feature_size, bytes_per_example);
+    let testing_reader = get_data_reader(testing_size, batch_size, testing_disk_reader);
+    let testing_scores_keeper = get_scores_keeper(testing_size, batch_size);
+    let mut testing_loader = get_normal_loader(
+        String::from("testing"), testing_size, testing_reader, testing_scores_keeper);
 
     let args: Vec<String> = env::args().collect();
     if args[1] == "validate" {
         assert_eq!(args.len(), 4);
         assert!(args[2] == "reset" || args[2] == "noreset");
-        let mut in_memory_testing_loader = testing_loader.load_to_memory();
+        testing_loader.get_data_reader().load_to_memory();
         let mut paths: Vec<String> = fs::read_dir(&args[3]).unwrap()
                                         .map(|p| format!("{}", p.unwrap().path().display()))
                                         .filter(|s| s.contains("model-"))
@@ -152,12 +159,12 @@ fn main() {
                 &format!("Cannot parse the JSON description of the remote model. \
                             The JSON string is `{}`.", json)
             );
-            let scores = validate(&mut in_memory_testing_loader, &model, &eval_funcs);
+            let scores = validate(&mut testing_loader, &model, &eval_funcs);
             let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
             info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
             if args[2] == "reset" && !is_seq_model(&old_model, &model) {
                 info!("now reset");
-                in_memory_testing_loader.reset_scores();
+                testing_loader.reset_scores();
             }
             old_model = Some(model);
         }

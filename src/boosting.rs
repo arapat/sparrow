@@ -7,7 +7,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 
-use data_loader::DataLoader;
+use data_loader::normal_loader::NormalLoader;
 use learner::Learner;
 use tree::Tree;
 use commons::Model;
@@ -26,8 +26,8 @@ use validator::validate;
 
 
 pub struct Boosting<'a> {
-    training_loader_stack: Vec<DataLoader>,
-    testing_loader: DataLoader,
+    training_loader_stack: Vec<NormalLoader>,
+    testing_loader: NormalLoader,
     eval_funcs: Vec<&'a LossFunc>,
 
     sample_ratio: f32,
@@ -46,8 +46,8 @@ pub struct Boosting<'a> {
 
 impl<'a> Boosting<'a> {
     pub fn new(
-                mut training_loader: DataLoader,
-                testing_loader: DataLoader,
+                mut training_loader: NormalLoader,
+                testing_loader: NormalLoader,
                 range: Range<usize>,
                 max_sample_size: usize,
                 max_bin_size: usize,
@@ -277,10 +277,11 @@ impl<'a> Boosting<'a> {
     }
 
     fn sample(&mut self, sampler_timer: &mut PerformanceMonitor) {
-        info!("Re-sampling is started.");
-        let new_sample = self.training_loader_stack[0].sample(&self.model, self.sample_ratio, sampler_timer);
-        self.training_loader_stack.push(new_sample);
-        info!("A new sample is generated.");
+        // TODO: Upgrade to stratified
+        // info!("Re-sampling is started.");
+        // let new_sample = self.training_loader_stack[0].sample(&self.model);
+        // self.training_loader_stack.push(new_sample);
+        // info!("A new sample is generated.");
     }
 
     fn _validate(&mut self) {
@@ -292,7 +293,7 @@ impl<'a> Boosting<'a> {
 }
 
 
-fn get_base_tree(max_sample_size: usize, data_loader: &mut DataLoader) -> (Tree, f32) {
+fn get_base_tree(max_sample_size: usize, data_loader: &mut NormalLoader) -> (Tree, f32) {
     let mut remaining_reads = max_sample_size;
     let mut n_pos = 0;
     let mut n_neg = 0;

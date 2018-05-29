@@ -87,7 +87,7 @@ impl Tree {
     }
 
     pub fn add_prediction_to_score(
-            &self, data: &Vec<Example>, score: &mut [f32]) {
+            &self, data: &Vec<Example>, score: &mut Vec<f32>) {
         score.par_iter_mut()
              .zip(
                  data.par_iter()
