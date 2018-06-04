@@ -95,7 +95,7 @@ impl Tree {
              .for_each(|(accum, update)| *accum += update)
     }
 
-    fn get_leaf_prediction(&self, data: &Example) -> f32 {
+    pub fn get_leaf_prediction(&self, data: &Example) -> f32 {
         let mut node: usize = 0;
         let features = data.get_features();
         while let Some(split_feature) = self.split_feature[node] {

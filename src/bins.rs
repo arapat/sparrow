@@ -3,7 +3,7 @@ use ordered_float::NotNaN;
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use data_loader::normal_loader::NormalLoader;
+use buffer_loader::NormalLoader;
 
 
 /// TODO: support NaN feature values

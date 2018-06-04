@@ -1,4 +1,4 @@
-use commons::PerformanceMonitor;
+use commons::performance_monitor::PerformanceMonitor;
 
 
 #[derive(Debug)]
@@ -41,7 +41,6 @@ impl ScoresInMem {
 
             performance: PerformanceMonitor::new()
         }
-
     }
 
     pub fn set_base_scores(&mut self, base_node: usize, base_scores: Vec<f32>) {

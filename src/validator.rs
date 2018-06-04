@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 
-use data_loader::normal_loader::NormalLoader;
+use buffer_loader::NormalLoader;
 use commons::Model;
 use commons::LossFunc;
 use commons::is_positive;
@@ -10,7 +10,7 @@ use commons::get_symmetric_label;
 
 pub fn validate (
             data_loader: &mut NormalLoader, trees: &Model, eval_funcs: &Vec<&LossFunc>
-        ) -> Vec<f32> {
+        ) -> Vec<String> {
     let num_batches = data_loader.get_num_batches();
     let mut scores_labels: Vec<(f32, f32)> = (0..num_batches).flat_map(|_| {
         data_loader.fetch_next_batch();
@@ -27,9 +27,12 @@ pub fn validate (
     }).collect();
     scores_labels.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().reverse());
     let sorted_scores_labels = scores_labels;
-    eval_funcs.iter()
-              .map(|f| f(&sorted_scores_labels))
-              .collect()
+    let scores: Vec<f32> = eval_funcs.iter()
+                                     .map(|f| f(&sorted_scores_labels))
+                                     .collect();
+    let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
+    debug!("validation-results, {}, {}", trees.len(), output.join(", "));
+    output
 }
 
 pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {

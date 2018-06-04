@@ -19,7 +19,7 @@ impl BitMap {
         }
     }
 
-    pub fn get_first_free(&self) -> Option<usize> {
+    pub fn get_first_free(&mut self) -> Option<usize> {
         let mut i = 0;
         let mut j = 0;
         while i * 32 < self.size {

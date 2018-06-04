@@ -5,8 +5,8 @@ use std::fs::File;
 use std::io::BufWriter;
 
 use commons::Example;
-use data_loader::io::create_bufwriter;
-use data_loader::io::write_to_binary_file;
+use commons::io::create_bufwriter;
+use commons::io::write_to_binary_file;
 
 
 #[derive(Debug)]

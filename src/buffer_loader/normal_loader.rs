@@ -1,40 +1,11 @@
-mod data_reader;
-mod scores_in_mem;
 
-use commons::get_weight;
 use commons::Example;
 use commons::Model;
-use commons::PerformanceMonitor;
+use commons::performance_monitor::PerformanceMonitor;
+use super::data_reader::DataReader;
+use super::scores_in_mem::ScoresInMem;
 
-use self::data_reader::DataReader;
-use self::data_reader::ActualReader;
-use self::data_reader::data_on_disk::DataOnDisk;
-use self::scores_in_mem::ScoresInMem;
-
-
-pub fn get_on_disk_reader(filename: String, is_binary: bool, size: usize,
-                          feature_size: usize, bytes_per_example: usize) -> ActualReader {
-    ActualReader::OnDisk(
-        DataOnDisk::new(filename, is_binary, size, feature_size, bytes_per_example)
-    )
-}
-
-
-pub fn get_data_reader(size: usize, batch_size: usize, reader: ActualReader) -> DataReader {
-    DataReader::new(size, batch_size, reader)
-}
-
-
-pub fn get_scores_keeper(size: usize, batch_size: usize) -> ScoresInMem {
-    ScoresInMem::new(size, batch_size)
-}
-
-
-pub fn get_normal_loader(
-        name: String, size: usize,
-        data_reader: DataReader, scores_keeper: ScoresInMem) -> NormalLoader {
-    NormalLoader::new(name, size, data_reader, scores_keeper)
-}
+use commons::get_weight;
 
 
 #[derive(Debug)]
@@ -95,8 +66,11 @@ impl NormalLoader {
     }
 
     pub fn fetch_next_batch(&mut self) {
-        let (curr_loc, _) = self.data_reader.fetch_next_batch();
+        let (curr_loc, _, reset) = self.data_reader.fetch_next_batch();
         self.scores_keeper.unset_scores_sync(curr_loc);
+        if reset {
+            self.update_ess();
+        }
     }
 
     pub fn fetch_scores(&mut self, trees: &Model) {
@@ -110,6 +84,7 @@ impl NormalLoader {
             ret
         };
         self.scores_keeper.update_scores(&updated_scores, trees.len());
+        self.update_stats_for_ess();
     }
 
     pub fn reset_scores(&mut self) {
@@ -122,7 +97,6 @@ impl NormalLoader {
     }
 
     fn update_stats_for_ess(&mut self) {
-        let data = self.data_reader.fetch_next_batch();
         let mut sum_weights        = 0.0;
         let mut sum_weight_squared = 0.0;
         self.get_curr_batch()
@@ -149,7 +123,7 @@ impl NormalLoader {
     fn report_timer(&mut self, timer: &mut PerformanceMonitor, timer_label: &str) {
         let (since_last_check, _, _, speed) = timer.get_performance();
         if since_last_check >= 300 {
-            // debug!("{}, {}, {:?}, {}", timer_label, self.name, self.format, speed);
+            debug!("{}, {}, {}", timer_label, self.name, speed);
             timer.reset_last_check();
         }
     }

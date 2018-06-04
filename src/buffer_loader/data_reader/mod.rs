@@ -3,7 +3,7 @@ pub mod data_in_mem;
 pub mod data_on_disk;
 
 use commons::Example;
-use commons::PerformanceMonitor;
+use commons::performance_monitor::PerformanceMonitor;
 
 use self::data_in_mem::DataInMem;
 use self::data_on_disk::DataOnDisk;
@@ -60,7 +60,7 @@ impl DataReader {
         &self._curr_batch
     }
 
-    pub fn fetch_next_batch(&mut self) -> (usize, usize) {
+    pub fn fetch_next_batch(&mut self) -> (usize, usize, bool) {
         self.performance.resume();
 
         let (curr_loc, batch_size) = self.get_next_batch_size();
@@ -73,7 +73,7 @@ impl DataReader {
         self.performance.update(self._curr_batch.len());
         self.performance.pause();
 
-        (curr_loc, batch_size)
+        (curr_loc, batch_size, reset)
     }
 
     fn get_next_batch_size(&mut self) -> (usize, usize) {

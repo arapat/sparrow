@@ -3,31 +3,35 @@ extern crate serde_json;
 use rayon::prelude::*;
 
 use std::ops::Range;
+use std::sync::Arc;
+use std::sync::Mutex;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 
-use data_loader::normal_loader::NormalLoader;
+use buffer_loader::NormalLoader;
 use learner::Learner;
 use tree::Tree;
 use commons::Model;
 use commons::LossFunc;
-use commons::PerformanceMonitor;
+use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 
 use bins::create_bins;
 use commons::get_weights;
 use commons::get_symmetric_label;
 use commons::is_positive;
-use data_loader::io::create_bufwriter;
-use data_loader::io::write_to_text_file;
+use commons::io::create_bufwriter;
+use commons::io::write_to_text_file;
 use network::start_network;
-use validator::validate;
+
+
+type NextLoader = Arc<Mutex<Option<NormalLoader>>>;
+type ModelMutex = Arc<Mutex<Option<Model>>>;
 
 
 pub struct Boosting<'a> {
-    training_loader_stack: Vec<NormalLoader>,
-    testing_loader: NormalLoader,
+    training_loader: NormalLoader,
     eval_funcs: Vec<&'a LossFunc>,
 
     sample_ratio: f32,
@@ -38,6 +42,8 @@ pub struct Boosting<'a> {
     last_backup_time: f32,
     persist_id: u32,
 
+    // model_mutex: ModelMutex,
+
     sender: Option<Sender<ModelScore>>,
     receiver: Option<Receiver<ModelScore>>,
     sum_gamma: f32,
@@ -47,7 +53,6 @@ pub struct Boosting<'a> {
 impl<'a> Boosting<'a> {
     pub fn new(
                 mut training_loader: NormalLoader,
-                testing_loader: NormalLoader,
                 range: Range<usize>,
                 max_sample_size: usize,
                 max_bin_size: usize,
@@ -65,8 +70,7 @@ impl<'a> Boosting<'a> {
         let model = vec![base_tree];
 
         Boosting {
-            training_loader_stack: vec![training_loader],
-            testing_loader: testing_loader,
+            training_loader: training_loader,
             eval_funcs: eval_funcs,
 
             sample_ratio: sample_ratio,
@@ -76,6 +80,8 @@ impl<'a> Boosting<'a> {
             model: model,
             last_backup_time: 0.0,
             persist_id: 0,
+
+            // model_mutex: model_mutex,
 
             sender: None,
             receiver: None,
@@ -102,7 +108,6 @@ impl<'a> Boosting<'a> {
         let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut global_timer = PerformanceMonitor::new();
-        let mut sampler_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
@@ -111,18 +116,10 @@ impl<'a> Boosting<'a> {
         let speed_test = false;
         let mut speed_read = 0;
 
-        let mut counter = 0;
-
-        if self.training_loader_stack.len() <= 1 {
-            info!("Initial sampling.");
-            self.sample(&mut sampler_timer);
-            global_timer.update(sampler_timer.get_performance().1);
-        }
-
+        let mut scanned_counter = 0;
         while num_iterations <= 0 || self.model.len() < num_iterations {
             if !speed_test {
-                let sampler_scanned = self.try_sample(&mut sampler_timer);
-                global_timer.update(sampler_scanned);
+                self.try_sample();
             }
 
             if self.learner.get_count() >= timeout {
@@ -130,17 +127,16 @@ impl<'a> Boosting<'a> {
             }
 
             {
-                let training_loader = &mut self.training_loader_stack[1];
-                training_loader.fetch_next_batch();
-                training_loader.fetch_scores(&self.model);
-                let data = training_loader.get_curr_batch();
-                let scores = training_loader.get_relative_scores();
+                self.training_loader.fetch_next_batch();
+                self.training_loader.fetch_scores(&self.model);
+                let data = self.training_loader.get_curr_batch();
+                let scores = self.training_loader.get_relative_scores();
                 let weights = get_weights(data, scores);
                 learner_timer.resume();
                 self.learner.update(data, &weights);
 
                 let scanned = data.len();
-                counter += scanned;
+                scanned_counter += scanned;
                 learner_timer.update(scanned);
                 global_timer.update(scanned);
                 learner_timer.pause();
@@ -151,6 +147,7 @@ impl<'a> Boosting<'a> {
                     self.model.push(
                         weak_rule.create_tree()
                     );
+                    // self.try_send_model();
                     true
                 } else {
                     false
@@ -163,9 +160,9 @@ impl<'a> Boosting<'a> {
                     self.learner.get_count(),
                     self.learner.get_rho_gamma(),
                     self.sum_gamma,
-                    counter
+                    scanned_counter
                 );
-                counter = 0;
+                scanned_counter = 0;
                 model_ts = global_timer.get_duration();
                 self.learner.reset();
                 if interval > 0 && self.model.len() % interval == 0 {
@@ -184,11 +181,9 @@ impl<'a> Boosting<'a> {
             let (since_last_check, count, duration, speed) = global_timer.get_performance();
             if speed_test || since_last_check >= 2 {
                 let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();
-                let (_, count_sampler, duration_sampler, speed_sampler) = sampler_timer.get_performance();
-                debug!("boosting_speed, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                debug!("boosting_speed, {}, {}, {}, {}, {}, {}, {}",
                        self.model.len(), duration, count, speed,
-                       duration_learn, count_learn, speed_learn,
-                       duration_sampler, count_sampler, speed_sampler);
+                       duration_learn, count_learn, speed_learn);
                 global_timer.reset_last_check();
 
                 speed_read += 1;
@@ -261,34 +256,37 @@ impl<'a> Boosting<'a> {
         // info!("Model {} is write to disk.", self.last_backup);
     }
 
-    fn try_sample(&mut self, sampler_timer: &mut PerformanceMonitor) -> usize {
-        let ess_option = self.training_loader_stack[1].get_ess();
-        if let Some(ess) = ess_option {
-            if ess < self.ess_threshold {
-                debug!("resample for ESS too low, {}, {}", ess, self.ess_threshold);
-                self.training_loader_stack.pop();
-                let prev_count = sampler_timer.get_performance().1;
-                self.sample(sampler_timer);
-                self.learner.reset_all();
-                return sampler_timer.get_performance().1 - prev_count;
-            }
+    fn try_send_model(&mut self) {
+        /*
+        if let Ok(ref mut model) = self.model_mutex.try_lock() {
+            **model = self.model.clone();
         }
-        0
+        */
     }
 
-    fn sample(&mut self, sampler_timer: &mut PerformanceMonitor) {
-        // TODO: Upgrade to stratified
-        // info!("Re-sampling is started.");
-        // let new_sample = self.training_loader_stack[0].sample(&self.model);
-        // self.training_loader_stack.push(new_sample);
-        // info!("A new sample is generated.");
+    fn try_sample(&mut self) {
+        /*
+        let next_loader = if let Ok(loader) = self.next_training_loader.try_lock() {
+            *loader
+        } else {
+            None
+        };
+        if next_loader.is_some() {
+            let ess_option = self.training_loader.get_ess();
+            let ess = if let Some(ess) = ess_option {
+                debug!("training_sample_replaced, {}", ess);
+            } else {
+                debug!("training_sample_replaced, n/a");
+            };
+            self.training_loader = next_loader.unwrap();
+            self.learner.reset_all();
+        }
+        */
     }
 
     fn _validate(&mut self) {
-        info!("Validation is started.");
-        let scores = validate(&mut self.testing_loader, &self.model, &self.eval_funcs);
-        let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
-        debug!("validation-results, {}, {}", self.model.len(), output.join(", "));
+        info!("Validation is skipped.");
+        // TODO: start validation in a non-blocking way
     }
 }
 

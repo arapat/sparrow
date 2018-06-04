@@ -1,5 +1,6 @@
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate log;
+#[macro_use] extern crate chan;
 extern crate env_logger;
 extern crate bincode;
 extern crate bufstream;
@@ -7,19 +8,21 @@ extern crate ordered_float;
 extern crate rand;
 extern crate rayon;
 extern crate serde_json;
+extern crate threadpool;
 extern crate time;
 
-
 mod bins;
+mod boosting;
 mod commons;
 mod config;
-mod data_loader; 
+mod buffer_loader; 
 mod labeled_data;
 mod learner;
+mod network;
+// mod sampler;
+mod stratified_storage;
 mod tree;
 mod validator;
-mod boosting;
-mod network;
 
 use std::env;
 use std::fs;
@@ -27,12 +30,12 @@ use std::io::Read;
 use std::io::Write;
 use time::get_time;
 
-use data_loader::io::create_bufreader;
-use data_loader::io::read_k_lines;
-use data_loader::normal_loader::get_on_disk_reader;
-use data_loader::normal_loader::get_data_reader;
-use data_loader::normal_loader::get_scores_keeper;
-use data_loader::normal_loader::get_normal_loader;
+use commons::io::create_bufreader;
+use commons::io::read_k_lines;
+use buffer_loader::get_on_disk_reader;
+use buffer_loader::get_data_reader;
+use buffer_loader::get_scores_keeper;
+use buffer_loader::get_normal_loader;
 use validator::get_adaboost_loss;
 use validator::get_auprc;
 use validator::validate;
@@ -159,8 +162,7 @@ fn main() {
                 &format!("Cannot parse the JSON description of the remote model. \
                             The JSON string is `{}`.", json)
             );
-            let scores = validate(&mut testing_loader, &model, &eval_funcs);
-            let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
+            let output = validate(&mut testing_loader, &model, &eval_funcs);
             info!("validate-only, {}, {}, {}", model.len(), ts, output.join(", "));
             if args[2] == "reset" && !is_seq_model(&old_model, &model) {
                 info!("now reset");
@@ -177,7 +179,6 @@ fn main() {
         debug!("range, {}, {}", range_1, range_2);
         let mut boosting = Boosting::new(
             training_loader,
-            testing_loader,
             range_1..range_2,
             max_sample_size,
             max_bin_size,

@@ -3,9 +3,9 @@ use std::io::BufReader;
 
 use commons::Example;
 use commons::TLabel;
-use data_loader::io::create_bufreader;
-use data_loader::io::read_k_labeled_data;
-use data_loader::io::read_k_labeled_data_from_binary_file;
+use commons::io::create_bufreader;
+use commons::io::read_k_labeled_data;
+use commons::io::read_k_labeled_data_from_binary_file;
 
 use super::ExamplesReader;
 use super::data_in_mem::DataInMem;
@@ -47,6 +47,7 @@ impl ExamplesReader for DataOnDisk {
         if let Some(ref cons) = self.binary_cons {
             let orig_filename = self.filename.clone();
             let (filename, size, bytes_per_example) = cons.get_content();
+            assert_eq!(size, self.size);
             self.is_binary = true;
             self.filename = filename;
             self.bytes_per_example = bytes_per_example;
@@ -61,7 +62,6 @@ impl ExamplesReader for DataOnDisk {
 
 
 impl DataOnDisk {
-    // TODO: add binary_constructor
     pub fn new(filename: String, is_binary: bool,
                size: usize, feature_size: usize, bytes_per_example: usize) -> DataOnDisk {
         let reader = create_bufreader(&filename);
