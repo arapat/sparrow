@@ -13,20 +13,19 @@ use commons::get_sign;
 
 
 type SharedMPMCMap = Arc<RwLock<MPMCMap>>;
-type SharedSender = Arc<RwLock<Sender<ExampleWithScore>>>;
 
 
 pub struct Selectors {
     weights_table: WeightsTable,
     out_queue: SharedMPMCMap,
-    loaded_examples: SharedSender
+    loaded_examples: Sender<ExampleWithScore>
 }
 
 
 impl Selectors {
     pub fn new(weights_table: WeightsTable,
                out_queue: SharedMPMCMap,
-               loaded_examples: SharedSender) -> Selectors {
+               loaded_examples: Sender<ExampleWithScore>) -> Selectors {
         Selectors {
             weights_table: weights_table,
             out_queue: out_queue,
@@ -49,7 +48,7 @@ impl Selectors {
 
 fn fill_loaded_examples(weights_table: WeightsTable,
                         out_queue: SharedMPMCMap,
-                        loaded_examples: SharedSender) {
+                        loaded_examples: Sender<ExampleWithScore>) {
     loop {
         let sample = {
             let mut hash_map = weights_table.write().unwrap();
@@ -67,7 +66,7 @@ fn fill_loaded_examples(weights_table: WeightsTable,
             }
         };
         if let Some(example) = sample {
-            loaded_examples.write().unwrap().send(example);
+            loaded_examples.send(example);
         }
     }
 }

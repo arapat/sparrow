@@ -19,7 +19,7 @@ mod buffer_loader;
 mod labeled_data;
 mod learner;
 mod network;
-// mod sampler;
+mod sampler;
 mod stratified_storage;
 mod tree;
 mod validator;

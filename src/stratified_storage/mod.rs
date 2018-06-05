@@ -8,7 +8,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 use commons::Example;
+use commons::ExampleWithScore;
 
 
-type ExampleWithScore = (Example, (f32, usize));
 type WeightsTable = Arc<RwLock<HashMap<i8, f64>>>;

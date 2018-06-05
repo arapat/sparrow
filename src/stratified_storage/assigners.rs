@@ -13,19 +13,18 @@ use commons::get_weight;
 
 
 type SharedMPMCMap = Arc<RwLock<MPMCMap>>;
-type SharedReceiver = Arc<RwLock<Receiver<ExampleWithScore>>>;
 
 
 pub struct Assigners {
     weights_table: WeightsTable,
-    updated_examples_out: SharedReceiver,
+    updated_examples_out: Receiver<ExampleWithScore>,
     in_queue: SharedMPMCMap
 }
 
 
 impl Assigners {
     pub fn new(weights_table: WeightsTable,
-               updated_examples_out: SharedReceiver,
+               updated_examples_out: Receiver<ExampleWithScore>,
                in_queue: SharedMPMCMap) -> Assigners {
         Assigners {
             weights_table: weights_table,
@@ -48,9 +47,9 @@ impl Assigners {
 
 
 fn clear_updated_examples(weights_table: WeightsTable,
-                          updated_examples_out: SharedReceiver,
+                          updated_examples_out: Receiver<ExampleWithScore>,
                           in_queue: SharedMPMCMap) {
-    while let Some(ret) = updated_examples_out.write().unwrap().recv() {
+    while let Some(ret) = updated_examples_out.recv() {
         let (example, (score, version)) = ret;
         let weight = get_weight(&example, score);
         let index = get_strata_idx(weight);

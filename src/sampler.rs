@@ -1,167 +1,106 @@
-use rand::Rng;
-use rand::thread_rng;
+use rand;
 
 use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::mpsc;
-use std::sync::mpsc::Sender;
-use std::sync::mpsc::Receiver;
-use std::thread::sleep_ms;
-use threadpool::ThreadPool;
+use std::sync::RwLock;
+use chan::Sender;
+use chan::Receiver;
+
+use std::thread::spawn;
 
 use commons::Model;
+use commons::ExampleWithScore;
 
-use buffer_loader::normal_loader::NormalLoader;
-use super::BlockModel;
-use super::ExampleWithScore;
-use super::sample_cons::SampleCons;
-
-
-type NextLoader = Arc<Mutex<Option<NormalLoader>>>;
-type ModelMutex = Arc<Mutex<Option<Model>>>;
+use commons::get_sign;
+use commons::get_weight;
 
 
-pub struct BlocksWorker {
-    sample_size: usize,
+pub struct Sampler {
+    loaded_examples: Receiver<ExampleWithScore>,
+    updated_examples: Sender<ExampleWithScore>,
+    sampled_examples: Sender<ExampleWithScore>,
 
-    sample_from_queue: Receiver<BlockModel>,
-    processed_queue: Sender<ExampleWithScore>,
-
-    next_model: ModelMutex,
-    next_loader: NextLoader
+    next_model: Receiver<Model>,
+    model: Arc<RwLock<Model>>
 }
 
 
-impl BlocksWorker {
-    pub fn new(sample_size: usize,
-               sample_from_queue: Receiver<BlockModel>,
-               processed_queue: Sender<ExampleWithScore>) -> BlocksWorker {
-        BlocksWorker {
-            sample_size: sample_size,
+impl Sampler {
+    pub fn new(loaded_examples: Receiver<ExampleWithScore>,
+               updated_examples: Sender<ExampleWithScore>,
+               sampled_examples: Sender<ExampleWithScore>,
+               next_model: Receiver<Model>) -> Sampler {
+        Sampler {
+            loaded_examples: loaded_examples,
+            updated_examples: updated_examples,
+            sampled_examples: sampled_examples,
 
-            sample_from_queue: sample_from_queue,
-            processed_queue: processed_queue,
-
-            next_model: Arc::new(Mutex::new(None)),
-            next_loader: Arc::new(Mutex::new(None))
+            next_model: next_model,
+            model: Arc::new(RwLock::new(vec![]))
         }
     }
 
-    pub fn run(&self, num_threads: usize, initial_grid_size: f32) {
-        let (sender, receiver) = mpsc::channel();
-        let curr_model: ModelMutex = Arc::new(Mutex::new(None));
-        spawn(move|| {
-            loop {
-                let trees = self.get_new_mode();
-                if let Ok(ref mut _model) = self.model_mutex.lock() {
-                    *curr_model = **_model;
-                }
-                let sample_cons: SampleCons::new(self.sample_size);
-                for (example, (score, base_node)) in receiver.iter() {
-                    if base_node == trees.len() && sample_cons.append_data(&example, score) {
-                        // new sample set is full
-                        break;
-                    }
-                }
-            }
-        });
-        spawn(move|| {
-            let pool = ThreadPool::new(num_threads);
-            let mut grid_size = initial_grid_size;
-            let mut next_grid_size = Arc::new(Mutex::new(grid_size));
-            loop {
-                let examples: Block = self.sample_from_queue.recv();
-                let trees = (
-                    if let Ok(ref mut _model) = self.model_mutex.lock() {
-                        **_model
-                    } else {
-                        None
-                    }
-                ).unwrap()
-                while pool.active_count() >= num_threads {
-                    sleep_ms(1000);
-                }
-                pool.execute(move|| {
-                    sample(examples, trees, grid_size,
-                           self.processed_queue.clone(), send_sample.clone())
-                    // TODO: update grid size
-                });
-            }
-        });
+    pub fn run(&self, num_threads: usize, initial_grid_size: f32, average_window_size: usize) {
+        self.run_model_updates();
+
+        for _ in 0..num_threads {
+            let grid_size = initial_grid_size.clone();
+            let window_size = average_window_size.clone();
+            let loaded_examples = self.loaded_examples.clone();
+            let updated_examples = self.updated_examples.clone();
+            let sampled_examples = self.sampled_examples.clone();
+            let model = self.model.clone();
+            spawn(move|| {
+                sample(grid_size, window_size, loaded_examples,
+                       updated_examples, sampled_examples, model);
+            });
+        }
     }
 
-    fn get_new_model(&mut self) -> Model {
-        let model: Option<Model> = None;
-        while model.is_none() {
-            if let Ok(ref mut _model) = self.model_mutex.lock() {
-                model = *_model;
-            }
-            sleep_ms(2000);
-        }
-        model.unwrap()
+    fn run_model_updates(&self) {
+        let model = self.model.clone();
+        let next_model = self.next_model.clone();
+        spawn(move|| {
+            update_model(model, next_model);
+        });
     }
 }
 
 
-fn sample(examples: Vec<ExampleWithScore>, trees: Model, grid_size: f32,
-            send_updated: Sender<ExampleWithScore>, send_sample: Sender<ExampleWithScore>) {
-    let model_size = trees.len();
-    let mut sum_weights = (rand::thread_rng().gen()) * grid_size;
-    for (data, (score, base_node)) in examples {
+fn update_model(model: Arc<RwLock<Model>>, next_model: Receiver<Model>) {
+    for new_model in next_model.iter() {
+        let mut model_w = model.write().unwrap();
+        *model_w = new_model;
+    }
+}
+
+
+fn sample(initial_grid_size: f32,
+          window_size: usize,
+          loaded_examples: Receiver<ExampleWithScore>,
+          updated_examples: Sender<ExampleWithScore>,
+          sampled_examples: Sender<ExampleWithScore>,
+          model: Arc<RwLock<Model>>) {
+    let mut grid_size = initial_grid_size;
+    let mut grid = -rand::random::<f32>() * grid_size;
+    let rou = 1.0 / window_size as f32;
+    loop {
+        let (data, (score, base_node)) = loaded_examples.recv().expect(
+            "Loaded example queue is closed."
+        );
+        let trees = model.read().unwrap();
+        let model_size = trees.len();
         let mut updated_score = score;
         for tree in trees[base_node..model_size].iter() {
-            updated_score += tree.get_leaf_prediction(data);
+            updated_score += tree.get_leaf_prediction(&data);
         }
-        send_updated.send((data, (updated_score, model_size)));
+        updated_examples.send((data.clone(), (updated_score, model_size)));
 
-        let w = get_weight(data, updated_score);
-        let next_sum_weight = sum_weights + w;
-        let num_copies =
-            (next_sum_weight / grid_size) as usize - (sum_weights / grid_size) as usize;
-        max_repeat = max(max_repeat, num_copies);
-        (0..num_copies).for_each(|_| {
-            send_sample.send((data, (updated_score, model_size)));
-        });
-        sum_weights = next_sum_weight - num_copies as f32 * grid_size;
-    }
-}
-
-// other random stuff
-{
-    let mut rand_val: f64 = rand::random() * self.sum_of_weight;
-    let chosen = 0;
-    for key in self.weights.keys() {
-        rand_val -= self.weights.get(key).unwrap();
-        if is_zero(rand_val) || rand_val < 0 {
-            chosen = key;
-            break;
+        let w = get_weight(&data, updated_score);
+        grid_size = grid_size * (1.0 - rou) + w * rou;
+        grid += w;
+        while get_sign(grid as f64) >= 0 {
+            sampled_examples.send((data.clone(), (updated_score, model_size)));
+            grid -= grid_size;
         }
-    }
-    // get the block
-    let (block_list, block) = self.bins.get(chosen).unwrap();
-
-    if block_list.len() > 0 {
-        // load data from disk
-        let block_idx = block_list.pop_front().unwrap();
-        let bin_data = self.disk_buffer.read(block_idx);
-        let (block_examples, block_weight) = deserialize(bin_data).unwrap();
-
-        // update bins
-        self.bins.insert(chosen, (block_list, block));
-        // update the weights
-        let strata_weight = self.weights.get(chosen).unwrap();
-        self.weights.insert(chosen, strata_weight - block_weight);
-        self.sum_of_weight -= block_weight;
-
-        (block_examples, block_weight)
-    } else {  // return what is in the buffer
-        // update bins
-        self.bins.insert(chosen, (block_list, (vec![], 0.0)));
-        // update the weights
-        let strata_weight = self.weights.get(chosen).unwrap();
-        self.weights.insert(chosen, 0.0);
-        self.sum_of_weight -= strata_weight;
-
-        block
     }
 }

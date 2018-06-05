@@ -10,6 +10,7 @@ use tree::Tree;
 pub type TFeature = u8;
 pub type TLabel = u8;
 pub type Example = LabeledData<TFeature, TLabel>;
+pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
 
