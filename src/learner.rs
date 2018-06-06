@@ -5,6 +5,7 @@ use std::ops::Range;
 use bins::Bins;
 use tree::Tree;
 use commons::Example;
+use commons::ExampleInSampleSet;
 use commons::max;
 use commons::min;
 use commons::get_bound;
@@ -135,7 +136,7 @@ impl Learner {
         }).fold(0.0, max)
     }
 
-    pub fn update(&mut self, data: &Vec<Example>, weights: &Vec<f32>) {
+    pub fn update(&mut self, data: &[ExampleInSampleSet], weights: &Vec<f32>) {
         // update global stats
         let (sum_w, sum_w_squared) =
             weights.par_iter()
@@ -151,7 +152,7 @@ impl Learner {
         self.update_weak_rules(
             data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
                 // accumulate stats for each rule
-                let label = get_symmetric_label(example);
+                let label = get_symmetric_label(&example.0);
                 let weighted_label = weight * label;
                 let w_pos = (label - 2.0 * gamma) * weight;
                 let w_neg = (-label - 2.0 * gamma) * weight;
@@ -172,7 +173,7 @@ impl Learner {
                     (w_pos, w_neg, w_pos, w_neg),
                     (w_sq, w_sq, w_sq, w_sq)
                 );
-                (example, goes_to_left, goes_to_right)
+                (&example.0, goes_to_left, goes_to_right)
             }).collect()
         );
 

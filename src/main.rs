@@ -22,7 +22,7 @@ mod network;
 mod sampler;
 mod stratified_storage;
 mod tree;
-mod validator;
+// mod validator;
 
 use std::env;
 use std::fs;
@@ -32,15 +32,13 @@ use time::get_time;
 
 use commons::io::create_bufreader;
 use commons::io::read_k_lines;
-use buffer_loader::get_on_disk_reader;
-use buffer_loader::get_data_reader;
-use buffer_loader::get_scores_keeper;
-use buffer_loader::get_normal_loader;
-use validator::get_adaboost_loss;
-use validator::get_auprc;
-use validator::validate;
+// TODO: implement loaders for validator
+// use validator::get_adaboost_loss;
+// use validator::get_auprc;
+// use validator::validate;
 
 use boosting::Boosting;
+use buffer_loader::BufferLoader;
 use commons::LossFunc;
 use commons::Model;
 use config::Config;
@@ -102,10 +100,10 @@ fn main() {
     let sample_ratio = 0.1;
     let ess_threshold = 0.5;
     let default_rho_gamma = 0.25;
-    let eval_funcs: Vec<&LossFunc> = vec![
-        &get_adaboost_loss,
-        &get_auprc
-    ];
+    let eval_funcs: Vec<&LossFunc> = vec![];
+    //     &get_adaboost_loss,
+    //     &get_auprc
+    // ];
     let max_trials_before_shrink = 5000000;
     let validate_interval = 0;
 
@@ -118,6 +116,7 @@ fn main() {
 
     let bytes_per_example = 573;
 
+    /*
     let training_disk_reader = get_on_disk_reader(
         training_data_filename, true, training_size, feature_size, bytes_per_example);
     let training_reader = get_data_reader(training_size, batch_size, training_disk_reader);
@@ -196,6 +195,7 @@ fn main() {
             validate_interval
         );
     }
+    */
 }
 
 

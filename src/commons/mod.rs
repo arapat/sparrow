@@ -10,6 +10,7 @@ use tree::Tree;
 pub type TFeature = u8;
 pub type TLabel = u8;
 pub type Example = LabeledData<TFeature, TLabel>;
+pub type ExampleInSampleSet = (Example, (f32, usize), (f32, usize));
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
@@ -34,6 +35,18 @@ pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
     data.par_iter()
         .zip(scores.par_iter())
         .map(|(d, s)| get_weight(&d, *s))
+        .collect()
+}
+
+pub fn get_absolute_weights(data: &[ExampleInSampleSet]) -> Vec<f32> {
+    data.par_iter()
+        .map(|(d, _, (s, _))| get_weight(&d, *s))
+        .collect()
+}
+
+pub fn get_relative_weights(data: &[ExampleInSampleSet]) -> Vec<f32> {
+    data.par_iter()
+        .map(|(d, (s1, _), (s2, _))| get_weight(&d, s2 - s1))
         .collect()
 }
 

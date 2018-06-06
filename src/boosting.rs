@@ -9,7 +9,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 
-use buffer_loader::NormalLoader;
+use buffer_loader::BufferLoader;
 use learner::Learner;
 use tree::Tree;
 use commons::Model;
@@ -18,7 +18,7 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 
 use bins::create_bins;
-use commons::get_weights;
+use commons::get_relative_weights;
 use commons::get_symmetric_label;
 use commons::is_positive;
 use commons::io::create_bufwriter;
@@ -26,12 +26,12 @@ use commons::io::write_to_text_file;
 use network::start_network;
 
 
-type NextLoader = Arc<Mutex<Option<NormalLoader>>>;
+type NextLoader = Arc<Mutex<Option<BufferLoader>>>;
 type ModelMutex = Arc<Mutex<Option<Model>>>;
 
 
 pub struct Boosting<'a> {
-    training_loader: NormalLoader,
+    training_loader: BufferLoader,
     eval_funcs: Vec<&'a LossFunc>,
 
     sample_ratio: f32,
@@ -52,7 +52,7 @@ pub struct Boosting<'a> {
 
 impl<'a> Boosting<'a> {
     pub fn new(
-                mut training_loader: NormalLoader,
+                mut training_loader: BufferLoader,
                 range: Range<usize>,
                 max_sample_size: usize,
                 max_bin_size: usize,
@@ -127,11 +127,10 @@ impl<'a> Boosting<'a> {
             }
 
             {
-                self.training_loader.fetch_next_batch();
-                self.training_loader.fetch_scores(&self.model);
-                let data = self.training_loader.get_curr_batch();
-                let scores = self.training_loader.get_relative_scores();
-                let weights = get_weights(data, scores);
+                self.training_loader.fetch_next_batch(true);
+                self.training_loader.update_scores(&self.model);
+                let data = self.training_loader.get_curr_batch(true);
+                let weights = get_relative_weights(data);
                 learner_timer.resume();
                 self.learner.update(data, &weights);
 
@@ -291,23 +290,23 @@ impl<'a> Boosting<'a> {
 }
 
 
-fn get_base_tree(max_sample_size: usize, data_loader: &mut NormalLoader) -> (Tree, f32) {
+fn get_base_tree(max_sample_size: usize, data_loader: &mut BufferLoader) -> (Tree, f32) {
     let mut remaining_reads = max_sample_size;
     let mut n_pos = 0;
     let mut n_neg = 0;
     while remaining_reads > 0 {
-        data_loader.fetch_next_batch();
-        let data = data_loader.get_curr_batch();
-        let (_p, _n) = data.par_iter().map(|example| {
-            if is_positive(&get_symmetric_label(example)) {
+        data_loader.fetch_next_batch(true);
+        let data = data_loader.get_curr_batch(true);
+        let (num_pos, num_neg) = data.par_iter().map(|example| {
+            if is_positive(&get_symmetric_label(&example.0)) {
                 (1, 0)
             } else {
                 (0, 1)
             }
         }).reduce(|| (0, 0), |a, b| (a.0 + b.0, a.1 + b.1));
-        n_pos += _p;
-        n_neg += _n;
-        remaining_reads -= _p + _n;
+        n_pos += num_pos;
+        n_neg += num_neg;
+        remaining_reads -= num_pos + num_neg;
     }
 
     let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();

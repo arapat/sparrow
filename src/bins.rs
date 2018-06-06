@@ -3,7 +3,7 @@ use ordered_float::NotNaN;
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use buffer_loader::NormalLoader;
+use buffer_loader::BufferLoader;
 
 
 /// TODO: support NaN feature values
@@ -65,7 +65,7 @@ impl BinMapper {
 
 
 pub fn create_bins(max_sample_size: usize, max_bin_size: usize,
-                   range: &Range<usize>, data_loader: &mut NormalLoader) -> Vec<Bins> {
+                   range: &Range<usize>, data_loader: &mut BufferLoader) -> Vec<Bins> {
     let start = range.start;
     let range_size = range.end - start;
     let mut mappers: Vec<BinMapper> = Vec::with_capacity(range_size);
@@ -75,10 +75,10 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize,
         mappers.push(BinMapper::new());
     }
     while remaining_reads > 0 {
-        data_loader.fetch_next_batch();
-        let data = data_loader.get_curr_batch();
+        data_loader.fetch_next_batch(false);
+        let data = data_loader.get_curr_batch(false);
         data.iter().for_each(|example| {
-            let features = example.get_features();
+            let features = example.0.get_features();
             mappers.iter_mut()
                    .enumerate()
                    .for_each(|(idx, mapper)| {
