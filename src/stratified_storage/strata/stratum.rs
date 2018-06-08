@@ -63,26 +63,26 @@ impl Stratum {
 
     pub fn run(&mut self) {
         let (slot_in, slot_out) = mpsc::channel();
+        let (in_queue_in, in_queue_out) = mpsc::sync_channel(self.num_examples_per_block * 2);
+        let (out_queue_in, out_queue_out) = chan::sync(self.num_examples_per_block * 2);
+        self.in_queue_in = Some(in_queue_in);
+        self.out_queue_out = Some(out_queue_out);
 
         // read in examples
-        let (in_queue_in, in_queue_out) = mpsc::sync_channel(self.num_examples_per_block * 2);
-        self.in_queue_in = Some(in_queue_in);
-
         let num_examples_per_block = self.num_examples_per_block.clone();
         let disk_buffer = self.disk_buffer.clone();
+        let out_queue_in_clone = out_queue_in.clone();
         spawn(move|| {
             clear_in_queues(
                 num_examples_per_block,
                 in_queue_out,
                 slot_in,
+                out_queue_in_clone,
                 disk_buffer
             )
         });
 
         // send out examples
-        let (out_queue_in, out_queue_out) = chan::sync(num_examples_per_block * 2);
-        self.out_queue_out = Some(out_queue_out);
-
         let disk_buffer = self.disk_buffer.clone();
         spawn(move|| {
             fill_out_queues(
@@ -98,16 +98,23 @@ impl Stratum {
 fn clear_in_queues(num_examples_per_block: usize,
                    in_queue_out: Receiver<ExampleWithScore>,
                    slot_in: Sender<usize>,
+                   out_queue: chan::Sender<ExampleWithScore>,
                    disk_buffer: Arc<RwLock<DiskBuffer>>) {
     let mut in_block = Vec::with_capacity(num_examples_per_block);
     loop {
-        let example_with_score = in_queue_out.recv().unwrap();
-        in_block.push(example_with_score);
-        if in_block.len() >= num_examples_per_block {
-            let serialized_block = serialize(&in_block).unwrap();
-            let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
-            slot_in.send(block_idx);
-            in_block.clear();
+        let example = in_queue_out.recv().unwrap();
+        let example_clone = example.clone();
+        chan_select! {
+            default => {
+                in_block.push(example);
+                if in_block.len() >= num_examples_per_block {
+                    let serialized_block = serialize(&in_block).unwrap();
+                    let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
+                    slot_in.send(block_idx);
+                    in_block.clear();
+                }
+            },
+            out_queue.send(example_clone) => {},
         }
     }
 }
@@ -117,9 +124,11 @@ fn fill_out_queues(slot_out: Receiver<usize>,
                    out_queue: chan::Sender<ExampleWithScore>,
                    disk_buffer: Arc<RwLock<DiskBuffer>>) {
     loop {
-        let block_index = slot_out.recv().unwrap();
-        let block_data: Vec<u8> = unlock_write!(disk_buffer).read(block_index);
-        let out_block: Vec<ExampleWithScore> = deserialize(&block_data).unwrap();
+        let out_block: Block = {
+            let block_index = slot_out.recv().unwrap();
+            let block_data: Vec<u8> = unlock_write!(disk_buffer).read(block_index);
+            deserialize(&block_data).unwrap()
+        };
         for example in out_block {
             out_queue.send(example);
         }
