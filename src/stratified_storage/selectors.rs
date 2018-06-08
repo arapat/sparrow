@@ -5,30 +5,27 @@ use chan::Sender;
 use rand;
 use std::thread::spawn;
 
-use super::mpmc_map::MPMCMap;
 use super::ExampleWithScore;
+use super::Strata;
 use super::WeightsTable;
 
 use commons::get_sign;
 
 
-type SharedMPMCMap = Arc<RwLock<MPMCMap>>;
-
-
 pub struct Selectors {
     weights_table: WeightsTable,
-    out_queue: SharedMPMCMap,
+    strata: Arc<RwLock<Strata>>,
     loaded_examples: Sender<ExampleWithScore>
 }
 
 
 impl Selectors {
     pub fn new(weights_table: WeightsTable,
-               out_queue: SharedMPMCMap,
+               strata: Arc<RwLock<Strata>>,
                loaded_examples: Sender<ExampleWithScore>) -> Selectors {
         Selectors {
             weights_table: weights_table,
-            out_queue: out_queue,
+            strata: strata,
             loaded_examples: loaded_examples
         }
     }
@@ -36,10 +33,10 @@ impl Selectors {
     pub fn run(&mut self, num_threads: usize) {
         for _ in 0..num_threads {
             let weights_table = self.weights_table.clone();
-            let out_queue = self.out_queue.clone();
+            let strata = self.strata.clone();
             let loaded_examples = self.loaded_examples.clone();
             spawn(move || {
-                fill_loaded_examples(weights_table, out_queue, loaded_examples);
+                fill_loaded_examples(weights_table, strata, loaded_examples);
             });
         }
     }
@@ -47,7 +44,7 @@ impl Selectors {
 
 
 fn fill_loaded_examples(weights_table: WeightsTable,
-                        out_queue: SharedMPMCMap,
+                        strata: Arc<RwLock<Strata>>,
                         loaded_examples: Sender<ExampleWithScore>) {
     loop {
         let sample = {
@@ -56,7 +53,14 @@ fn fill_loaded_examples(weights_table: WeightsTable,
                                             .map(|(a, b)| (a.clone(), b.clone()))
                                             .collect();
             if let Some(index) = get_sample_from(p) {
-                let (_, receiver) = out_queue.write().unwrap().get(index);
+                let receiver = (
+                    if let Some(t) = strata.read().unwrap().get_out_queue(index) {
+                        t
+                    } else {
+                        let (_, receiver) = strata.write().unwrap().create(index);
+                        receiver
+                    }
+                );
                 let example = receiver.recv().unwrap();
                 let weight = hash_map.entry(index).or_insert(0.0);
                 *weight -= (example.1).0 as f64;

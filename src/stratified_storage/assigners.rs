@@ -5,31 +5,28 @@ use chan::Receiver;
 
 use std::thread::spawn;
 
-use super::mpmc_map::MPMCMap;
 use super::ExampleWithScore;
+use super::Strata;
 use super::WeightsTable;
 
 use commons::get_weight;
 
 
-type SharedMPMCMap = Arc<RwLock<MPMCMap>>;
-
-
 pub struct Assigners {
     weights_table: WeightsTable,
     updated_examples_out: Receiver<ExampleWithScore>,
-    in_queue: SharedMPMCMap
+    strata: Arc<RwLock<Strata>>
 }
 
 
 impl Assigners {
     pub fn new(weights_table: WeightsTable,
                updated_examples_out: Receiver<ExampleWithScore>,
-               in_queue: SharedMPMCMap) -> Assigners {
+               strata: Arc<RwLock<Strata>>) -> Assigners {
         Assigners {
             weights_table: weights_table,
             updated_examples_out: updated_examples_out,
-            in_queue: in_queue
+            strata: strata
         }
     }
 
@@ -37,9 +34,9 @@ impl Assigners {
         for _ in 0..num_threads {
             let weights_table = self.weights_table.clone(); 
             let updated_examples_out = self.updated_examples_out.clone();
-            let in_queue = self.in_queue.clone();
+            let strata = self.strata.clone();
             spawn(move|| {
-                clear_updated_examples(weights_table, updated_examples_out, in_queue);
+                clear_updated_examples(weights_table, updated_examples_out, strata);
             });
         }
     }
@@ -48,13 +45,19 @@ impl Assigners {
 
 fn clear_updated_examples(weights_table: WeightsTable,
                           updated_examples_out: Receiver<ExampleWithScore>,
-                          in_queue: SharedMPMCMap) {
+                          strata: Arc<RwLock<Strata>>) {
     while let Some(ret) = updated_examples_out.recv() {
         let (example, (score, version)) = ret;
         let weight = get_weight(&example, score);
         let index = get_strata_idx(weight);
-        let (sender, _) = in_queue.write().unwrap().get(index);
-
+        let mut sender = (
+            if let Some(t) = strata.read().unwrap().get_in_queue(index) {
+                t
+            } else {
+                let (sender, _) = strata.write().unwrap().create(index);
+                sender
+            }
+        );
         sender.send((example, (score, version)));
         let mut weights = weights_table.write().unwrap();
         let prev_weight = weights.entry(index).or_insert(0.0);
