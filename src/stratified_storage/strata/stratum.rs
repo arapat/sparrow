@@ -10,8 +10,8 @@ use std::collections::vec_deque::VecDeque;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::mpsc::Receiver;
+use std::sync::mpsc::Sender;
 use std::time::Duration;
-use chan::Sender;
 
 use super::Block;
 use super::ExampleWithScore;
@@ -22,9 +22,7 @@ use super::disk_buffer::DiskBuffer;
 
 pub struct Stratum {
     num_examples_per_block: usize,
-
     disk_buffer: Arc<RwLock<DiskBuffer>>,
-    slot_indices: Arc<RwLock<VecDeque<usize>>>,
 
     in_queue_in: Option<InQueueSender>,
     out_queue_out: Option<OutQueueReceiver>
@@ -40,9 +38,7 @@ impl Stratum {
     pub fn new(num_examples_per_block: usize, disk_buffer: Arc<RwLock<DiskBuffer>>) -> Stratum {
         Stratum {
             num_examples_per_block: num_examples_per_block,
-
             disk_buffer: disk_buffer,
-            slot_indices: get_locked(VecDeque::new()),
 
             in_queue_in: None,
             out_queue_out: None
@@ -66,37 +62,31 @@ impl Stratum {
     }
 
     pub fn run(&mut self) {
+        let (slot_in, slot_out) = mpsc::channel();
+
         // read in examples
-        let in_block = Vec::with_capacity(self.num_examples_per_block);
         let (in_queue_in, in_queue_out) = mpsc::sync_channel(self.num_examples_per_block * 2);
         self.in_queue_in = Some(in_queue_in);
 
         let num_examples_per_block = self.num_examples_per_block.clone();
-        let slot_indices = self.slot_indices.clone();
         let disk_buffer = self.disk_buffer.clone();
         spawn(move|| {
             clear_in_queues(
                 num_examples_per_block,
                 in_queue_out,
-                in_block,
-                slot_indices,
+                slot_in,
                 disk_buffer
             )
         });
 
         // send out examples
-        let out_block = vec![];
         let (out_queue_in, out_queue_out) = chan::sync(num_examples_per_block * 2);
         self.out_queue_out = Some(out_queue_out);
 
-        let num_examples_per_block = self.num_examples_per_block.clone();
-        let slot_indices = self.slot_indices.clone();
         let disk_buffer = self.disk_buffer.clone();
         spawn(move|| {
             fill_out_queues(
-                num_examples_per_block,
-                slot_indices,
-                out_block,
+                slot_out,
                 out_queue_in,
                 disk_buffer
             )
@@ -107,40 +97,32 @@ impl Stratum {
 
 fn clear_in_queues(num_examples_per_block: usize,
                    in_queue_out: Receiver<ExampleWithScore>,
-                   mut in_block: Block,
-                   slot_indices: Arc<RwLock<VecDeque<usize>>>,
+                   slot_in: Sender<usize>,
                    disk_buffer: Arc<RwLock<DiskBuffer>>) {
+    let mut in_block = Vec::with_capacity(num_examples_per_block);
     loop {
         let example_with_score = in_queue_out.recv().unwrap();
         in_block.push(example_with_score);
         if in_block.len() >= num_examples_per_block {
             let serialized_block = serialize(&in_block).unwrap();
             let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
-            unlock_write!(slot_indices).push_back(block_idx);
+            slot_in.send(block_idx);
             in_block.clear();
         }
     }
 }
 
 
-fn fill_out_queues(num_examples_per_block: usize,
-                   slot_indices: Arc<RwLock<VecDeque<usize>>>,
-                   mut out_block: Block,
-                   out_queue: Sender<ExampleWithScore>,
+fn fill_out_queues(slot_out: Receiver<usize>,
+                   out_queue: chan::Sender<ExampleWithScore>,
                    disk_buffer: Arc<RwLock<DiskBuffer>>) {
     loop {
-        if out_block.len() == 0 {
-            if let Some(block_index) = unlock_write!(slot_indices).pop_front() {
-                let block_data: Vec<u8> = unlock_write!(disk_buffer).read(block_index);
-                out_block = deserialize(&block_data).unwrap();
-            } else {
-                sleep(Duration::from_secs(1));
-            }
-        }
+        let block_index = slot_out.recv().unwrap();
+        let block_data: Vec<u8> = unlock_write!(disk_buffer).read(block_index);
+        let out_block: Vec<ExampleWithScore> = deserialize(&block_data).unwrap();
         for example in out_block {
             out_queue.send(example);
         }
-        out_block = vec![];
     }
 }
 
