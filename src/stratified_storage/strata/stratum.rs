@@ -101,26 +101,34 @@ fn clear_in_queues(num_examples_per_block: usize,
                    out_queue: chan::Sender<ExampleWithScore>,
                    disk_buffer: Arc<RwLock<DiskBuffer>>) {
     let mut in_block = VecDeque::with_capacity(num_examples_per_block);
-    while let Ok(example) = in_queue_out.recv() {
-        in_block.push_back(example);
-        while let Some(example) = in_block.pop_front() { 
-            let example_clone = example.clone();
-            chan_select! {
-                default => {
-                    in_block.push_front(example);
-                    break;
-                },
-                out_queue.send(example_clone) => {},
+    loop {
+        if let Ok(example) = in_queue_out.recv_timeout(Duration::from_millis(500)) {
+            in_block.push_back(example);
+            if in_block.len() >= num_examples_per_block {
+                let serialized_block = serialize(&in_block).unwrap();
+                let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
+                slot_in.send(block_idx);
+                in_block.clear();
+            }
+        } else {
+            // if the number of examples is less than what requires to form a block,
+            // they would stay in `in_block` forever and never write to disk.
+            // In that case, `out_queue` might stuck if it is asked for examples
+            // since it only has direct access to the examples on disk.
+            // To address this issue, we send the examples to `out_queue` from time
+            // to time here if `out_queue` is not full.
+            while let Some(example) = in_block.pop_front() {
+                let example_clone = example.clone();
+                chan_select! {
+                    default => {
+                        in_block.push_front(example);
+                        break;
+                    },
+                    out_queue.send(example_clone) => {},
+                }
             }
         }
-        if in_block.len() >= num_examples_per_block {
-            let serialized_block = serialize(&in_block).unwrap();
-            let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
-            slot_in.send(block_idx);
-            in_block.clear();
-        }
     }
-    error!("In Queue in stratum was closed.");
 }
 
 
@@ -158,6 +166,7 @@ fn get_clone<T: Clone>(t: &mut Option<T>) -> Option<T> {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::remove_file;
     use std::sync::Arc;
     use std::sync::RwLock;
 
@@ -170,19 +179,22 @@ mod tests {
 
     #[test]
     fn test_stratum_one_by_one() {
-        let (in_queue, out_queue) = get_in_out_queues();
+        let filename = "unittest-stratum1.bin";
+        let (in_queue, out_queue) = get_in_out_queues(filename, 100);
 
-        for i in 0..100 {
+        for i in 0..2 {
             let t = get_example(vec![i, 2, 3]);
             in_queue.send(t.clone()).unwrap();
             let retrieve = out_queue.recv().unwrap();
             assert_eq!(retrieve, t);
         }
+        remove_file(filename).unwrap();
     }
 
-    // #[test]
+    #[test]
     fn test_stratum_seq() {
-        let (in_queue, out_queue) = get_in_out_queues();
+        let filename = "unittest-stratum2.bin";
+        let (in_queue, out_queue) = get_in_out_queues(filename, 100);
         let mut examples = vec![];
         for i in 0..100 {
             let t = get_example(vec![i, 2, 3]);
@@ -198,6 +210,7 @@ mod tests {
         for i in 0..100 {
             assert_eq!(output[i], examples[i]);
         }
+        remove_file(filename).unwrap();
     }
 
     fn get_example(features: Vec<u8>) -> ExampleWithScore {
@@ -206,8 +219,8 @@ mod tests {
         (example, (1.0, 0))
     }
 
-    fn get_in_out_queues() -> (InQueueSender, OutQueueReceiver) {
-        let disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 100, 10);
+    fn get_in_out_queues(filename: &str, size: usize) -> (InQueueSender, OutQueueReceiver) {
+        let disk_buffer = get_disk_buffer(filename, 3, size, 10);
         let mut stratum = Stratum::new(10, Arc::new(RwLock::new(disk_buffer)));
         stratum.run();
         (stratum.get_in_queue(), stratum.get_out_queue())

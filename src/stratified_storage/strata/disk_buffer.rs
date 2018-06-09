@@ -81,6 +81,7 @@ impl DiskBuffer {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::remove_file;
     use std::sync::Arc;
     use std::sync::RwLock;
     use bincode::serialize;
@@ -90,19 +91,23 @@ mod tests {
     use commons::ExampleWithScore;
     use super::super::get_disk_buffer;
 
+
     #[test]
     fn test_disk_buffer_normal_write() {
-        let mut disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 50, 10);
+        let filename = "unittest-diskbuffer1.bin";
+        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![1, 2, 3]);
         let data = serialize(&vec![example; 10]).unwrap();
         for i in 0..5 {
             disk_buffer.write(&data);
         }
+        remove_file(filename).unwrap();
     }
 
     #[test]
     fn test_disk_buffer_rw_once() {
-        let mut disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 50, 10);
+        let filename = "unittest-diskbuffer2.bin";
+        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![4, 5, 6]);
         let examples = vec![example; 10];
         let data = serialize(&examples).unwrap();
@@ -111,11 +116,13 @@ mod tests {
         assert_eq!(data, retrieve);
         let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
         assert_eq!(examples, examples_des);
+        remove_file(filename).unwrap();
     }
 
     #[test]
     fn test_disk_buffer_rw_one_by_one() {
-        let mut disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 50, 10);
+        let filename = "unittest-diskbuffer3.bin";
+        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         for i in 0..5 {
             let example = get_example(vec![1, 2, i]);
             let examples = vec![example; 10];
@@ -128,11 +135,13 @@ mod tests {
             let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
             assert_eq!(examples, examples_des);
         }
+        remove_file(filename).unwrap();
     }
 
     #[test]
     fn test_disk_buffer_rw_seq() {
-        let mut disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 50, 10);
+        let filename = "unittest-diskbuffer4.bin";
+        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let mut inputs = vec![];
         for i in 0..5 {
             let example = get_example(vec![1, 2, i]);
@@ -149,19 +158,22 @@ mod tests {
             let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
             assert_eq!(inputs[i].1, examples_des);
         }
+        remove_file(filename).unwrap();
     }
 
     #[test]
     #[should_panic]
     fn test_disk_buffer_read_panic() {
-        let mut disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 10, 10);
+        let filename = "unittest-diskbuffer.bin";
+        let mut disk_buffer = get_disk_buffer(filename, 3, 10, 10);
         disk_buffer.read(0);
     }
 
     #[test]
     #[should_panic]
     fn test_disk_buffer_write_disk_full_panic() {
-        let mut disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 50, 10);
+        let filename = "unittest-diskbuffer.bin";
+        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![1, 2, 3]);
         let data = serialize(&vec![example; 10]).unwrap();
         for i in 0..6 {
@@ -172,7 +184,8 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_disk_buffer_write_feature_size_mismatch_panic() {
-        let mut disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 50, 10);
+        let filename = "unittest-diskbuffer.bin";
+        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![1, 2, 3, 4]);
         let data = serialize(&vec![example; 10]).unwrap();
         disk_buffer.write(&data);
