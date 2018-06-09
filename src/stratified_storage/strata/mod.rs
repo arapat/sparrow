@@ -53,9 +53,10 @@ macro_rules! unlock_write {
 impl Strata {
     pub fn new(num_examples: usize,
                feature_size: usize,
-               num_examples_per_block: usize) -> Strata {
+               num_examples_per_block: usize,
+               disk_buffer_name: &str) -> Strata {
         let disk_buffer = get_disk_buffer(
-            "stratified_buffer.bin", feature_size, num_examples, num_examples_per_block);
+            disk_buffer_name, feature_size, num_examples, num_examples_per_block);
         Strata {
             num_examples_per_block: num_examples_per_block,
             disk_buffer: get_locked(disk_buffer),
@@ -118,4 +119,50 @@ fn get_block_size(feature_size: usize, num_examples_per_block: usize) -> usize {
 
 fn get_locked<T>(t: T) -> Arc<RwLock<T>> {
     Arc::new(RwLock::new(t))
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::fs::remove_file;
+
+    use labeled_data::LabeledData;
+    use commons::ExampleWithScore;
+    use super::Strata;
+
+    #[test]
+    fn test_strata() {
+        let filename = "unittest-strata.bin";
+        let mut strata = Strata::new(1000, 3, 10, filename);
+        let mut examples = vec![];
+        for i in 0..100 {
+            for k in 0..10 {
+                let t = get_example(vec![0, i, k]);
+                let mut sender = {
+                    if let Some(t) = strata.get_in_queue(k as i8) {
+                        t
+                    } else {
+                        let (sender, _) = strata.create(k as i8);
+                        sender
+                    }
+                };
+                sender.send(t.clone()).unwrap();
+                examples.push(t);
+            }
+        }
+        let mut answer = examples.iter();
+        for i in 0..100 {
+            for k in 0..10 {
+                let retrieve = strata.get_out_queue(k as i8).unwrap().recv().unwrap();
+                assert_eq!(*answer.next().unwrap(), retrieve);
+            }
+        }
+        remove_file(filename).unwrap();
+    }
+
+    fn get_example(features: Vec<u8>) -> ExampleWithScore {
+        let label: u8 = 0;
+        let example = LabeledData::new(features, label);
+        (example, (1.0, 0))
+    }
 }

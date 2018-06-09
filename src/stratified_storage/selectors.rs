@@ -53,14 +53,14 @@ fn fill_loaded_examples(weights_table: WeightsTable,
                                             .map(|(a, b)| (a.clone(), b.clone()))
                                             .collect();
             if let Some(index) = get_sample_from(p) {
-                let receiver = (
+                let receiver = {
                     if let Some(t) = strata.read().unwrap().get_out_queue(index) {
                         t
                     } else {
                         let (_, receiver) = strata.write().unwrap().create(index);
                         receiver
                     }
-                );
+                };
                 let example = receiver.recv().unwrap();
                 let weight = hash_map.entry(index).or_insert(0.0);
                 *weight -= (example.1).0 as f64;

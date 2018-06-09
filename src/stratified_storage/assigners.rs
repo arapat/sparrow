@@ -50,14 +50,14 @@ fn clear_updated_examples(weights_table: WeightsTable,
         let (example, (score, version)) = ret;
         let weight = get_weight(&example, score);
         let index = get_strata_idx(weight);
-        let mut sender = (
+        let mut sender = {
             if let Some(t) = strata.read().unwrap().get_in_queue(index) {
                 t
             } else {
                 let (sender, _) = strata.write().unwrap().create(index);
                 sender
             }
-        );
+        };
         sender.send((example, (score, version)));
         let mut weights = weights_table.write().unwrap();
         let prev_weight = weights.entry(index).or_insert(0.0);

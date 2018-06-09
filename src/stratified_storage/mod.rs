@@ -33,7 +33,7 @@ impl Stratified {
                updated_examples: Receiver<ExampleWithScore>,
                loaded_examples: Sender<ExampleWithScore>) -> Stratified {
         let strata = Arc::new(RwLock::new(
-                Strata::new(num_examples, feature_size, num_examples_per_block)));
+                Strata::new(num_examples, feature_size, num_examples_per_block, "stratified_buffer.bin")));
         let weights_table = Arc::new(RwLock::new(
                 HashMap::new()));
         let assigners = Assigners::new(weights_table.clone(), updated_examples, strata.clone());
