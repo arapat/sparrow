@@ -28,11 +28,12 @@ pub struct Stratified {
 
 impl Stratified {
     pub fn new(num_examples: usize,
+               feature_size: usize,
                num_examples_per_block: usize,
                updated_examples: Receiver<ExampleWithScore>,
                loaded_examples: Sender<ExampleWithScore>) -> Stratified {
         let strata = Arc::new(RwLock::new(
-                Strata::new(num_examples, num_examples_per_block)));
+                Strata::new(num_examples, feature_size, num_examples_per_block)));
         let weights_table = Arc::new(RwLock::new(
                 HashMap::new()));
         let assigners = Assigners::new(weights_table.clone(), updated_examples, strata.clone());

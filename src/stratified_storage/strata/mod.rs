@@ -14,6 +14,7 @@ use chan::Receiver;
 use bincode::serialize;
 
 use commons::Example;
+use commons::TFeature;
 use commons::TLabel;
 use labeled_data::LabeledData;
 
@@ -51,15 +52,13 @@ macro_rules! unlock_write {
 
 impl Strata {
     pub fn new(num_examples: usize,
+               feature_size: usize,
                num_examples_per_block: usize) -> Strata {
-        let block_size = get_block_size(num_examples_per_block);
-        let num_disk_block = (num_examples + num_examples_per_block - 1) / num_examples_per_block;
-        let disk_buffer = get_locked(
-            DiskBuffer::new("stratified_buffer.bin", block_size, num_disk_block)
-        );
+        let disk_buffer = get_disk_buffer(
+            "stratified_buffer.bin", feature_size, num_examples, num_examples_per_block);
         Strata {
             num_examples_per_block: num_examples_per_block,
-            disk_buffer: disk_buffer,
+            disk_buffer: get_locked(disk_buffer),
             in_queues: Arc::new(RwLock::new(HashMap::new())),
             out_queues: Arc::new(RwLock::new(HashMap::new()))
         }
@@ -100,8 +99,16 @@ impl Strata {
 }
 
 
-fn get_block_size(num_examples_per_block: usize) -> usize {
-    let example: Example = LabeledData::new(vec![], 0 as TLabel);
+pub fn get_disk_buffer(filename: &str, feature_size: usize,
+                       num_examples: usize, num_examples_per_block: usize) -> DiskBuffer {
+    let num_disk_block = (num_examples + num_examples_per_block - 1) / num_examples_per_block;
+    let block_size = get_block_size(feature_size, num_examples_per_block);
+    DiskBuffer::new(filename, block_size, num_disk_block)
+}
+
+
+fn get_block_size(feature_size: usize, num_examples_per_block: usize) -> usize {
+    let example: Example = LabeledData::new(vec![0 as TFeature; feature_size], 0 as TLabel);
     let example_with_score: ExampleWithScore = (example, (0.0, 0));
     let block: Block = vec![example_with_score; num_examples_per_block];
     let serialized_block: Vec<u8> = serialize(&block).unwrap();

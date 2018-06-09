@@ -42,7 +42,8 @@ impl DiskBuffer {
             self.bitmap.mark_filled(idx);
             idx
         };
-        if position <= self.size {
+        assert!(position <= self.size);
+        if position < self.size {
             let offset = position * self.block_size;
             self._file.seek(SeekFrom::Start(offset as u64)).expect(
                 &format!("Cannot seek to the location {} while writing.", offset));
@@ -62,8 +63,37 @@ impl DiskBuffer {
         self._file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while reading.", offset));
         let mut block_buffer: Vec<u8> = vec![];
-        self._file.read_exact(block_buffer.as_mut_slice()).unwrap();
+        self._file.read_exact(block_buffer.as_mut_slice()).expect(
+            &format!("Read from disk failed. Disk buffer size is `{}`. Position to read is `{}`.",
+                     self.size, position)
+        );
         self.bitmap.mark_free(position);
         block_buffer
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::RwLock;
+
+    use labeled_data::LabeledData;
+    use commons::ExampleWithScore;
+    use super::super::get_disk_buffer;
+
+    #[test]
+    fn test_disk_buffer_one_by_one() {
+        get_disk_buffer("unit-test-stratified.bin", 3, 100, 10);
+    }
+
+    #[test]
+    fn test_disk_buffer_seq() {
+    }
+
+    fn get_example(features: Vec<u8>) -> ExampleWithScore {
+        let label: u8 = 0;
+        let example = LabeledData::new(features, label);
+        (example, (1.0, 0))
     }
 }

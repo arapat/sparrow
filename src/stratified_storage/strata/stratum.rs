@@ -100,39 +100,45 @@ fn clear_in_queues(num_examples_per_block: usize,
                    slot_in: Sender<usize>,
                    out_queue: chan::Sender<ExampleWithScore>,
                    disk_buffer: Arc<RwLock<DiskBuffer>>) {
-    let mut in_block = Vec::with_capacity(num_examples_per_block);
-    loop {
-        let example = in_queue_out.recv().unwrap();
-        let example_clone = example.clone();
-        chan_select! {
-            default => {
-                in_block.push(example);
-                if in_block.len() >= num_examples_per_block {
-                    let serialized_block = serialize(&in_block).unwrap();
-                    let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
-                    slot_in.send(block_idx);
-                    in_block.clear();
-                }
-            },
-            out_queue.send(example_clone) => {},
+    let mut in_block = VecDeque::with_capacity(num_examples_per_block);
+    while let Ok(example) = in_queue_out.recv() {
+        in_block.push_back(example);
+        while let Some(example) = in_block.pop_front() { 
+            let example_clone = example.clone();
+            chan_select! {
+                default => {
+                    in_block.push_front(example);
+                    break;
+                },
+                out_queue.send(example_clone) => {},
+            }
+        }
+        if in_block.len() >= num_examples_per_block {
+            let serialized_block = serialize(&in_block).unwrap();
+            let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
+            slot_in.send(block_idx);
+            in_block.clear();
         }
     }
+    error!("In Queue in stratum was closed.");
 }
 
 
 fn fill_out_queues(slot_out: Receiver<usize>,
                    out_queue: chan::Sender<ExampleWithScore>,
                    disk_buffer: Arc<RwLock<DiskBuffer>>) {
-    loop {
+    while let Ok(block_index) = slot_out.recv() {
         let out_block: Block = {
-            let block_index = slot_out.recv().unwrap();
             let block_data: Vec<u8> = unlock_write!(disk_buffer).read(block_index);
-            deserialize(&block_data).unwrap()
+            deserialize(&block_data).expect(
+                "Cannot deserialize block."
+            )
         };
         for example in out_block {
             out_queue.send(example);
         }
     }
+    error!("Slot Queue in stratum was closed.");
 }
 
 
@@ -146,5 +152,64 @@ fn get_clone<T: Clone>(t: &mut Option<T>) -> Option<T> {
         Some(val.clone())
     } else {
         None
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+    use std::sync::RwLock;
+
+    use labeled_data::LabeledData;
+    use commons::ExampleWithScore;
+    use super::super::get_disk_buffer;
+    use super::Stratum;
+    use super::InQueueSender;
+    use super::OutQueueReceiver;
+
+    #[test]
+    fn test_stratum_one_by_one() {
+        let (in_queue, out_queue) = get_in_out_queues();
+
+        for i in 0..100 {
+            let t = get_example(vec![i, 2, 3]);
+            in_queue.send(t.clone()).unwrap();
+            let retrieve = out_queue.recv().unwrap();
+            assert_eq!(retrieve, t);
+        }
+    }
+
+    // #[test]
+    fn test_stratum_seq() {
+        let (in_queue, out_queue) = get_in_out_queues();
+        let mut examples = vec![];
+        for i in 0..100 {
+            let t = get_example(vec![i, 2, 3]);
+            in_queue.send(t.clone()).unwrap();
+            examples.push(t);
+        }
+        let mut output = vec![];
+        for i in 0..100 {
+            let retrieve = out_queue.recv().unwrap();
+            output.push(retrieve);
+        }
+        output.sort_by_key(|t| (t.0).get_features()[0]);
+        for i in 0..100 {
+            assert_eq!(output[i], examples[i]);
+        }
+    }
+
+    fn get_example(features: Vec<u8>) -> ExampleWithScore {
+        let label: u8 = 0;
+        let example = LabeledData::new(features, label);
+        (example, (1.0, 0))
+    }
+
+    fn get_in_out_queues() -> (InQueueSender, OutQueueReceiver) {
+        let disk_buffer = get_disk_buffer("unit-test-stratified.bin", 3, 100, 10);
+        let mut stratum = Stratum::new(10, Arc::new(RwLock::new(disk_buffer)));
+        stratum.run();
+        (stratum.get_in_queue(), stratum.get_out_queue())
     }
 }
