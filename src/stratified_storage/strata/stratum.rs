@@ -107,7 +107,7 @@ fn clear_in_queues(num_examples_per_block: usize,
             if in_block.len() >= num_examples_per_block {
                 let serialized_block = serialize(&in_block).unwrap();
                 let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
-                slot_in.send(block_idx);
+                slot_in.send(block_idx).unwrap();
                 in_block.clear();
             }
         } else {
