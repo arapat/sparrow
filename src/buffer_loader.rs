@@ -4,6 +4,7 @@ use rand::thread_rng;
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::thread::spawn;
 use std::time::Duration;
 use chan::Receiver;
 
@@ -23,8 +24,6 @@ pub struct BufferLoader {
     batch_size: usize,
     num_batch: usize,
 
-    sampled_examples: Receiver<ExampleWithScore>,
-
     examples_in_use: Vec<ExampleInSampleSet>,
     examples_in_cons: Arc<RwLock<Vec<ExampleInSampleSet>>>,
     is_cons_ready: Arc<RwLock<bool>>,
@@ -43,17 +42,26 @@ pub struct BufferLoader {
 impl BufferLoader {
     pub fn new(size: usize, batch_size: usize,
                sampled_examples: Receiver<ExampleWithScore>) -> BufferLoader {
+        let examples_in_cons = Arc::new(RwLock::new(Vec::with_capacity(size)));
+        let is_cons_ready = Arc::new(RwLock::new(false));
+        {
+            let capacity = size.clone();
+            let cons_vec = examples_in_cons.clone();
+            let cons_mark = is_cons_ready.clone();
+            spawn(move|| {
+                load_buffer(capacity, sampled_examples, cons_vec, cons_mark);
+            });
+        }
+
         let num_batch = (size + batch_size - 1) / batch_size;
         BufferLoader {
             size: size,
             batch_size: batch_size,
             num_batch: num_batch,
 
-            sampled_examples: sampled_examples,
-
             examples_in_use: vec![],
-            examples_in_cons: Arc::new(RwLock::new(Vec::with_capacity(size))),
-            is_cons_ready: Arc::new(RwLock::new(false)),
+            examples_in_cons: examples_in_cons,
+            is_cons_ready: is_cons_ready,
 
             ess: None,
             sum_weights: 0.0,
@@ -185,7 +193,7 @@ fn load_buffer(capacity: usize,
                 if *b == false {
                     break;
                 } else {
-                    sleep(Duration::from_secs(1));
+                    sleep(Duration::from_millis(1000));
                 }
             }
         }
