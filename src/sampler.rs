@@ -1,4 +1,5 @@
 use rand;
+use rayon::prelude::*;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -87,14 +88,18 @@ fn sample(initial_grid_size: f32,
         let (data, (score, base_node)) = loaded_examples.recv().expect(
             "Loaded example queue is closed."
         );
-        let trees = model.read().unwrap();
-        let model_size = trees.len();
-        let mut updated_score = score;
-        for tree in trees[base_node..model_size].iter() {
-            updated_score += tree.get_leaf_prediction(&data);
-        }
-        updated_examples.send((data.clone(), (updated_score, model_size)));
+        let (updated_score, model_size) = {
+            let trees = model.read().unwrap();
+            let model_size = trees.len();
+            let inc_score: f32 = {
+                trees[base_node..model_size].par_iter().map(|tree| {
+                    tree.get_leaf_prediction(&data)
+                }).sum()
+            };
+            (score + inc_score, model_size)
+        };
 
+        updated_examples.send((data.clone(), (updated_score, model_size)));
         let w = get_weight(&data, updated_score);
         grid_size = grid_size * (1.0 - rou) + w * rou;
         grid += w;
