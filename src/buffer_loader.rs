@@ -7,7 +7,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
 use std::time::Duration;
-use chan::Receiver;
+use std::sync::mpsc::Receiver;
 
 use std::thread::sleep;
 
@@ -227,7 +227,7 @@ fn load_buffer(capacity: usize,
         {
             if let Ok(mut examples) = examples_in_cons.write() {
                 while examples.len() < capacity {
-                    if let Some((example, (score, node))) = sampled_examples.recv() {
+                    if let Ok((example, (score, node))) = sampled_examples.recv() {
                         examples.push((example, (score.clone(), node.clone()), (score, node)));
                         count += 1;
                     } else {
@@ -247,7 +247,7 @@ fn load_buffer(capacity: usize,
 
 #[cfg(test)]
 mod tests {
-    use chan;
+    use std::sync::mpsc;
     use std::thread::sleep;
     use std::thread::spawn;
 
@@ -260,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_buffer_loader() {
-        let (sender, receiver) = chan::sync(100);
+        let (sender, receiver) = mpsc::sync_channel(100);
 
         let sender_clone = sender.clone();
         spawn(move|| {
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_buffer_loader_should_panic() {
-        let (sender, receiver) = chan::sync(10);
+        let (sender, receiver) = mpsc::sync_channel(10);
 
         let sender_clone = sender.clone();
         spawn(move|| {
