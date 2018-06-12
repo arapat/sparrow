@@ -1,28 +1,8 @@
-#[macro_use] extern crate serde_derive;
 #[macro_use] extern crate log;
-#[macro_use] extern crate chan;
+extern crate rustboost;
 extern crate env_logger;
-extern crate bincode;
-extern crate bufstream;
-extern crate ordered_float;
-extern crate rand;
-extern crate rayon;
 extern crate serde_json;
-extern crate threadpool;
 extern crate time;
-
-mod bins;
-mod boosting;
-mod commons;
-mod config;
-mod buffer_loader; 
-mod labeled_data;
-mod learner;
-mod network;
-mod sampler;
-mod stratified_storage;
-mod tree;
-// mod validator;
 
 use std::env;
 use std::fs;
@@ -30,18 +10,18 @@ use std::io::Read;
 use std::io::Write;
 use time::get_time;
 
-use commons::io::create_bufreader;
-use commons::io::read_k_lines;
+use rustboost::commons::io::create_bufreader;
+use rustboost::commons::io::read_k_lines;
 // TODO: implement loaders for validator
 // use validator::get_adaboost_loss;
 // use validator::get_auprc;
 // use validator::validate;
 
-use boosting::Boosting;
-use buffer_loader::BufferLoader;
-use commons::LossFunc;
-use commons::Model;
-use config::Config;
+use rustboost::boosting::Boosting;
+use rustboost::buffer_loader::BufferLoader;
+use rustboost::commons::LossFunc;
+use rustboost::commons::Model;
+use rustboost::config::Config;
 
 
 fn main() {

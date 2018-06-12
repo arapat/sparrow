@@ -3,6 +3,14 @@ name = "rust-boost"
 version = "0.1.0"
 authors = ["Julaiti Alafate <jalafate@gmail.com>"]
 
+[lib]
+name = "rustboost"
+path = "src/lib.rs"
+
+[[bin]]
+name = "rust-boost-bin"
+path = "src/bin.rs"
+
 [dependencies]
 log = "0.4.1"
 env_logger = "0.5.5"
