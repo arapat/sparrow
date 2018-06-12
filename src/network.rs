@@ -23,6 +23,20 @@ type StreamLockVec = Arc<RwLock<Vec<BufStream<TcpStream>>>>;
 type PacketLoad = (String, u32, ModelScore);
 
 
+/// Start the network module on the current computer.
+///
+/// The local computer name is specified using `name`.
+/// The name here is only used for the debug purpose.
+/// Its initial neighbors are specified in `init_remote_ips`, which is a vector of IP addresses or URLs.
+/// All computers listen to the port `port` to receive packages from other computers.
+///
+/// The model received from remote computers would be sent out using the channel `model_send`.
+/// Meanwhile, the local models are received from the channel `model_recv`, and sent out
+/// to the neighbor of this machine.
+///
+/// The full workflow is described in the following plot.
+///
+/// ![](https://www.lucidchart.com/publicSegments/view/17920d7d-a09f-4fb5-a253-fb0a8c6ae51c/image.png)
 pub fn start_network(
         name: String, init_remote_ips: &Vec<String>, port: u16,
         model_send: Sender<ModelScore>, model_recv: Receiver<ModelScore>) {
@@ -43,85 +57,6 @@ pub fn start_network(
     });
 }
 
-fn start_receiver(name: String, port: u16,
-                  model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
-    spawn(move|| {
-        receivers_listener(name, port, model_send, remote_ip_recv);
-    });
-}
-
-fn receivers_listener(name: String, port: u16,
-                      model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
-    info!("now entering receivers listener");
-    let mut receivers = HashSet::new();
-    loop {
-        let mut remote_addr = remote_ip_recv.recv().expect(
-            "Failed to unwrap the received remote IP."
-        );
-        remote_addr.set_port(port);
-        if !receivers.contains(&remote_addr) {
-            let name_clone = name.clone();
-            let chan = model_send.clone();
-            let addr = remote_addr.clone();
-            receivers.insert(remote_addr.clone());
-            spawn(move|| {
-                let mut tcp_stream = None;
-                while tcp_stream.is_none() {
-                    tcp_stream = match TcpStream::connect(remote_addr) {
-                        Ok(_tcp_stream) => Some(_tcp_stream),
-                        Err(error) => {
-                            info!("(retry in 2 secs) Error: {}.
-                                  Failed to connect to remote address {}",
-                                  error, remote_addr);
-                            sleep(Duration::from_secs(2));
-                            None
-                        }
-                    };
-                }
-                let stream = BufStream::new(tcp_stream.unwrap());
-                receiver(name_clone, addr, stream, chan);
-            });
-        } else {
-            info!("(Skipped) Receiver exists for {}", remote_addr);
-        }
-    }
-}
-
-fn receiver(name: String, remote_ip: SocketAddr,
-            mut stream: BufStream<TcpStream>, chan: Sender<ModelScore>) {
-    info!("Receiver started from {} to {}", name, remote_ip);
-    let mut idx = 0;
-    loop {
-        let mut json = String::new();
-        let read_result = stream.read_line(&mut json);
-        if let Err(_) = read_result {
-            error!("Cannot read the remote model from network.");
-            continue;
-        }
-
-        if json.trim().len() != 0 {
-            let remote_packet = serde_json::from_str(&json);
-            if let Err(err) = remote_packet {
-                error!("Cannot parse the JSON description of the remote model from {}. \
-                        Message ID {}, JSON string is `{}`. Error: {}", remote_ip, idx, json, err);
-            } else {
-                let (remote_name, remote_idx, model_score): PacketLoad = remote_packet.unwrap();
-                let model = model_score.0;
-                let score = model_score.1;
-                debug!("message-received, {}, {}, {}, {}, {}, {}, {}, \"model skipped\"",
-                       name, idx, remote_name, remote_idx, remote_ip, score, json.len());
-                let send_result = chan.send((model, score));
-                if let Err(err) = send_result {
-                    error!("Failed to send the received model from the network
-                            to local channel. Error: {}", err);
-                }
-            }
-            idx += 1;
-        } else {
-            trace!("Received an empty message from {}, message ID {}", remote_ip, idx)
-        }
-    }
-}
 
 fn start_sender(name: String, port: u16,
                 model_recv: Receiver<ModelScore>, remote_ip_send: Sender<SocketAddr>) {
@@ -140,6 +75,15 @@ fn start_sender(name: String, port: u16,
         sender(name, streams_arc, model_recv);
     });
 }
+
+
+fn start_receiver(name: String, port: u16,
+                  model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
+    spawn(move|| {
+        receivers_launcher(name, port, model_send, remote_ip_recv);
+    });
+}
+
 
 fn sender_listener(
         name: String,
@@ -182,6 +126,45 @@ fn sender_listener(
         }
     }
 }
+
+
+fn receivers_launcher(name: String, port: u16,
+                      model_send: Sender<ModelScore>, remote_ip_recv: Receiver<SocketAddr>) {
+    info!("now entering receivers listener");
+    let mut receivers = HashSet::new();
+    loop {
+        let mut remote_addr = remote_ip_recv.recv().expect(
+            "Failed to unwrap the received remote IP."
+        );
+        remote_addr.set_port(port);
+        if !receivers.contains(&remote_addr) {
+            let name_clone = name.clone();
+            let chan = model_send.clone();
+            let addr = remote_addr.clone();
+            receivers.insert(remote_addr.clone());
+            spawn(move|| {
+                let mut tcp_stream = None;
+                while tcp_stream.is_none() {
+                    tcp_stream = match TcpStream::connect(remote_addr) {
+                        Ok(_tcp_stream) => Some(_tcp_stream),
+                        Err(error) => {
+                            info!("(retry in 2 secs) Error: {}.
+                                  Failed to connect to remote address {}",
+                                  error, remote_addr);
+                            sleep(Duration::from_secs(2));
+                            None
+                        }
+                    };
+                }
+                let stream = BufStream::new(tcp_stream.unwrap());
+                receiver(name_clone, addr, stream, chan);
+            });
+        } else {
+            info!("(Skipped) Receiver exists for {}", remote_addr);
+        }
+    }
+}
+
 
 fn sender(name: String, streams: StreamLockVec, chan: Receiver<ModelScore>) {
     info!("Sender has started.");
@@ -227,5 +210,42 @@ fn sender(name: String, streams: StreamLockVec, chan: Receiver<ModelScore>) {
         };
         debug!("network-sent-out, {}, {}, {}, {}", name, idx, score, num_computers);
         idx += 1;
+    }
+}
+
+
+fn receiver(name: String, remote_ip: SocketAddr,
+            mut stream: BufStream<TcpStream>, chan: Sender<ModelScore>) {
+    info!("Receiver started from {} to {}", name, remote_ip);
+    let mut idx = 0;
+    loop {
+        let mut json = String::new();
+        let read_result = stream.read_line(&mut json);
+        if let Err(_) = read_result {
+            error!("Cannot read the remote model from network.");
+            continue;
+        }
+
+        if json.trim().len() != 0 {
+            let remote_packet = serde_json::from_str(&json);
+            if let Err(err) = remote_packet {
+                error!("Cannot parse the JSON description of the remote model from {}. \
+                        Message ID {}, JSON string is `{}`. Error: {}", remote_ip, idx, json, err);
+            } else {
+                let (remote_name, remote_idx, model_score): PacketLoad = remote_packet.unwrap();
+                let model = model_score.0;
+                let score = model_score.1;
+                debug!("message-received, {}, {}, {}, {}, {}, {}, {}, \"model skipped\"",
+                       name, idx, remote_name, remote_idx, remote_ip, score, json.len());
+                let send_result = chan.send((model, score));
+                if let Err(err) = send_result {
+                    error!("Failed to send the received model from the network
+                            to local channel. Error: {}", err);
+                }
+            }
+            idx += 1;
+        } else {
+            trace!("Received an empty message from {}, message ID {}", remote_ip, idx)
+        }
     }
 }
