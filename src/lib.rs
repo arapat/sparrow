@@ -15,7 +15,7 @@ extern crate time;
 
 /// The values of percentiles on each feature dimension.
 pub mod bins;
-/// High level implementation of the AdaBoost algorithm with early stopping rule.
+/// The implementation of the AdaBoost algorithm with early stopping rule.
 pub mod boosting;
 /// Common functions and classes.
 pub mod commons;
@@ -27,8 +27,6 @@ pub mod config;
 pub mod buffer_loader; 
 /// The class of the training examples.
 pub mod labeled_data;
-/// The class that evaluates the early stopping rule on the candidate weak rules.
-pub mod learner;
 /// Manage network I/O
 pub mod network;
 /// Sampling data from the stratified storage.

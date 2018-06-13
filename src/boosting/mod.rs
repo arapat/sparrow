@@ -1,3 +1,5 @@
+mod learner;
+
 extern crate serde_json;
 
 use rayon::prelude::*;
@@ -10,12 +12,12 @@ use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 
 use buffer_loader::BufferLoader;
-use learner::Learner;
 use tree::Tree;
 use commons::Model;
 use commons::LossFunc;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
+use self::learner::Learner;
 
 use bins::create_bins;
 use commons::get_relative_weights;
@@ -30,7 +32,7 @@ type NextLoader = Arc<Mutex<Option<BufferLoader>>>;
 type ModelMutex = Arc<Mutex<Option<Model>>>;
 
 
-/// Entry class of the boosting algorithm. It contains two functions, one for starting
+/// The boosting algorithm. It contains two functions, one for starting
 /// the network communication, the other for starting the training procedure.
 pub struct Boosting {
     training_loader: BufferLoader,
