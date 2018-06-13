@@ -12,6 +12,8 @@ use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 
+use rust_tmsn::network::start_network;
+
 use buffer_loader::BufferLoader;
 use tree::Tree;
 use commons::Model;
@@ -26,7 +28,6 @@ use commons::get_symmetric_label;
 use commons::is_positive;
 use commons::io::create_bufwriter;
 use commons::io::write_to_text_file;
-use network::start_network;
 
 
 type NextLoader = Arc<Mutex<Option<BufferLoader>>>;

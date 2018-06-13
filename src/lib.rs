@@ -20,6 +20,7 @@ extern crate rayon;
 extern crate serde_json;
 extern crate threadpool;
 extern crate time;
+extern crate rust_tmsn;
 
 /// The implementation of the AdaBoost algorithm with early stopping rule.
 pub mod boosting;
@@ -33,8 +34,6 @@ pub mod config;
 pub mod buffer_loader; 
 /// The class of the training examples.
 pub mod labeled_data;
-/// Manage network I/O
-pub mod network;
 /// Sampling data from the stratified storage.
 pub mod sampler;
 /// A stratified storage structor that organize examples on disk according to their weights.
@@ -42,3 +41,4 @@ pub mod stratified_storage;
 /// The class of the weak learner, namely a decision stump.
 pub mod tree;
 // mod validator;
+// mod network;
