@@ -41,4 +41,3 @@ pub mod stratified_storage;
 /// The class of the weak learner, namely a decision stump.
 pub mod tree;
 // mod validator;
-// mod network;

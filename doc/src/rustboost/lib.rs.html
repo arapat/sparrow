@@ -98,7 +98,6 @@
 <span id="41">41</span>
 <span id="42">42</span>
 <span id="43">43</span>
-<span id="44">44</span>
 </pre><pre class="rust ">
 <span class="doccomment">/*!
 RustBoost is an implementation of TMSN for boosting.
@@ -122,6 +121,7 @@ The components communicates via channels, which can be seens as shared FIFO queu
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">threadpool</span>;
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">time</span>;
+<span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">rust_tmsn</span>;
 
 <span class="doccomment">/// The implementation of the AdaBoost algorithm with early stopping rule.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">boosting</span>;
@@ -135,8 +135,6 @@ The components communicates via channels, which can be seens as shared FIFO queu
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">buffer_loader</span>; 
 <span class="doccomment">/// The class of the training examples.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">labeled_data</span>;
-<span class="doccomment">/// Manage network I/O</span>
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">network</span>;
 <span class="doccomment">/// Sampling data from the stratified storage.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">sampler</span>;
 <span class="doccomment">/// A stratified storage structor that organize examples on disk according to their weights.</span>
