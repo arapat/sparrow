@@ -59,7 +59,13 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../src/rustboost/lib.rs.html#1-37' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>rustboost is an implementation of TMSN for boosting.</p>
+               </span><a class='srclink' href='../src/rustboost/lib.rs.html#1-45' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>RustBoost is an implementation of TMSN for boosting.</p>
+<p>From a high level, RustBoost consists of three components,
+(1) stratified storage,
+(2) sampler, and
+(3) scanner.
+The components communicates via channels, which can be seens as shared FIFO queues.</p>
+<p><img src="https://www.lucidchart.com/publicSegments/view/23e1b351-c8b8-4cd9-a41f-3698a2b7df42/image.png" alt="" /></p>
 </div><h2 id='modules' class='section-header'><a href="#modules">Modules</a></h2>
 <table>
                        <tr class=' module-item'>

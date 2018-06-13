@@ -1,5 +1,13 @@
 /*!
-rustboost is an implementation of TMSN for boosting.
+RustBoost is an implementation of TMSN for boosting.
+
+From a high level, RustBoost consists of three components,
+(1) stratified storage,
+(2) sampler, and
+(3) scanner.
+The components communicates via channels, which can be seens as shared FIFO queues.
+
+![](https://www.lucidchart.com/publicSegments/view/23e1b351-c8b8-4cd9-a41f-3698a2b7df42/image.png)
 */
 #[macro_use] extern crate serde_derive;
 #[macro_use] extern crate log;
