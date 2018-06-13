@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Config",""]]});
+initSidebarItems({"struct":[["Config","Configuration of the RustBoost"]]});

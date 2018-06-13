@@ -36,7 +36,7 @@ type PacketLoad = (String, u32, ModelScore);
 ///
 /// The full workflow is described in the following plot.
 ///
-/// ![](https://www.lucidchart.com/publicSegments/view/17920d7d-a09f-4fb5-a253-fb0a8c6ae51c/image.png)
+/// ![](https://www.lucidchart.com/publicSegments/view/9c3b7a65-55ad-4df5-a5cb-f3154b692ecd/image.png)
 pub fn start_network(
         name: String, init_remote_ips: &Vec<String>, port: u16,
         model_send: Sender<ModelScore>, model_recv: Receiver<ModelScore>) {

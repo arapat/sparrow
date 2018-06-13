@@ -14,6 +14,33 @@ use commons::ExampleWithScore;
 use commons::get_sign;
 use commons::get_weight;
 
+
+/// Start the sampler.
+///
+/// Sampler read examples loaded from the stratified storage, and do
+/// the following two tasks on these examples:
+///
+/// 1. update their scores,
+/// 2. sample and send the sampled examples to the `BufferLoader` object.
+///
+/// The function uses the minimum variance sampling method to sample from
+/// the examples loaded from the stratified storage.
+/// The initial grid size is specified as the parameter to the function.
+/// Over the sampling process, the grid size is updated as the moving average
+/// of the weights of the `average_window_size` number of examples that
+/// scanned by the sampler.
+///
+/// * `num_thread`: the number of threads that runs the sampler
+/// * `initial_grid_size`: the initial gap between the two examples sampled using
+/// the minimum vairance sampling method.
+/// * `average_window_size`: the window size used in computing the moving average of
+/// the grid size.
+/// * `loaded_examples`: the channle that the stratified storage sends examples loaded from disk.
+/// * `updated_examples`: the channel that the sampler will send the examples after
+/// updating their scores.
+/// * `sampled_examples`: the channel that the sampler will send the sampled examples to the
+/// `BufferLoader` object.
+/// * `next_model`: the channel that the learning algorithm sends the latest model.
 pub fn run_sampler(num_threads: usize,
                    initial_grid_size: f32,
                    average_window_size: usize,

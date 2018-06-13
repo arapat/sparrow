@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["run_sampler",""]]});
+initSidebarItems({"fn":[["run_sampler","Start the sampler."]]});

@@ -59,7 +59,7 @@
                    <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">
                        [<span class='inner'>&#x2212;</span>]
                    </a>
-               </span><a class='srclink' href='../../src/rustboost/buffer_loader.rs.html#1-322' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A data loader with two independent caches. Alternatively, we use one
+               </span><a class='srclink' href='../../src/rustboost/buffer_loader.rs.html#1-348' title='goto source code'>[src]</a></span></h1><div class='docblock'><p>A data loader with two independent caches. Alternatively, we use one
 of the caches to feed data to the boosting algorithm, and the other
 to load next sample set.</p>
 </div><h2 id='structs' class='section-header'><a href="#structs">Structs</a></h2>
@@ -68,7 +68,12 @@ to load next sample set.</p>
                            <td><a class="struct" href="struct.BufferLoader.html"
                                   title='struct rustboost::buffer_loader::BufferLoader'>BufferLoader</a></td>
                            <td class='docblock-short'>
-                                
+                                <p>Double-buffered sample set. It consists of two buffers stores in memory. One of the
+buffer is used for providing examples to the boosting algorithm, meanwhile the other
+would receive new examples from the sampler module. Once the other buffer is filled,
+the functions of the two buffers switch so that the sample set used for training
+would be updated periodically.</p>
+
                            </td>
                        </tr></table></section>
     <section id='search' class="content hidden"></section>

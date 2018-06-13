@@ -227,6 +227,46 @@
 <span id="170">170</span>
 <span id="171">171</span>
 <span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">strata</span>;
 <span class="kw">mod</span> <span class="ident">assigners</span>;
@@ -249,6 +289,46 @@
 <span class="kw">type</span> <span class="ident">CountsTable</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">RwLock</span><span class="op">&lt;</span><span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">i8</span>, <span class="ident">u32</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>;
 
 
+<span class="doccomment">/// Start the stratified storage structure.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * `num_examples`: the total number of examples in the training data set</span>
+<span class="doccomment">/// * `feature_size`: the number of features of the training examples</span>
+<span class="doccomment">/// * `num_examples_per_block`: the number of examples to write back to disk in batch (explained below)</span>
+<span class="doccomment">/// * `disk_buffer_filename`: the name of the binary file for saving the examples in strata on disk</span>
+<span class="doccomment">/// If such file does not exist, it will be created</span>
+<span class="doccomment">/// * `num_assigners`: the number of threads that run the `Assigner`s (explained below)</span>
+<span class="doccomment">/// * `num_selectors`: the number of threads that run the `Selector`s (explained below)</span>
+<span class="doccomment">/// * `updated_examples`: the channel that the sampler sends the examples with updated scores</span>
+<span class="doccomment">/// * `loaded_examples`: the channle that the stratified storage sends the examples to be read by the `Sampler`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Stratified storage organizes training examples according to their weights</span>
+<span class="doccomment">/// given current learning model.</span>
+<span class="doccomment">/// The examples are assigned to different strata so that the weight ratio of the examples</span>
+<span class="doccomment">/// within the same stratum does not exceed 2.</span>
+<span class="doccomment">/// Most examples in a stratum are stored on disk, while a small number of examples remains</span>
+<span class="doccomment">/// in memory to be writen to disk or just read from disk and ready to send out to the sampler.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The overall structure of the stratified storage is as follow:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// ![](https://www.lucidchart.com/publicSegments/view/c87b7a50-5442-4a41-a601-3dfb49b16511/image.png)</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The `Assigner`s read examples with updated scores from the `Sampler` and write them back to</span>
+<span class="doccomment">/// the corresponding strata based on their new weights. The examples would be put into the</span>
+<span class="doccomment">/// `In Queue`s first till a proper number of examples are accumulated that belongs to the</span>
+<span class="doccomment">/// same strata, at that point they would be written into disk in batch.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Meanwhile, a certain number of examples from each stratum are loaded into the memory</span>
+<span class="doccomment">/// from the disk and kept in `Out Queue`s.</span>
+<span class="doccomment">/// The `Selector`s iteratively select a stratum with a probability that proportional to</span>
+<span class="doccomment">/// the sum of weights of all examples in that stratum, send its next loaded example to the `Sampler`,</span>
+<span class="doccomment">/// and remove that example from strata.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// A `Shared Weight Table` maintains the sum of the weights of all examples in each stratum.</span>
+<span class="doccomment">/// The `Assigner`s increase the value in the `Shared Weight Table` when a new example is inserted into</span>
+<span class="doccomment">/// a stratum.</span>
+<span class="doccomment">/// The `Selector`s use the weights in the `Shared Weight Table` to decide which stratum to read next and</span>
+<span class="doccomment">/// send its next loaded example to the `Sampler`. After an example is selected, the `Selector` then</span>
+<span class="doccomment">/// substracts the weight of that example from the corresponding stratum in the `Shared Weight Table`.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run_stratified</span>(
         <span class="ident">num_examples</span>: <span class="ident">usize</span>,
         <span class="ident">feature_size</span>: <span class="ident">usize</span>,

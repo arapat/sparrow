@@ -268,6 +268,33 @@
 <span id="211">211</span>
 <span id="212">212</span>
 <span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">rand</span>;
 <span class="kw">use</span> <span class="ident">rayon</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
@@ -285,6 +312,33 @@
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">get_sign</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">get_weight</span>;
 
+
+<span class="doccomment">/// Start the sampler.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// Sampler read examples loaded from the stratified storage, and do</span>
+<span class="doccomment">/// the following two tasks on these examples:</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// 1. update their scores,</span>
+<span class="doccomment">/// 2. sample and send the sampled examples to the `BufferLoader` object.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// The function uses the minimum variance sampling method to sample from</span>
+<span class="doccomment">/// the examples loaded from the stratified storage.</span>
+<span class="doccomment">/// The initial grid size is specified as the parameter to the function.</span>
+<span class="doccomment">/// Over the sampling process, the grid size is updated as the moving average</span>
+<span class="doccomment">/// of the weights of the `average_window_size` number of examples that</span>
+<span class="doccomment">/// scanned by the sampler.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// * `num_thread`: the number of threads that runs the sampler</span>
+<span class="doccomment">/// * `initial_grid_size`: the initial gap between the two examples sampled using</span>
+<span class="doccomment">/// the minimum vairance sampling method.</span>
+<span class="doccomment">/// * `average_window_size`: the window size used in computing the moving average of</span>
+<span class="doccomment">/// the grid size.</span>
+<span class="doccomment">/// * `loaded_examples`: the channle that the stratified storage sends examples loaded from disk.</span>
+<span class="doccomment">/// * `updated_examples`: the channel that the sampler will send the examples after</span>
+<span class="doccomment">/// updating their scores.</span>
+<span class="doccomment">/// * `sampled_examples`: the channel that the sampler will send the sampled examples to the</span>
+<span class="doccomment">/// `BufferLoader` object.</span>
+<span class="doccomment">/// * `next_model`: the channel that the learning algorithm sends the latest model.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">run_sampler</span>(<span class="ident">num_threads</span>: <span class="ident">usize</span>,
                    <span class="ident">initial_grid_size</span>: <span class="ident">f32</span>,
                    <span class="ident">average_window_size</span>: <span class="ident">usize</span>,

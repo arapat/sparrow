@@ -30,12 +30,10 @@ type NextLoader = Arc<Mutex<Option<BufferLoader>>>;
 type ModelMutex = Arc<Mutex<Option<Model>>>;
 
 
-pub struct Boosting<'a> {
+/// Entry class of the boosting algorithm. It contains two functions, one for starting
+/// the network communication, the other for starting the training procedure.
+pub struct Boosting {
     training_loader: BufferLoader,
-    eval_funcs: Vec<&'a LossFunc>,
-
-    sample_ratio: f32,
-    ess_threshold: f32,
 
     learner: Learner,
     model: Model,
@@ -50,19 +48,25 @@ pub struct Boosting<'a> {
     prev_sum_gamma: f32
 }
 
-impl<'a> Boosting<'a> {
+impl Boosting {
+    /// Create a boosting training class.
+    ///
+    /// * `training_loader`: the double-buffered data loader that provides examples to the algorithm.
+    /// * `range`: the range of the feature dimensions that the weak rules would be selected from. In most cases,
+    /// if the RustBoost is running on a single worker, `range` is equal to the `0..feature_size`; if it is running
+    /// over multiple workers, it might be a subset of the full feature set.
+    /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
+    /// * `max_bin_size`: the size of the percentiles to generate on each feature dimension.
+    /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
                 mut training_loader: BufferLoader,
                 range: Range<usize>,
                 max_sample_size: usize,
                 max_bin_size: usize,
-                sample_ratio: f32,
-                ess_threshold: f32,
-                default_rho_gamma: f32,
-                eval_funcs: Vec<&'a LossFunc>
-            ) -> Boosting<'a> {
+                default_gamma: f32,
+            ) -> Boosting {
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
-        let learner = Learner::new(default_rho_gamma, bins, &range);
+        let learner = Learner::new(default_gamma, bins, &range);
 
         // add root node for balancing labels
         let (base_tree, gamma) = get_base_tree(max_sample_size, &mut training_loader);
@@ -71,10 +75,6 @@ impl<'a> Boosting<'a> {
 
         Boosting {
             training_loader: training_loader,
-            eval_funcs: eval_funcs,
-
-            sample_ratio: sample_ratio,
-            ess_threshold: ess_threshold,
 
             learner: learner,
             model: model,
@@ -91,6 +91,9 @@ impl<'a> Boosting<'a> {
     }
 
 
+    /// Enable network communication. `name` is the name of this worker, which can be arbitrary
+    /// and is only used for debugging purpose. `remote_ips` is the vector of IPs of neighbor workers.
+    /// `port` is the port number that used for network communication.
     pub fn enable_network(&mut self, name: String, remote_ips: &Vec<String>, port: u16) {
         let (local_send, local_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
         let (other_send, other_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
@@ -99,13 +102,16 @@ impl<'a> Boosting<'a> {
         start_network(name, remote_ips, port, other_send, local_recv)
     }
 
+    /// Start training the boosting algorithm.
+    ///
+    /// * `num_iterations`: the number of boosting iteration. If it equals to 0, then the algorithm runs indefinitely.
+    /// * `max_trials_before_shrink`: if cannot find any valid weak rules after scanning `max_trials_before_shrink` number of
+    /// examples, shrinking the value of the targetting edge `gamma` of the weak rule.
     pub fn training(
             &mut self,
             num_iterations: usize,
-            max_trials_before_shrink: u32,
-            validate_interval: u32) {
+            max_trials_before_shrink: u32) {
         info!("Start training.");
-        let interval = validate_interval as usize;
         let timeout = max_trials_before_shrink as usize;
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
@@ -152,21 +158,18 @@ impl<'a> Boosting<'a> {
                     false
                 };
             if found_new_rule {
-                self.sum_gamma += self.learner.get_rho_gamma().powi(2);
+                self.sum_gamma += self.learner.get_gamma().powi(2);
                 debug!(
                     "new-tree-info, {}, {}, {}, {}, {}",
                     self.model.len(),
                     self.learner.get_count(),
-                    self.learner.get_rho_gamma(),
+                    self.learner.get_gamma(),
                     self.sum_gamma,
                     scanned_counter
                 );
                 scanned_counter = 0;
                 model_ts = global_timer.get_duration();
                 self.learner.reset();
-                if interval > 0 && self.model.len() % interval == 0 {
-                    self._validate();
-                }
             }
 
             if self.handle_network() {

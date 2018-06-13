@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["run_stratified",""]]});
+initSidebarItems({"fn":[["run_stratified","Start the stratified storage structure."]]});

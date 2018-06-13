@@ -19,6 +19,14 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::get_weight;
 
 
+/// Double-buffered sample set. It consists of two buffers stores in memory. One of the
+/// buffer is used for providing examples to the boosting algorithm, meanwhile the other
+/// would receive new examples from the sampler module. Once the other buffer is filled,
+/// the functions of the two buffers switch so that the sample set used for training
+/// would be updated periodically.
+///
+/// It might take several scans over the sample set before the new sample set is ready.
+/// Thus it is very likely that the examples in the sample set would be accessed multiple times.
 #[derive(Debug)]
 pub struct BufferLoader {
     size: usize,
@@ -41,6 +49,16 @@ pub struct BufferLoader {
 
 
 impl BufferLoader {
+    /// Create a new BufferLoader.
+    ///
+    /// `size`: the size of sample set. The total size of the two buffers would be 2x of `size`.
+    /// `batch_size`: the number of examples that feeds to the boosting algorithm at a time.
+    /// `sampled_examples`: the channel for receiving the newly sampled examples from the sampler.
+    ///
+    /// If `wait_till_loaded` is set to `true`, this function would block until the first sample
+    /// set is created (i.e. enough examples is received from the sampler).
+    /// Alternatively, one can explicitly call the `load` function to create the first sample set
+    /// before start training the boosting algorithm.
     pub fn new(size: usize, batch_size: usize,
                sampled_examples: Receiver<ExampleWithScore>,
                wait_till_loaded: bool) -> BufferLoader {
@@ -81,16 +99,21 @@ impl BufferLoader {
         buffer_loader
     }
 
+    /// Create the first sample set reading from the sampler.
+    /// This function blocks until the first sample set is created.
     pub fn load(&mut self) {
         while !self.try_switch() {
             sleep(Duration::from_millis(1000));
         }
     }
 
+    /// Return the number of batches (i.e. the number of function calls to `fetch_next_batch`)
+    /// before exhausting the current sample set.
     pub fn get_num_batches(&self) -> usize {
         self.num_batch
     }
 
+    /// Get current batch of examples.
     pub fn get_curr_batch(&self, is_scores_updated: bool) -> &[ExampleInSampleSet] {
         assert!(!self.examples_in_use.is_empty());
         // scores must be updated unless is_scores_updated is not required.
@@ -99,6 +122,7 @@ impl BufferLoader {
         &self.examples_in_use[range]
     }
 
+    /// Read next batch of examples.
     pub fn fetch_next_batch(&mut self, allow_switch: bool) {
         // self.performance.resume();
 
@@ -113,6 +137,7 @@ impl BufferLoader {
         // self.performance.pause();
     }
 
+    /// Update the scores of the examples in the current batch using `model`.
     pub fn update_scores(&mut self, model: &Model) {
         assert!(!self.examples_in_use.is_empty());
         if self._scores_synced {
@@ -167,6 +192,7 @@ impl BufferLoader {
     }
 
     // ESS and others
+    /// Get the estimate of the effective sample size of the current sample set.
     pub fn get_ess(&self) -> Option<f32> {
         self.ess
     }

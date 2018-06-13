@@ -376,6 +376,9 @@
 <span id="319">319</span>
 <span id="320">320</span>
 <span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
 </pre><pre class="rust ">
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
 
@@ -409,12 +412,10 @@
 <span class="kw">type</span> <span class="ident">ModelMutex</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Model</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>;
 
 
-<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Boosting</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="doccomment">/// Entry class of the boosting algorithm. It contains two functions, one for starting</span>
+<span class="doccomment">/// the network communication, the other for starting the training procedure.</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Boosting</span> {
     <span class="ident">training_loader</span>: <span class="ident">BufferLoader</span>,
-    <span class="ident">eval_funcs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LossFunc</span><span class="op">&gt;</span>,
-
-    <span class="ident">sample_ratio</span>: <span class="ident">f32</span>,
-    <span class="ident">ess_threshold</span>: <span class="ident">f32</span>,
 
     <span class="ident">learner</span>: <span class="ident">Learner</span>,
     <span class="ident">model</span>: <span class="ident">Model</span>,
@@ -429,19 +430,25 @@
     <span class="ident">prev_sum_gamma</span>: <span class="ident">f32</span>
 }
 
-<span class="kw">impl</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> <span class="ident">Boosting</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+<span class="kw">impl</span> <span class="ident">Boosting</span> {
+    <span class="doccomment">/// Create a boosting training class.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// * `training_loader`: the double-buffered data loader that provides examples to the algorithm.</span>
+    <span class="doccomment">/// * `range`: the range of the feature dimensions that the weak rules would be selected from. In most cases,</span>
+    <span class="doccomment">/// if the RustBoost is running on a single worker, `range` is equal to the `0..feature_size`; if it is running</span>
+    <span class="doccomment">/// over multiple workers, it might be a subset of the full feature set.</span>
+    <span class="doccomment">/// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.</span>
+    <span class="doccomment">/// * `max_bin_size`: the size of the percentiles to generate on each feature dimension.</span>
+    <span class="doccomment">/// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
                 <span class="kw-2">mut</span> <span class="ident">training_loader</span>: <span class="ident">BufferLoader</span>,
                 <span class="ident">range</span>: <span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>,
                 <span class="ident">max_sample_size</span>: <span class="ident">usize</span>,
                 <span class="ident">max_bin_size</span>: <span class="ident">usize</span>,
-                <span class="ident">sample_ratio</span>: <span class="ident">f32</span>,
-                <span class="ident">ess_threshold</span>: <span class="ident">f32</span>,
-                <span class="ident">default_rho_gamma</span>: <span class="ident">f32</span>,
-                <span class="ident">eval_funcs</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="lifetime">&#39;a</span> <span class="ident">LossFunc</span><span class="op">&gt;</span>
-            ) <span class="op">-&gt;</span> <span class="ident">Boosting</span><span class="op">&lt;</span><span class="lifetime">&#39;a</span><span class="op">&gt;</span> {
+                <span class="ident">default_gamma</span>: <span class="ident">f32</span>,
+            ) <span class="op">-&gt;</span> <span class="ident">Boosting</span> {
         <span class="kw">let</span> <span class="ident">bins</span> <span class="op">=</span> <span class="ident">create_bins</span>(<span class="ident">max_sample_size</span>, <span class="ident">max_bin_size</span>, <span class="kw-2">&amp;</span><span class="ident">range</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">training_loader</span>);
-        <span class="kw">let</span> <span class="ident">learner</span> <span class="op">=</span> <span class="ident">Learner</span>::<span class="ident">new</span>(<span class="ident">default_rho_gamma</span>, <span class="ident">bins</span>, <span class="kw-2">&amp;</span><span class="ident">range</span>);
+        <span class="kw">let</span> <span class="ident">learner</span> <span class="op">=</span> <span class="ident">Learner</span>::<span class="ident">new</span>(<span class="ident">default_gamma</span>, <span class="ident">bins</span>, <span class="kw-2">&amp;</span><span class="ident">range</span>);
 
         <span class="comment">// add root node for balancing labels</span>
         <span class="kw">let</span> (<span class="ident">base_tree</span>, <span class="ident">gamma</span>) <span class="op">=</span> <span class="ident">get_base_tree</span>(<span class="ident">max_sample_size</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">training_loader</span>);
@@ -450,10 +457,6 @@
 
         <span class="ident">Boosting</span> {
             <span class="ident">training_loader</span>: <span class="ident">training_loader</span>,
-            <span class="ident">eval_funcs</span>: <span class="ident">eval_funcs</span>,
-
-            <span class="ident">sample_ratio</span>: <span class="ident">sample_ratio</span>,
-            <span class="ident">ess_threshold</span>: <span class="ident">ess_threshold</span>,
 
             <span class="ident">learner</span>: <span class="ident">learner</span>,
             <span class="ident">model</span>: <span class="ident">model</span>,
@@ -470,6 +473,9 @@
     }
 
 
+    <span class="doccomment">/// Enable network communication. `name` is the name of this worker, which can be arbitrary</span>
+    <span class="doccomment">/// and is only used for debugging purpose. `remote_ips` is the vector of IPs of neighbor workers.</span>
+    <span class="doccomment">/// `port` is the port number that used for network communication.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_network</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="ident">String</span>, <span class="ident">remote_ips</span>: <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">String</span><span class="op">&gt;</span>, <span class="ident">port</span>: <span class="ident">u16</span>) {
         <span class="kw">let</span> (<span class="ident">local_send</span>, <span class="ident">local_recv</span>): (<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;</span>, <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;</span>) <span class="op">=</span> <span class="ident">mpsc</span>::<span class="ident">channel</span>();
         <span class="kw">let</span> (<span class="ident">other_send</span>, <span class="ident">other_recv</span>): (<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;</span>, <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;</span>) <span class="op">=</span> <span class="ident">mpsc</span>::<span class="ident">channel</span>();
@@ -478,13 +484,16 @@
         <span class="ident">start_network</span>(<span class="ident">name</span>, <span class="ident">remote_ips</span>, <span class="ident">port</span>, <span class="ident">other_send</span>, <span class="ident">local_recv</span>)
     }
 
+    <span class="doccomment">/// Start training the boosting algorithm.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// * `num_iterations`: the number of boosting iteration. If it equals to 0, then the algorithm runs indefinitely.</span>
+    <span class="doccomment">/// * `max_trials_before_shrink`: if cannot find any valid weak rules after scanning `max_trials_before_shrink` number of</span>
+    <span class="doccomment">/// examples, shrinking the value of the targetting edge `gamma` of the weak rule.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">training</span>(
             <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
             <span class="ident">num_iterations</span>: <span class="ident">usize</span>,
-            <span class="ident">max_trials_before_shrink</span>: <span class="ident">u32</span>,
-            <span class="ident">validate_interval</span>: <span class="ident">u32</span>) {
+            <span class="ident">max_trials_before_shrink</span>: <span class="ident">u32</span>) {
         <span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;Start training.&quot;</span>);
-        <span class="kw">let</span> <span class="ident">interval</span> <span class="op">=</span> <span class="ident">validate_interval</span> <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="kw">let</span> <span class="ident">timeout</span> <span class="op">=</span> <span class="ident">max_trials_before_shrink</span> <span class="kw">as</span> <span class="ident">usize</span>;
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">global_timer</span> <span class="op">=</span> <span class="ident">PerformanceMonitor</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">learner_timer</span> <span class="op">=</span> <span class="ident">PerformanceMonitor</span>::<span class="ident">new</span>();
@@ -531,21 +540,18 @@
                     <span class="bool-val">false</span>
                 };
             <span class="kw">if</span> <span class="ident">found_new_rule</span> {
-                <span class="self">self</span>.<span class="ident">sum_gamma</span> <span class="op">+=</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_rho_gamma</span>().<span class="ident">powi</span>(<span class="number">2</span>);
+                <span class="self">self</span>.<span class="ident">sum_gamma</span> <span class="op">+=</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_gamma</span>().<span class="ident">powi</span>(<span class="number">2</span>);
                 <span class="macro">debug</span><span class="macro">!</span>(
                     <span class="string">&quot;new-tree-info, {}, {}, {}, {}, {}&quot;</span>,
                     <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">len</span>(),
                     <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_count</span>(),
-                    <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_rho_gamma</span>(),
+                    <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_gamma</span>(),
                     <span class="self">self</span>.<span class="ident">sum_gamma</span>,
                     <span class="ident">scanned_counter</span>
                 );
                 <span class="ident">scanned_counter</span> <span class="op">=</span> <span class="number">0</span>;
                 <span class="ident">model_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
                 <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>();
-                <span class="kw">if</span> <span class="ident">interval</span> <span class="op">&gt;</span> <span class="number">0</span> <span class="op">&amp;&amp;</span> <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">len</span>() <span class="op">%</span> <span class="ident">interval</span> <span class="op">==</span> <span class="number">0</span> {
-                    <span class="self">self</span>.<span class="ident">_validate</span>();
-                }
             }
 
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">handle_network</span>() {

@@ -157,6 +157,17 @@
 <span id="100">100</span>
 <span id="101">101</span>
 <span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">ordered_float</span>::<span class="ident">NotNaN</span>;
 
@@ -166,7 +177,9 @@
 <span class="kw">use</span> <span class="ident">buffer_loader</span>::<span class="ident">BufferLoader</span>;
 
 
-<span class="doccomment">/// TODO: support NaN feature values</span>
+<span class="comment">// TODO: support NaN feature values</span>
+<span class="doccomment">/// The percentiles of a specific feature dimension,</span>
+<span class="doccomment">/// which would be used as the candidates weak rules on that dimension.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Bins</span> {
     <span class="ident">size</span>: <span class="ident">usize</span>,
     <span class="ident">vals</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>
@@ -199,10 +212,12 @@
         }
     }
 
+    <span class="doccomment">/// Return the number of thresholds. </span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">len</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">size</span>
     }
 
+    <span class="doccomment">/// Return the vector of thresholds.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_vals</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> {
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">vals</span>
     }
@@ -224,7 +239,14 @@
 }
 
 
-<span class="doccomment">/// Create </span>
+<span class="doccomment">/// Find the percentiles of the feature in the range specified by `range`. </span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// To decide the percentiles, the function reads `max_sample_size` number </span>
+<span class="doccomment">/// of examples from `data_loader`.</span>
+<span class="doccomment">/// The number of selected percentiles is `max_bin_size`.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// If the number of different values on this feature dimension `k` is smaller</span>
+<span class="doccomment">/// than `max_bin_size`, only `k` percentiles would return.</span>
 <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">create_bins</span>(<span class="ident">max_sample_size</span>: <span class="ident">usize</span>, <span class="ident">max_bin_size</span>: <span class="ident">usize</span>,
                    <span class="ident">range</span>: <span class="kw-2">&amp;</span><span class="ident">Range</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">data_loader</span>: <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">BufferLoader</span>) <span class="op">-&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bins</span><span class="op">&gt;</span> {
     <span class="kw">let</span> <span class="ident">start</span> <span class="op">=</span> <span class="ident">range</span>.<span class="ident">start</span>;

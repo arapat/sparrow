@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["create_bins","Create "]],"struct":[["Bins","TODO: support NaN feature values"]]});
+initSidebarItems({"fn":[["create_bins","Find the percentiles of the feature in the range specified by `range`. "]],"struct":[["Bins","The percentiles of a specific feature dimension, which would be used as the candidates weak rules on that dimension."]]});

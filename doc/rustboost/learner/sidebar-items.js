@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Learner",""],["WeakRule",""]]});
+initSidebarItems({"struct":[["Learner","Statisitics of all weak rules that are being evaluated. The objective of `Learner` is to find a weak rule that satisfies the condition of the stopping rule."],["WeakRule","A weak rule with an edge larger or equal to the targetting value of `gamma`"]]});

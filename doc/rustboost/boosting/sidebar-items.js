@@ -1,1 +1,1 @@
-initSidebarItems({"struct":[["Boosting",""]]});
+initSidebarItems({"struct":[["Boosting","Entry class of the boosting algorithm. It contains two functions, one for starting the network communication, the other for starting the training procedure."]]});

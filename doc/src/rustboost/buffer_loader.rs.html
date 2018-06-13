@@ -377,6 +377,32 @@
 <span id="320">320</span>
 <span id="321">321</span>
 <span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">Rng</span>;
 <span class="kw">use</span> <span class="ident">rand</span>::<span class="ident">thread_rng</span>;
@@ -399,6 +425,14 @@
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">get_weight</span>;
 
 
+<span class="doccomment">/// Double-buffered sample set. It consists of two buffers stores in memory. One of the</span>
+<span class="doccomment">/// buffer is used for providing examples to the boosting algorithm, meanwhile the other</span>
+<span class="doccomment">/// would receive new examples from the sampler module. Once the other buffer is filled,</span>
+<span class="doccomment">/// the functions of the two buffers switch so that the sample set used for training</span>
+<span class="doccomment">/// would be updated periodically.</span>
+<span class="doccomment">///</span>
+<span class="doccomment">/// It might take several scans over the sample set before the new sample set is ready.</span>
+<span class="doccomment">/// Thus it is very likely that the examples in the sample set would be accessed multiple times.</span>
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">BufferLoader</span> {
     <span class="ident">size</span>: <span class="ident">usize</span>,
@@ -421,6 +455,16 @@
 
 
 <span class="kw">impl</span> <span class="ident">BufferLoader</span> {
+    <span class="doccomment">/// Create a new BufferLoader.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// `size`: the size of sample set. The total size of the two buffers would be 2x of `size`.</span>
+    <span class="doccomment">/// `batch_size`: the number of examples that feeds to the boosting algorithm at a time.</span>
+    <span class="doccomment">/// `sampled_examples`: the channel for receiving the newly sampled examples from the sampler.</span>
+    <span class="doccomment">///</span>
+    <span class="doccomment">/// If `wait_till_loaded` is set to `true`, this function would block until the first sample</span>
+    <span class="doccomment">/// set is created (i.e. enough examples is received from the sampler).</span>
+    <span class="doccomment">/// Alternatively, one can explicitly call the `load` function to create the first sample set</span>
+    <span class="doccomment">/// before start training the boosting algorithm.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(<span class="ident">size</span>: <span class="ident">usize</span>, <span class="ident">batch_size</span>: <span class="ident">usize</span>,
                <span class="ident">sampled_examples</span>: <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">ExampleWithScore</span><span class="op">&gt;</span>,
                <span class="ident">wait_till_loaded</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="ident">BufferLoader</span> {
@@ -461,16 +505,21 @@
         <span class="ident">buffer_loader</span>
     }
 
+    <span class="doccomment">/// Create the first sample set reading from the sampler.</span>
+    <span class="doccomment">/// This function blocks until the first sample set is created.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">load</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">while</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">try_switch</span>() {
             <span class="ident">sleep</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">1000</span>));
         }
     }
 
+    <span class="doccomment">/// Return the number of batches (i.e. the number of function calls to `fetch_next_batch`)</span>
+    <span class="doccomment">/// before exhausting the current sample set.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_num_batches</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="ident">usize</span> {
         <span class="self">self</span>.<span class="ident">num_batch</span>
     }
 
+    <span class="doccomment">/// Get current batch of examples.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_curr_batch</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">is_scores_updated</span>: <span class="ident">bool</span>) <span class="op">-&gt;</span> <span class="kw-2">&amp;</span>[<span class="ident">ExampleInSampleSet</span>] {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="self">self</span>.<span class="ident">examples_in_use</span>.<span class="ident">is_empty</span>());
         <span class="comment">// scores must be updated unless is_scores_updated is not required.</span>
@@ -479,6 +528,7 @@
         <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">examples_in_use</span>[<span class="ident">range</span>]
     }
 
+    <span class="doccomment">/// Read next batch of examples.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">fetch_next_batch</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">allow_switch</span>: <span class="ident">bool</span>) {
         <span class="comment">// self.performance.resume();</span>
 
@@ -493,6 +543,7 @@
         <span class="comment">// self.performance.pause();</span>
     }
 
+    <span class="doccomment">/// Update the scores of the examples in the current batch using `model`.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">update_scores</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">model</span>: <span class="kw-2">&amp;</span><span class="ident">Model</span>) {
         <span class="macro">assert</span><span class="macro">!</span>(<span class="op">!</span><span class="self">self</span>.<span class="ident">examples_in_use</span>.<span class="ident">is_empty</span>());
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">_scores_synced</span> {
@@ -547,6 +598,7 @@
     }
 
     <span class="comment">// ESS and others</span>
+    <span class="doccomment">/// Get the estimate of the effective sample size of the current sample set.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_ess</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span> {
         <span class="self">self</span>.<span class="ident">ess</span>
     }

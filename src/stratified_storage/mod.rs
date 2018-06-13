@@ -19,6 +19,46 @@ type WeightsTable = Arc<RwLock<HashMap<i8, f64>>>;
 type CountsTable = Arc<RwLock<HashMap<i8, u32>>>;
 
 
+/// Start the stratified storage structure.
+///
+/// * `num_examples`: the total number of examples in the training data set
+/// * `feature_size`: the number of features of the training examples
+/// * `num_examples_per_block`: the number of examples to write back to disk in batch (explained below)
+/// * `disk_buffer_filename`: the name of the binary file for saving the examples in strata on disk
+/// If such file does not exist, it will be created
+/// * `num_assigners`: the number of threads that run the `Assigner`s (explained below)
+/// * `num_selectors`: the number of threads that run the `Selector`s (explained below)
+/// * `updated_examples`: the channel that the sampler sends the examples with updated scores
+/// * `loaded_examples`: the channle that the stratified storage sends the examples to be read by the `Sampler`.
+///
+/// Stratified storage organizes training examples according to their weights
+/// given current learning model.
+/// The examples are assigned to different strata so that the weight ratio of the examples
+/// within the same stratum does not exceed 2.
+/// Most examples in a stratum are stored on disk, while a small number of examples remains
+/// in memory to be writen to disk or just read from disk and ready to send out to the sampler.
+///
+/// The overall structure of the stratified storage is as follow:
+///
+/// ![](https://www.lucidchart.com/publicSegments/view/c87b7a50-5442-4a41-a601-3dfb49b16511/image.png)
+///
+/// The `Assigner`s read examples with updated scores from the `Sampler` and write them back to
+/// the corresponding strata based on their new weights. The examples would be put into the
+/// `In Queue`s first till a proper number of examples are accumulated that belongs to the
+/// same strata, at that point they would be written into disk in batch.
+///
+/// Meanwhile, a certain number of examples from each stratum are loaded into the memory
+/// from the disk and kept in `Out Queue`s.
+/// The `Selector`s iteratively select a stratum with a probability that proportional to
+/// the sum of weights of all examples in that stratum, send its next loaded example to the `Sampler`,
+/// and remove that example from strata.
+///
+/// A `Shared Weight Table` maintains the sum of the weights of all examples in each stratum.
+/// The `Assigner`s increase the value in the `Shared Weight Table` when a new example is inserted into
+/// a stratum.
+/// The `Selector`s use the weights in the `Shared Weight Table` to decide which stratum to read next and
+/// send its next loaded example to the `Sampler`. After an example is selected, the `Selector` then
+/// substracts the weight of that example from the corresponding stratum in the `Shared Weight Table`.
 pub fn run_stratified(
         num_examples: usize,
         feature_size: usize,

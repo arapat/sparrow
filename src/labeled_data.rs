@@ -1,6 +1,7 @@
 use std::cmp::PartialEq;
 
 
+/// Training example. It consists of two fields: `features` and `label`.
 #[derive(Serialize, Deserialize, Clone, Debug)]
 pub struct LabeledData<TFeature, TLabel> {
     features: Vec<TFeature>,

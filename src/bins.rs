@@ -6,7 +6,9 @@ use std::ops::Range;
 use buffer_loader::BufferLoader;
 
 
-/// TODO: support NaN feature values
+// TODO: support NaN feature values
+/// The percentiles of a specific feature dimension,
+/// which would be used as the candidates weak rules on that dimension.
 pub struct Bins {
     size: usize,
     vals: Vec<f32>
@@ -39,10 +41,12 @@ impl Bins {
         }
     }
 
+    /// Return the number of thresholds. 
     pub fn len(&self) -> usize {
         self.size
     }
 
+    /// Return the vector of thresholds.
     pub fn get_vals(&self) -> &Vec<f32> {
         &self.vals
     }
@@ -64,6 +68,14 @@ impl BinMapper {
 }
 
 
+/// Find the percentiles of the feature in the range specified by `range`. 
+///
+/// To decide the percentiles, the function reads `max_sample_size` number 
+/// of examples from `data_loader`.
+/// The number of selected percentiles is `max_bin_size`.
+///
+/// If the number of different values on this feature dimension `k` is smaller
+/// than `max_bin_size`, only `k` percentiles would return.
 pub fn create_bins(max_sample_size: usize, max_bin_size: usize,
                    range: &Range<usize>, data_loader: &mut BufferLoader) -> Vec<Bins> {
     let start = range.start;

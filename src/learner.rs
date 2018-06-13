@@ -26,6 +26,7 @@ type TupleTuple3 = (FloatTuple4, FloatTuple4, FloatTuple4);
 
 
 // TODO: extend learner to support multi-level trees
+/// A weak rule with an edge larger or equal to the targetting value of `gamma`
 pub struct WeakRule {
     feature: usize,
     threshold: f32,
@@ -39,6 +40,7 @@ pub struct WeakRule {
 }
 
 impl WeakRule {
+    /// Return a decision tree (or decision stump) according to the valid weak rule
     pub fn create_tree(&self) -> Tree {
         debug!("new-tree-martingale, {}, {}, {}, {}",
                self.raw_martingale, self.sum_c, self.sum_c_squared, self.bound);
@@ -49,6 +51,10 @@ impl WeakRule {
     }
 }
 
+
+/// Statisitics of all weak rules that are being evaluated.
+/// The objective of `Learner` is to find a weak rule that satisfies the condition of
+/// the stopping rule.
 pub struct Learner {
     bins: Vec<Bins>,
     range_start: usize,
@@ -68,15 +74,22 @@ pub struct Learner {
 }
 
 impl Learner {
-    pub fn new(default_rho_gamma: f32, bins: Vec<Bins>, range: &Range<usize>) -> Learner {
+    /// Create a `Learner` that search for valid weak rules.
+    /// `default_gamma` is the initial value of the edge `gamma`.
+    /// `bins` is vectors of the all thresholds on all candidate features for generating weak rules.
+    ///
+    /// `range` is the range of candidate features for generating weak rules. In most cases,
+    /// if the algorithm is running on a single worker, `range` is 0..`num_of_features`;
+    /// if the algorithm is running on multiple workers, `range` is a subset of the feature set.
+    pub fn new(default_gamma: f32, bins: Vec<Bins>, range: &Range<usize>) -> Learner {
         let b1 = get_score_board(&bins);
         let b2 = get_score_board(&bins);
         let b3 = get_score_board(&bins);
         Learner {
             bins: bins,
             range_start: range.start,
-            default_rho_gamma: default_rho_gamma,
-            cur_rho_gamma: default_rho_gamma,
+            default_rho_gamma: default_gamma,
+            cur_rho_gamma: default_gamma,
 
             weak_rules_score: b1,
             sum_c:            b2,
@@ -91,6 +104,8 @@ impl Learner {
         }
     }
 
+    /// Reset the statistics of all candidate weak rules,
+    /// but leave the targetting `gamma` unchanged.
     pub fn reset(&mut self) {
         reset_score_board(&mut self.weak_rules_score);
         reset_score_board(&mut self.sum_c);
@@ -101,11 +116,14 @@ impl Learner {
         self.sum_weights_squared = 0.0;
     }
 
+    /// Return the number of examples scanned so far since detecting the last
+    /// valid weak rule or since last reset.
     pub fn get_count(&self) -> usize {
         self.count
     }
 
-    pub fn get_rho_gamma(&self) -> f32 {
+    /// Return current targetting edge `gamma`
+    pub fn get_gamma(&self) -> f32 {
         self.cur_rho_gamma
     }
 
@@ -114,11 +132,14 @@ impl Learner {
         self.reset()
     }
 
+    /// Reset the targetting `gamma` to `initial_gamma`, and reset all statistics
+    /// of all candidate weak rules.
     pub fn reset_all(&mut self) {
         let rho_gamma = self.default_rho_gamma;
         self.set_rho_gamma(rho_gamma);
     }
 
+    /// Shrinking the value of the targetting edge `gamma` of the valid weak rule
     pub fn shrink_target(&mut self) {
         let old_rho_gamma = self.cur_rho_gamma.clone();
         let max_empirical_ratio = self.get_max_empirical_ratio();
@@ -136,6 +157,8 @@ impl Learner {
         }).fold(0.0, max)
     }
 
+    /// Update the statistics of all candidate weak rules using current batch of
+    /// training examples. 
     pub fn update(&mut self, data: &[ExampleInSampleSet], weights: &Vec<f32>) {
         // update global stats
         let (sum_w, sum_w_squared) =
@@ -218,6 +241,7 @@ impl Learner {
         });
     }
 
+    /// Return the valid weak rule if one is found, otherwise return `None`.
     pub fn get_new_weak_rule(&mut self) -> &Option<WeakRule> {
         if self.outdated {
             self.set_valid_weak_rule();
