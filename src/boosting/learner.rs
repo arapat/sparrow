@@ -2,10 +2,11 @@ use rayon::prelude::*;
 
 use std::ops::Range;
 
-use bins::Bins;
 use tree::Tree;
 use commons::Example;
 use commons::ExampleInSampleSet;
+use super::bins::Bins;
+
 use commons::max;
 use commons::min;
 use commons::get_bound;

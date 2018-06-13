@@ -21,8 +21,6 @@ extern crate serde_json;
 extern crate threadpool;
 extern crate time;
 
-/// The values of percentiles on each feature dimension.
-pub mod bins;
 /// The implementation of the AdaBoost algorithm with early stopping rule.
 pub mod boosting;
 /// Common functions and classes.

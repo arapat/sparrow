@@ -8,7 +8,7 @@ name = "rustboost"
 path = "src/lib.rs"
 
 [[bin]]
-name = "rust-boost-bin"
+name = "rustboost-bin"
 path = "src/bin.rs"
 
 [dependencies]

@@ -1,3 +1,4 @@
+mod bins;
 mod learner;
 
 extern crate serde_json;
@@ -19,7 +20,7 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 use self::learner::Learner;
 
-use bins::create_bins;
+use self::bins::create_bins;
 use commons::get_relative_weights;
 use commons::get_symmetric_label;
 use commons::is_positive;

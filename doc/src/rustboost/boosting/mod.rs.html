@@ -381,7 +381,9 @@
 <span id="324">324</span>
 <span id="325">325</span>
 <span id="326">326</span>
+<span id="327">327</span>
 </pre><pre class="rust ">
+<span class="kw">mod</span> <span class="ident">bins</span>;
 <span class="kw">mod</span> <span class="ident">learner</span>;
 
 <span class="kw">extern</span> <span class="kw">crate</span> <span class="ident">serde_json</span>;
@@ -403,7 +405,7 @@
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">ModelScore</span>;
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">learner</span>::<span class="ident">Learner</span>;
 
-<span class="kw">use</span> <span class="ident">bins</span>::<span class="ident">create_bins</span>;
+<span class="kw">use</span> <span class="self">self</span>::<span class="ident">bins</span>::<span class="ident">create_bins</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">get_relative_weights</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">get_symmetric_label</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">is_positive</span>;
