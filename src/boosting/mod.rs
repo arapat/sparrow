@@ -44,8 +44,6 @@ pub struct Boosting {
     last_backup_time: f32,
     persist_id: u32,
 
-    // model_mutex: ModelMutex,
-
     sender: Option<Sender<ModelScore>>,
     receiver: Option<Receiver<ModelScore>>,
     sum_gamma: f32,
@@ -84,8 +82,6 @@ impl Boosting {
             model: model,
             last_backup_time: 0.0,
             persist_id: 0,
-
-            // model_mutex: model_mutex,
 
             sender: None,
             receiver: None,
@@ -128,10 +124,6 @@ impl Boosting {
 
         let mut scanned_counter = 0;
         while num_iterations <= 0 || self.model.len() < num_iterations {
-            if !speed_test {
-                self.try_sample();
-            }
-
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
@@ -156,13 +148,13 @@ impl Boosting {
                     self.model.push(
                         weak_rule.create_tree()
                     );
-                    // self.try_send_model();
                     true
                 } else {
                     false
                 };
             if found_new_rule {
                 self.sum_gamma += self.learner.get_gamma().powi(2);
+                self.try_send_model();
                 debug!(
                     "new-tree-info, {}, {}, {}, {}, {}",
                     self.model.len(),
@@ -263,31 +255,9 @@ impl Boosting {
     }
 
     fn try_send_model(&mut self) {
-        /*
-        if let Ok(ref mut model) = self.model_mutex.try_lock() {
-            **model = self.model.clone();
+        if let Some(ref mut sender) = self.sender {
+            sender.send((self.model.clone(), self.sum_gamma)).unwrap();
         }
-        */
-    }
-
-    fn try_sample(&mut self) {
-        /*
-        let next_loader = if let Ok(loader) = self.next_training_loader.try_lock() {
-            *loader
-        } else {
-            None
-        };
-        if next_loader.is_some() {
-            let ess_option = self.training_loader.get_ess();
-            let ess = if let Some(ess) = ess_option {
-                debug!("training_sample_replaced, {}", ess);
-            } else {
-                debug!("training_sample_replaced, n/a");
-            };
-            self.training_loader = next_loader.unwrap();
-            self.learner.reset_all();
-        }
-        */
     }
 
     fn _validate(&mut self) {
