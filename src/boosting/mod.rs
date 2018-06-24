@@ -103,7 +103,7 @@ impl Boosting {
         let (other_send, other_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
         self.sender = Some(local_send);
         self.receiver = Some(other_recv);
-        start_network(name, remote_ips, port, other_send, local_recv)
+        start_network(name.as_ref(), remote_ips, port, true, other_send, local_recv);
     }
 
     /// Start training the boosting algorithm.

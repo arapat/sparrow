@@ -310,7 +310,7 @@ mod tests {
             assert_eq!((batch[9].1).0, 1.0);
             assert_eq!((batch[9].2).0, 1.0);
         }
-        sleep(Duration::from_millis(200));
+        sleep(Duration::from_millis(1000));
         for i in 0..10 {
             buffer_loader.fetch_next_batch(true);
             let batch = buffer_loader.get_curr_batch(false);

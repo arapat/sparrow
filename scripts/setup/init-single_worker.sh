@@ -7,8 +7,8 @@ sudo umount /mnt
 export DISK="/dev/xvdb"
 yes | sudo mkfs.ext4 -L MY_DISK $DISK
 # 2. Two SSDs - RAID
-yes | sudo mdadm --create --verbose /dev/md0 --level=0 --name=MY_RAID --raid-devices=2 /dev/xvdb /dev/xvdc
-yes | sudo mkfs.ext4 -L MY_DISK /dev/md0
+# yes | sudo mdadm --create --verbose /dev/md0 --level=0 --name=MY_RAID --raid-devices=2 /dev/xvdb /dev/xvdc
+# yes | sudo mkfs.ext4 -L MY_DISK /dev/md0
 
 sudo apt-get update
 sudo apt-get install -y awscli
