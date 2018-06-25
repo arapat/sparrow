@@ -1,5 +1,4 @@
 use std::sync::mpsc;
-use std::thread::sleep;
 use std::thread::spawn;
 use bincode::serialize;
 use bincode::deserialize;
@@ -147,11 +146,6 @@ fn fill_out_queues(slot_out: Receiver<usize>,
         }
     }
     error!("Slot Queue in stratum was closed.");
-}
-
-
-fn get_locked<T>(t: T) -> Arc<RwLock<T>> {
-    Arc::new(RwLock::new(t))
 }
 
 

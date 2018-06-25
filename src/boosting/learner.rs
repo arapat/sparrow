@@ -135,6 +135,8 @@ impl Learner {
 
     /// Reset the targetting `gamma` to `initial_gamma`, and reset all statistics
     /// of all candidate weak rules.
+    // TODO: use reset-all if required
+    #[allow(dead_code)]
     pub fn reset_all(&mut self) {
         let rho_gamma = self.default_rho_gamma;
         self.set_rho_gamma(rho_gamma);

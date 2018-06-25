@@ -6,8 +6,6 @@ extern crate serde_json;
 use rayon::prelude::*;
 
 use std::ops::Range;
-use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
@@ -17,7 +15,6 @@ use rust_tmsn::network::start_network;
 use buffer_loader::BufferLoader;
 use tree::Tree;
 use commons::Model;
-use commons::LossFunc;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 use self::learner::Learner;
@@ -28,10 +25,6 @@ use commons::get_symmetric_label;
 use commons::is_positive;
 use commons::io::create_bufwriter;
 use commons::io::write_to_text_file;
-
-
-type NextLoader = Arc<Mutex<Option<BufferLoader>>>;
-type ModelMutex = Arc<Mutex<Option<Model>>>;
 
 
 /// The boosting algorithm. It contains two functions, one for starting

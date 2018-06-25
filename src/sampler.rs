@@ -108,7 +108,7 @@ fn sample(initial_grid_size: f32,
         grid_size = grid_size * (1.0 - rou) + w * rou;
         grid += w;
         while get_sign(grid as f64) >= 0 {
-            sampled_examples.send((data.clone(), (updated_score, model_size)));
+            sampled_examples.send((data.clone(), (updated_score, model_size))).unwrap();
             grid -= grid_size;
         }
     }
@@ -121,7 +121,6 @@ mod tests {
     use chan;
     use std::sync::mpsc;
     use std::thread::sleep;
-    use std::thread::spawn;
 
     use std::time::Duration;
 
@@ -160,7 +159,7 @@ mod tests {
         }
         let mut all_updated = vec![];
         let mut all_sampled = vec![];
-        for i in 0..100 {
+        for _ in 0..100 {
             all_updated.push(updated_receiver.recv().unwrap());
             all_sampled.push(sampled_receiver.recv().unwrap());
         }
@@ -171,7 +170,7 @@ mod tests {
         }
         let mut updated_i = all_updated.iter();
         let mut sampled_i = all_sampled.iter();
-        for i in 0..100 {
+        for _ in 0..100 {
             let t = examples_i.next().unwrap();
             assert_eq!(*updated_i.next().unwrap(), ((t.0).clone(), (0.0, 1)));
             assert_eq!(*sampled_i.next().unwrap(), ((t.0).clone(), (0.0, 1)));
@@ -186,7 +185,7 @@ mod tests {
             examples.push(t);
         }
         let mut all_updated = vec![];
-        for i in 0..100 {
+        for _ in 0..100 {
             all_updated.push(updated_receiver.recv().unwrap());
         }
         let mut examples_i = examples.iter();
@@ -194,14 +193,14 @@ mod tests {
             all_updated.sort_by_key(|t| (t.0).get_features().clone());
         }
         let mut updated_i = all_updated.iter();
-        for i in 0..100 {
+        for _ in 0..100 {
             let t = examples_i.next().unwrap();
             loaded_sender.send(t.clone());
             assert_eq!(*updated_i.next().unwrap(), ((t.0).clone(), (1.0, 2)));
         }
 
         let mut all_updated = vec![];
-        for i in 0..100 {
+        for _ in 0..100 {
             all_updated.push(updated_receiver.recv().unwrap());
         }
         let mut examples_i = examples.iter();
@@ -209,7 +208,7 @@ mod tests {
             all_updated.sort_by_key(|t| (t.0).get_features().clone());
         }
         let mut updated_i = all_updated.iter();
-        for i in 0..100 {
+        for _ in 0..100 {
             let t = examples_i.next().unwrap();
             assert_eq!(*updated_i.next().unwrap(), ((t.0).clone(), (1.0, 2)));
         }

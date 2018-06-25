@@ -3,12 +3,9 @@ mod disk_buffer;
 mod stratum;
 
 use std::collections::HashMap;
-use std::collections::vec_deque::VecDeque;
 use std::sync::Arc;
-use std::sync::Mutex;
 use std::sync::RwLock;
 use std::sync::mpsc::SyncSender;
-use std::time::Duration;
 use chan::Receiver;
 
 use bincode::serialize;

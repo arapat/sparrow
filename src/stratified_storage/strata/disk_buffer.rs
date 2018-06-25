@@ -11,7 +11,6 @@ use super::bitmap::BitMap;
 
 
 pub struct DiskBuffer {
-    filename: String,
     bitmap: BitMap,
     block_size: usize,
     capacity: usize,
@@ -29,7 +28,6 @@ impl DiskBuffer {
                     .open(filename).expect(
                         &format!("Cannot create the buffer file at {}", filename));
         DiskBuffer {
-            filename: filename.to_string(),
             bitmap: BitMap::new(capacity.clone(), false),
             block_size: block_size,
             capacity: capacity,
@@ -51,6 +49,7 @@ impl DiskBuffer {
         if position >= self.size {
             self.size += 1;
         }
+        assert!(self.size <= self.capacity);
         let offset = position * self.block_size;
         self._file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while writing.", offset));
@@ -72,18 +71,12 @@ impl DiskBuffer {
         self.bitmap.mark_free(position);
         block_buffer
     }
-
-    pub fn get_size(&self) -> usize {
-        self.size
-    }
 }
 
 
 #[cfg(test)]
 mod tests {
     use std::fs::remove_file;
-    use std::sync::Arc;
-    use std::sync::RwLock;
     use bincode::serialize;
     use bincode::deserialize;
 
@@ -98,7 +91,7 @@ mod tests {
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![1, 2, 3]);
         let data = serialize(&vec![example; 10]).unwrap();
-        for i in 0..5 {
+        for _ in 0..5 {
             disk_buffer.write(&data);
         }
         remove_file(filename).unwrap();
@@ -176,7 +169,7 @@ mod tests {
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![1, 2, 3]);
         let data = serialize(&vec![example; 10]).unwrap();
-        for i in 0..6 {
+        for _ in 0..6 {
             disk_buffer.write(&data);
         }
     }

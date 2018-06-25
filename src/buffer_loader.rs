@@ -237,7 +237,6 @@ fn load_buffer(capacity: usize,
                sampled_examples: Receiver<ExampleWithScore>,
                examples_in_cons: Arc<RwLock<Vec<ExampleInSampleSet>>>,
                is_cons_ready: Arc<RwLock<bool>>) {
-    let mut count = 0;
     loop {
         // Make sure previous buffer has been received by the loader
         loop {
@@ -255,7 +254,6 @@ fn load_buffer(capacity: usize,
                 while examples.len() < capacity {
                     if let Ok((example, (score, node))) = sampled_examples.recv() {
                         examples.push((example, (score.clone(), node.clone()), (score, node)));
-                        count += 1;
                     } else {
                         error!("Sampled examples queue is closed.");
                     }
@@ -290,18 +288,18 @@ mod tests {
 
         let sender_clone = sender.clone();
         spawn(move|| {
-            for i in 0..100 {
+            for _ in 0..100 {
                 let t = get_example(vec![0, 1, 2], 1.0);
-                sender_clone.send(t.clone());
+                sender_clone.send(t.clone()).unwrap();
             }
         });
 
         let mut buffer_loader = BufferLoader::new(100, 10, receiver, true);
-        for i in 0..100 {
+        for _ in 0..100 {
             let t = get_example(vec![0, 1, 2], 2.0);
-            sender.send(t.clone());
+            sender.send(t.clone()).unwrap();
         }
-        for i in 0..10 {
+        for _ in 0..10 {
             buffer_loader.fetch_next_batch(true);
             let batch = buffer_loader.get_curr_batch(false);
             assert_eq!(batch.len(), 10);
@@ -311,7 +309,7 @@ mod tests {
             assert_eq!((batch[9].2).0, 1.0);
         }
         sleep(Duration::from_millis(1000));
-        for i in 0..10 {
+        for _ in 0..10 {
             buffer_loader.fetch_next_batch(true);
             let batch = buffer_loader.get_curr_batch(false);
             assert_eq!(batch.len(), 10);
@@ -329,9 +327,9 @@ mod tests {
 
         let sender_clone = sender.clone();
         spawn(move|| {
-            for i in 0..10 {
+            for _ in 0..10 {
                 let t = get_example(vec![0, 1, 2], 1.0);
-                sender_clone.send(t.clone());
+                sender_clone.send(t.clone()).unwrap();
             }
         });
 

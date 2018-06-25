@@ -84,8 +84,6 @@ pub fn run_stratified(
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use std::fs::remove_file;
     use chan;
 
@@ -98,7 +96,7 @@ mod tests {
         let filename = "unittest-stratified1.bin";
         let (updated_examples_send, updated_examples_recv) = chan::sync(10);
         let (loaded_examples_send, loaded_examples_recv) = chan::sync(10);
-        let (counts_table, weights_table) = run_stratified(
+        let (counts_table, _) = run_stratified(
             1000, 3, 10, filename, 1, 1, updated_examples_recv, loaded_examples_send);
         for i in 0..2 {
             for k in 0..5 {
@@ -118,7 +116,7 @@ mod tests {
         let filename = "unittest-stratified2.bin";
         let (updated_examples_send, updated_examples_recv) = chan::sync(10);
         let (loaded_examples_send, loaded_examples_recv) = chan::sync(10);
-        let (counts_table, weights_table) = run_stratified(
+        let (counts_table, _) = run_stratified(
             1000, 3, 10, filename, 10, 10, updated_examples_recv, loaded_examples_send);
         for i in 0..2 {
             for k in 0..5 {
@@ -138,7 +136,7 @@ mod tests {
         let filename = "unittest-stratified3.bin";
         let (updated_examples_send, updated_examples_recv) = chan::sync(10);
         let (loaded_examples_send, loaded_examples_recv) = chan::sync(10);
-        let (counts_table, weights_table) = run_stratified(
+        let (counts_table, _) = run_stratified(
             1000, 3, 5, filename, 1, 1, updated_examples_recv, loaded_examples_send);
         let mut solution = vec![];
         for i in 0..5 {
@@ -150,8 +148,8 @@ mod tests {
         }
 
         let mut answer = vec![];
-        for i in 0..5 {
-            for k in 0..5 {
+        for _ in 0..5 {
+            for _ in 0..5 {
                 let retrieve = loaded_examples_recv.recv().unwrap();
                 answer.push(retrieve);
             }
@@ -173,7 +171,7 @@ mod tests {
         let filename = "unittest-stratified4.bin";
         let (updated_examples_send, updated_examples_recv) = chan::sync(10);
         let (loaded_examples_send, loaded_examples_recv) = chan::sync(10);
-        let (counts_table, weights_table) = run_stratified(
+        let (counts_table, _) = run_stratified(
             3000, 3, 5, filename, 10, 10, updated_examples_recv, loaded_examples_send);
         let mut solution = vec![];
         for i in 0..50 {
@@ -185,8 +183,8 @@ mod tests {
         }
 
         let mut answer = vec![];
-        for i in 0..50 {
-            for k in 0..50 {
+        for _ in 0..50 {
+            for _ in 0..50 {
                 let retrieve = loaded_examples_recv.recv().unwrap();
                 answer.push(retrieve);
             }
