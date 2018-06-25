@@ -346,43 +346,6 @@
 <span id="289">289</span>
 <span id="290">290</span>
 <span id="291">291</span>
-<span id="292">292</span>
-<span id="293">293</span>
-<span id="294">294</span>
-<span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
-<span id="306">306</span>
-<span id="307">307</span>
-<span id="308">308</span>
-<span id="309">309</span>
-<span id="310">310</span>
-<span id="311">311</span>
-<span id="312">312</span>
-<span id="313">313</span>
-<span id="314">314</span>
-<span id="315">315</span>
-<span id="316">316</span>
-<span id="317">317</span>
-<span id="318">318</span>
-<span id="319">319</span>
-<span id="320">320</span>
-<span id="321">321</span>
-<span id="322">322</span>
-<span id="323">323</span>
-<span id="324">324</span>
-<span id="325">325</span>
-<span id="326">326</span>
-<span id="327">327</span>
-<span id="328">328</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">bins</span>;
 <span class="kw">mod</span> <span class="ident">learner</span>;
@@ -392,8 +355,6 @@
 <span class="kw">use</span> <span class="ident">rayon</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">ops</span>::<span class="ident">Range</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Arc</span>;
-<span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">Mutex</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::<span class="ident">Sender</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>::<span class="ident">Receiver</span>;
@@ -403,7 +364,6 @@
 <span class="kw">use</span> <span class="ident">buffer_loader</span>::<span class="ident">BufferLoader</span>;
 <span class="kw">use</span> <span class="ident">tree</span>::<span class="ident">Tree</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">Model</span>;
-<span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">LossFunc</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">performance_monitor</span>::<span class="ident">PerformanceMonitor</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">ModelScore</span>;
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">learner</span>::<span class="ident">Learner</span>;
@@ -416,10 +376,6 @@
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">io</span>::<span class="ident">write_to_text_file</span>;
 
 
-<span class="kw">type</span> <span class="ident">NextLoader</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">BufferLoader</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>;
-<span class="kw">type</span> <span class="ident">ModelMutex</span> <span class="op">=</span> <span class="ident">Arc</span><span class="op">&lt;</span><span class="ident">Mutex</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Model</span><span class="op">&gt;&gt;</span><span class="op">&gt;</span>;
-
-
 <span class="doccomment">/// The boosting algorithm. It contains two functions, one for starting</span>
 <span class="doccomment">/// the network communication, the other for starting the training procedure.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Boosting</span> {
@@ -429,8 +385,6 @@
     <span class="ident">model</span>: <span class="ident">Model</span>,
     <span class="ident">last_backup_time</span>: <span class="ident">f32</span>,
     <span class="ident">persist_id</span>: <span class="ident">u32</span>,
-
-    <span class="comment">// model_mutex: ModelMutex,</span>
 
     <span class="ident">sender</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;&gt;</span>,
     <span class="ident">receiver</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;&gt;</span>,
@@ -471,8 +425,6 @@
             <span class="ident">last_backup_time</span>: <span class="number">0.0</span>,
             <span class="ident">persist_id</span>: <span class="number">0</span>,
 
-            <span class="comment">// model_mutex: model_mutex,</span>
-
             <span class="ident">sender</span>: <span class="prelude-val">None</span>,
             <span class="ident">receiver</span>: <span class="prelude-val">None</span>,
             <span class="ident">sum_gamma</span>: <span class="ident">gamma_squared</span>.<span class="ident">clone</span>(),
@@ -489,7 +441,7 @@
         <span class="kw">let</span> (<span class="ident">other_send</span>, <span class="ident">other_recv</span>): (<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;</span>, <span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">ModelScore</span><span class="op">&gt;</span>) <span class="op">=</span> <span class="ident">mpsc</span>::<span class="ident">channel</span>();
         <span class="self">self</span>.<span class="ident">sender</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">local_send</span>);
         <span class="self">self</span>.<span class="ident">receiver</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">other_recv</span>);
-        <span class="ident">start_network</span>(<span class="ident">name</span>, <span class="ident">remote_ips</span>, <span class="ident">port</span>, <span class="ident">other_send</span>, <span class="ident">local_recv</span>)
+        <span class="ident">start_network</span>(<span class="ident">name</span>.<span class="ident">as_ref</span>(), <span class="ident">remote_ips</span>, <span class="ident">port</span>, <span class="bool-val">true</span>, <span class="ident">other_send</span>, <span class="ident">local_recv</span>);
     }
 
     <span class="doccomment">/// Start training the boosting algorithm.</span>
@@ -514,10 +466,6 @@
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">scanned_counter</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="kw">while</span> <span class="ident">num_iterations</span> <span class="op">&lt;=</span> <span class="number">0</span> <span class="op">||</span> <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">num_iterations</span> {
-            <span class="kw">if</span> <span class="op">!</span><span class="ident">speed_test</span> {
-                <span class="self">self</span>.<span class="ident">try_sample</span>();
-            }
-
             <span class="kw">if</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_count</span>() <span class="op">&gt;=</span> <span class="ident">timeout</span> {
                 <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">shrink_target</span>();
             }
@@ -542,13 +490,13 @@
                     <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">push</span>(
                         <span class="ident">weak_rule</span>.<span class="ident">create_tree</span>()
                     );
-                    <span class="comment">// self.try_send_model();</span>
                     <span class="bool-val">true</span>
                 } <span class="kw">else</span> {
                     <span class="bool-val">false</span>
                 };
             <span class="kw">if</span> <span class="ident">found_new_rule</span> {
                 <span class="self">self</span>.<span class="ident">sum_gamma</span> <span class="op">+=</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_gamma</span>().<span class="ident">powi</span>(<span class="number">2</span>);
+                <span class="self">self</span>.<span class="ident">try_send_model</span>();
                 <span class="macro">debug</span><span class="macro">!</span>(
                     <span class="string">&quot;new-tree-info, {}, {}, {}, {}, {}&quot;</span>,
                     <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">len</span>(),
@@ -649,31 +597,9 @@
     }
 
     <span class="kw">fn</span> <span class="ident">try_send_model</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="comment">/*
-        if let Ok(ref mut model) = self.model_mutex.try_lock() {
-            **model = self.model.clone();
+        <span class="kw">if</span> <span class="kw">let</span> <span class="prelude-val">Some</span>(<span class="kw-2">ref</span> <span class="kw-2">mut</span> <span class="ident">sender</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">sender</span> {
+            <span class="ident">sender</span>.<span class="ident">send</span>((<span class="self">self</span>.<span class="ident">model</span>.<span class="ident">clone</span>(), <span class="self">self</span>.<span class="ident">sum_gamma</span>)).<span class="ident">unwrap</span>();
         }
-        */</span>
-    }
-
-    <span class="kw">fn</span> <span class="ident">try_sample</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="comment">/*
-        let next_loader = if let Ok(loader) = self.next_training_loader.try_lock() {
-            *loader
-        } else {
-            None
-        };
-        if next_loader.is_some() {
-            let ess_option = self.training_loader.get_ess();
-            let ess = if let Some(ess) = ess_option {
-                debug!(&quot;training_sample_replaced, {}&quot;, ess);
-            } else {
-                debug!(&quot;training_sample_replaced, n/a&quot;);
-            };
-            self.training_loader = next_loader.unwrap();
-            self.learner.reset_all();
-        }
-        */</span>
     }
 
     <span class="kw">fn</span> <span class="ident">_validate</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {

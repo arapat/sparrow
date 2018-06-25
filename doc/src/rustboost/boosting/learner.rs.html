@@ -397,6 +397,8 @@
 <span id="340">340</span>
 <span id="341">341</span>
 <span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">rayon</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 
@@ -535,6 +537,8 @@ Each split corresponds to 4 types of predictions,
 
     <span class="doccomment">/// Reset the targetting `gamma` to `initial_gamma`, and reset all statistics</span>
     <span class="doccomment">/// of all candidate weak rules.</span>
+    <span class="comment">// TODO: use reset-all if required</span>
+    <span class="attribute">#[<span class="ident">allow</span>(<span class="ident">dead_code</span>)]</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset_all</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
         <span class="kw">let</span> <span class="ident">rho_gamma</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">default_rho_gamma</span>;
         <span class="self">self</span>.<span class="ident">set_rho_gamma</span>(<span class="ident">rho_gamma</span>);

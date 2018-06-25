@@ -1,5 +1,5 @@
 [package]
-name = "rust-boost"
+name = "rustboost"
 version = "0.1.0"
 authors = ["Julaiti Alafate <jalafate@gmail.com>"]
 

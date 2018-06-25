@@ -294,7 +294,6 @@
 <span id="237">237</span>
 <span id="238">238</span>
 <span id="239">239</span>
-<span id="240">240</span>
 </pre><pre class="rust ">
 <span class="kw">use</span> <span class="ident">rand</span>;
 <span class="kw">use</span> <span class="ident">rayon</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
@@ -406,7 +405,7 @@
         <span class="ident">grid_size</span> <span class="op">=</span> <span class="ident">grid_size</span> <span class="op">*</span> (<span class="number">1.0</span> <span class="op">-</span> <span class="ident">rou</span>) <span class="op">+</span> <span class="ident">w</span> <span class="op">*</span> <span class="ident">rou</span>;
         <span class="ident">grid</span> <span class="op">+=</span> <span class="ident">w</span>;
         <span class="kw">while</span> <span class="ident">get_sign</span>(<span class="ident">grid</span> <span class="kw">as</span> <span class="ident">f64</span>) <span class="op">&gt;=</span> <span class="number">0</span> {
-            <span class="ident">sampled_examples</span>.<span class="ident">send</span>((<span class="ident">data</span>.<span class="ident">clone</span>(), (<span class="ident">updated_score</span>, <span class="ident">model_size</span>)));
+            <span class="ident">sampled_examples</span>.<span class="ident">send</span>((<span class="ident">data</span>.<span class="ident">clone</span>(), (<span class="ident">updated_score</span>, <span class="ident">model_size</span>))).<span class="ident">unwrap</span>();
             <span class="ident">grid</span> <span class="op">-=</span> <span class="ident">grid_size</span>;
         }
     }
@@ -419,7 +418,6 @@
     <span class="kw">use</span> <span class="ident">chan</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>::<span class="ident">sleep</span>;
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>::<span class="ident">spawn</span>;
 
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Duration</span>;
 
@@ -458,7 +456,7 @@
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">all_updated</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">all_sampled</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
             <span class="ident">all_updated</span>.<span class="ident">push</span>(<span class="ident">updated_receiver</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>());
             <span class="ident">all_sampled</span>.<span class="ident">push</span>(<span class="ident">sampled_receiver</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>());
         }
@@ -469,7 +467,7 @@
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">updated_i</span> <span class="op">=</span> <span class="ident">all_updated</span>.<span class="ident">iter</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">sampled_i</span> <span class="op">=</span> <span class="ident">all_sampled</span>.<span class="ident">iter</span>();
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
             <span class="kw">let</span> <span class="ident">t</span> <span class="op">=</span> <span class="ident">examples_i</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">updated_i</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>(), ((<span class="ident">t</span>.<span class="number">0</span>).<span class="ident">clone</span>(), (<span class="number">0.0</span>, <span class="number">1</span>)));
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">sampled_i</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>(), ((<span class="ident">t</span>.<span class="number">0</span>).<span class="ident">clone</span>(), (<span class="number">0.0</span>, <span class="number">1</span>)));
@@ -484,7 +482,7 @@
             <span class="ident">examples</span>.<span class="ident">push</span>(<span class="ident">t</span>);
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">all_updated</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
             <span class="ident">all_updated</span>.<span class="ident">push</span>(<span class="ident">updated_receiver</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>());
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">examples_i</span> <span class="op">=</span> <span class="ident">examples</span>.<span class="ident">iter</span>();
@@ -492,14 +490,14 @@
             <span class="ident">all_updated</span>.<span class="ident">sort_by_key</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> (<span class="ident">t</span>.<span class="number">0</span>).<span class="ident">get_features</span>().<span class="ident">clone</span>());
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">updated_i</span> <span class="op">=</span> <span class="ident">all_updated</span>.<span class="ident">iter</span>();
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
             <span class="kw">let</span> <span class="ident">t</span> <span class="op">=</span> <span class="ident">examples_i</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
             <span class="ident">loaded_sender</span>.<span class="ident">send</span>(<span class="ident">t</span>.<span class="ident">clone</span>());
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">updated_i</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>(), ((<span class="ident">t</span>.<span class="number">0</span>).<span class="ident">clone</span>(), (<span class="number">1.0</span>, <span class="number">2</span>)));
         }
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">all_updated</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
             <span class="ident">all_updated</span>.<span class="ident">push</span>(<span class="ident">updated_receiver</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>());
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">examples_i</span> <span class="op">=</span> <span class="ident">examples</span>.<span class="ident">iter</span>();
@@ -507,7 +505,7 @@
             <span class="ident">all_updated</span>.<span class="ident">sort_by_key</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> (<span class="ident">t</span>.<span class="number">0</span>).<span class="ident">get_features</span>().<span class="ident">clone</span>());
         }
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">updated_i</span> <span class="op">=</span> <span class="ident">all_updated</span>.<span class="ident">iter</span>();
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">100</span> {
             <span class="kw">let</span> <span class="ident">t</span> <span class="op">=</span> <span class="ident">examples_i</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>();
             <span class="macro">assert_eq</span><span class="macro">!</span>(<span class="kw-2">*</span><span class="ident">updated_i</span>.<span class="ident">next</span>().<span class="ident">unwrap</span>(), ((<span class="ident">t</span>.<span class="number">0</span>).<span class="ident">clone</span>(), (<span class="number">1.0</span>, <span class="number">2</span>)));
         }

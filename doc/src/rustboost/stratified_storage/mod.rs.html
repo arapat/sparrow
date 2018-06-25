@@ -265,8 +265,6 @@
 <span id="208">208</span>
 <span id="209">209</span>
 <span id="210">210</span>
-<span id="211">211</span>
-<span id="212">212</span>
 </pre><pre class="rust ">
 <span class="kw">mod</span> <span class="ident">strata</span>;
 <span class="kw">mod</span> <span class="ident">assigners</span>;
@@ -354,8 +352,6 @@
 
 <span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span>
 <span class="kw">mod</span> <span class="ident">tests</span> {
-    <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
-
     <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fs</span>::<span class="ident">remove_file</span>;
     <span class="kw">use</span> <span class="ident">chan</span>;
 
@@ -368,7 +364,7 @@
         <span class="kw">let</span> <span class="ident">filename</span> <span class="op">=</span> <span class="string">&quot;unittest-stratified1.bin&quot;</span>;
         <span class="kw">let</span> (<span class="ident">updated_examples_send</span>, <span class="ident">updated_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
         <span class="kw">let</span> (<span class="ident">loaded_examples_send</span>, <span class="ident">loaded_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
-        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="ident">weights_table</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
+        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
             <span class="number">1000</span>, <span class="number">3</span>, <span class="number">10</span>, <span class="ident">filename</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="ident">updated_examples_recv</span>, <span class="ident">loaded_examples_send</span>);
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">2</span> {
             <span class="kw">for</span> <span class="ident">k</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
@@ -388,7 +384,7 @@
         <span class="kw">let</span> <span class="ident">filename</span> <span class="op">=</span> <span class="string">&quot;unittest-stratified2.bin&quot;</span>;
         <span class="kw">let</span> (<span class="ident">updated_examples_send</span>, <span class="ident">updated_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
         <span class="kw">let</span> (<span class="ident">loaded_examples_send</span>, <span class="ident">loaded_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
-        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="ident">weights_table</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
+        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
             <span class="number">1000</span>, <span class="number">3</span>, <span class="number">10</span>, <span class="ident">filename</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="ident">updated_examples_recv</span>, <span class="ident">loaded_examples_send</span>);
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">2</span> {
             <span class="kw">for</span> <span class="ident">k</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
@@ -408,7 +404,7 @@
         <span class="kw">let</span> <span class="ident">filename</span> <span class="op">=</span> <span class="string">&quot;unittest-stratified3.bin&quot;</span>;
         <span class="kw">let</span> (<span class="ident">updated_examples_send</span>, <span class="ident">updated_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
         <span class="kw">let</span> (<span class="ident">loaded_examples_send</span>, <span class="ident">loaded_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
-        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="ident">weights_table</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
+        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
             <span class="number">1000</span>, <span class="number">3</span>, <span class="number">5</span>, <span class="ident">filename</span>, <span class="number">1</span>, <span class="number">1</span>, <span class="ident">updated_examples_recv</span>, <span class="ident">loaded_examples_send</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">solution</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
@@ -420,8 +416,8 @@
         }
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">answer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
-            <span class="kw">for</span> <span class="ident">k</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">5</span> {
                 <span class="kw">let</span> <span class="ident">retrieve</span> <span class="op">=</span> <span class="ident">loaded_examples_recv</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>();
                 <span class="ident">answer</span>.<span class="ident">push</span>(<span class="ident">retrieve</span>);
             }
@@ -443,7 +439,7 @@
         <span class="kw">let</span> <span class="ident">filename</span> <span class="op">=</span> <span class="string">&quot;unittest-stratified4.bin&quot;</span>;
         <span class="kw">let</span> (<span class="ident">updated_examples_send</span>, <span class="ident">updated_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
         <span class="kw">let</span> (<span class="ident">loaded_examples_send</span>, <span class="ident">loaded_examples_recv</span>) <span class="op">=</span> <span class="ident">chan</span>::<span class="ident">sync</span>(<span class="number">10</span>);
-        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="ident">weights_table</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
+        <span class="kw">let</span> (<span class="ident">counts_table</span>, <span class="kw">_</span>) <span class="op">=</span> <span class="ident">run_stratified</span>(
             <span class="number">3000</span>, <span class="number">3</span>, <span class="number">5</span>, <span class="ident">filename</span>, <span class="number">10</span>, <span class="number">10</span>, <span class="ident">updated_examples_recv</span>, <span class="ident">loaded_examples_send</span>);
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">solution</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
         <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">50</span> {
@@ -455,8 +451,8 @@
         }
 
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">answer</span> <span class="op">=</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">50</span> {
-            <span class="kw">for</span> <span class="ident">k</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">50</span> {
+        <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">50</span> {
+            <span class="kw">for</span> <span class="kw">_</span> <span class="kw">in</span> <span class="number">0</span>..<span class="number">50</span> {
                 <span class="kw">let</span> <span class="ident">retrieve</span> <span class="op">=</span> <span class="ident">loaded_examples_recv</span>.<span class="ident">recv</span>().<span class="ident">unwrap</span>();
                 <span class="ident">answer</span>.<span class="ident">push</span>(<span class="ident">retrieve</span>);
             }
