@@ -122,7 +122,6 @@ mod tests {
             let data = serialize(&examples).unwrap();
             let index = disk_buffer.write(&data);
             assert_eq!(index, 0);
-            assert_eq!(disk_buffer.get_size(), 1);
             let retrieve = disk_buffer.read(index);
             assert_eq!(data, retrieve);
             let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
@@ -143,7 +142,6 @@ mod tests {
             let index = disk_buffer.write(&data);
             inputs.push((data, examples));
             assert_eq!(index, i as usize);
-            assert_eq!(disk_buffer.get_size(), (i + 1) as usize);
         }
         for i in 0..5 {
             let retrieve = disk_buffer.read(i);

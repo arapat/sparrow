@@ -148,7 +148,7 @@ mod tests {
             }
         }
         let mut answer = examples.iter();
-        for i in 0..100 {
+        for _ in 0..100 {
             for k in 0..10 {
                 let retrieve = strata.get_out_queue(k as i8).unwrap().recv().unwrap();
                 assert_eq!(*answer.next().unwrap(), retrieve);

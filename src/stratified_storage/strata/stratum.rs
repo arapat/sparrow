@@ -196,7 +196,7 @@ mod tests {
             examples.push(t);
         }
         let mut output = vec![];
-        for i in 0..100 {
+        for _ in 0..100 {
             let retrieve = out_queue.recv().unwrap();
             output.push(retrieve);
         }
