@@ -2,8 +2,9 @@ use rayon::prelude::*;
 
 use std::ops::Range;
 
+use super::super::Example;
+
 use tree::Tree;
-use commons::Example;
 use commons::ExampleInSampleSet;
 use super::bins::Bins;
 

@@ -8,8 +8,9 @@ use std::sync::mpsc;
 use std::thread::spawn;
 use chan;
 
+use super::ExampleWithScore;
+
 use commons::Model;
-use commons::ExampleWithScore;
 
 use commons::get_sign;
 use commons::get_weight;

@@ -3,15 +3,11 @@ pub mod io;
 
 use rayon::prelude::*;
 
-use labeled_data::LabeledData;
 use tree::Tree;
 
-// TODO: use genetic types for reading data
-pub type TFeature = u8;
-pub type TLabel = u8;
-pub type Example = LabeledData<TFeature, TLabel>;
+use super::Example;
+
 pub type ExampleInSampleSet = (Example, (f32, usize), (f32, usize));
-pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
 

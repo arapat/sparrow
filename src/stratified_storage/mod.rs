@@ -9,7 +9,9 @@ use std::sync::RwLock;
 use chan::Sender;
 use chan::Receiver;
 
-use commons::ExampleWithScore;
+use super::Example;
+use super::ExampleWithScore;
+
 use self::assigners::Assigners;
 use self::selectors::Selectors;
 use self::strata::Strata;

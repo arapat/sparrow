@@ -10,12 +10,13 @@ use chan::Receiver;
 
 use bincode::serialize;
 
-use commons::Example;
-use commons::TFeature;
-use commons::TLabel;
+use super::Example;
+use super::ExampleWithScore;
+
+use super::super::TFeature;
+use super::super::TLabel;
 use labeled_data::LabeledData;
 
-use super::ExampleWithScore;
 use self::disk_buffer::DiskBuffer;
 use self::stratum::Stratum;
 

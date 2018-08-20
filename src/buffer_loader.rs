@@ -11,8 +11,9 @@ use std::sync::mpsc::Receiver;
 
 use std::thread::sleep;
 
+use super::ExampleWithScore;
+
 use commons::ExampleInSampleSet;
-use commons::ExampleWithScore;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 

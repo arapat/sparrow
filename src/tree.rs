@@ -1,6 +1,7 @@
 use rayon::prelude::*;
 
-use commons::Example;
+use super::Example;
+
 use commons::is_zero;
 
 type DimScaleType = u16;
