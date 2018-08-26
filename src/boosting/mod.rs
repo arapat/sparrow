@@ -40,7 +40,9 @@ pub struct Boosting {
     sender: Option<Sender<ModelScore>>,
     receiver: Option<Receiver<ModelScore>>,
     sum_gamma: f32,
-    prev_sum_gamma: f32
+    prev_sum_gamma: f32,
+
+    model_send: Sender<Model>,
 }
 
 impl Boosting {
@@ -59,6 +61,7 @@ impl Boosting {
                 max_sample_size: usize,
                 max_bin_size: usize,
                 default_gamma: f32,
+                model_send: Sender<Model>
             ) -> Boosting {
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
         let learner = Learner::new(default_gamma, bins, &range);
@@ -79,7 +82,9 @@ impl Boosting {
             sender: None,
             receiver: None,
             sum_gamma: gamma_squared.clone(),
-            prev_sum_gamma: gamma_squared
+            prev_sum_gamma: gamma_squared,
+
+            model_send: model_send,
         }
     }
 
@@ -251,6 +256,7 @@ impl Boosting {
         if let Some(ref mut sender) = self.sender {
             sender.send((self.model.clone(), self.sum_gamma)).unwrap();
         }
+        self.model_send.send(self.model.clone()).unwrap();
     }
 
     fn _validate(&mut self) {

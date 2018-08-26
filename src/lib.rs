@@ -109,7 +109,7 @@ pub fn run_rust_boost(
     // Booster -> Sampler
     let (s_next_model, r_next_model) = channel();
 
-    let (counts_table, weights_table) = run_stratified(
+    let (_counts_table, _weights_table) = run_stratified(
         config.num_examples,
         config.num_features,
         config.num_examples_per_block,
@@ -139,7 +139,8 @@ pub fn run_rust_boost(
         config.range,
         config.max_sample_size,
         config.max_bin_size,
-        config.default_gamma
+        config.default_gamma,
+        s_next_model
     );
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);

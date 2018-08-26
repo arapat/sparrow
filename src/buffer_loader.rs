@@ -110,6 +110,7 @@ impl BufferLoader {
 
     /// Return the number of batches (i.e. the number of function calls to `fetch_next_batch`)
     /// before exhausting the current sample set.
+    #[allow(dead_code)]
     pub fn get_num_batches(&self) -> usize {
         self.num_batch
     }
@@ -194,6 +195,7 @@ impl BufferLoader {
 
     // ESS and others
     /// Get the estimate of the effective sample size of the current sample set.
+    #[allow(dead_code)]
     pub fn get_ess(&self) -> Option<f32> {
         self.ess
     }

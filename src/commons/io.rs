@@ -26,6 +26,7 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
     BufWriter::new(f)
 }
 
+#[allow(dead_code)]
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
     let mut ret: Vec<String> = vec![String::new(); k];
     for string in &mut ret {
@@ -34,6 +35,7 @@ pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
     ret
 }
 
+#[allow(dead_code)]
 pub fn read_k_labeled_data<TFeature, TLabel>(
             reader: &mut BufReader<File>, k: usize, missing_val: TFeature, size: usize
         ) -> Vec<LabeledData<TFeature, TLabel>>
@@ -43,6 +45,7 @@ pub fn read_k_labeled_data<TFeature, TLabel>(
     parse_libsvm(&lines, missing_val, size)
 }
 
+#[allow(dead_code)]
 pub fn read_k_labeled_data_from_binary_file(
         reader: &mut BufReader<File>, k: usize, data_size: usize) -> Vec<Example> {
     let data: Vec<Vec<u8>> = (0..k).map(|_| {
@@ -55,6 +58,7 @@ pub fn read_k_labeled_data_from_binary_file(
     }).collect()
 }
 
+#[allow(dead_code)]
 pub fn write_to_binary_file(writer: &mut BufWriter<File>, data: &Example) -> usize {
     let serialized = serialize(data).unwrap();
     writer.write(serialized.as_ref()).unwrap();
@@ -65,6 +69,7 @@ pub fn write_to_text_file(writer: &mut BufWriter<File>, content: &String) {
     writer.write(content.as_ref()).unwrap();
 }
 
+#[allow(dead_code)]
 pub fn parse_libsvm_one_line<TFeature, TLabel>(
             raw_string: &String, missing_val: TFeature, size: usize
         ) -> LabeledData<TFeature, TLabel>
@@ -83,6 +88,7 @@ pub fn parse_libsvm_one_line<TFeature, TLabel>(
     LabeledData::new(feature, label)
 }
 
+#[allow(dead_code)]
 pub fn parse_libsvm<TFeature, TLabel>(raw_strings: &Vec<String>, missing_val: TFeature, size: usize)
         -> Vec<LabeledData<TFeature, TLabel>>
         where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,

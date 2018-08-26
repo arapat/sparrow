@@ -11,6 +11,7 @@ pub type ExampleInSampleSet = (Example, (f32, usize), (f32, usize));
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
 
+#[allow(dead_code)]
 pub type LossFunc = Fn(&Vec<(f32, f32)>) -> f32;
 
 const DELTA: f32  = 0.0001;
@@ -27,6 +28,7 @@ pub fn get_weight(data: &Example, score: f32) -> f32 {
     (-score * get_symmetric_label(data)).exp()
 }
 
+#[allow(dead_code)]
 pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
     data.par_iter()
         .zip(scores.par_iter())
@@ -34,6 +36,7 @@ pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
         .collect()
 }
 
+#[allow(dead_code)]
 pub fn get_absolute_weights(data: &[ExampleInSampleSet]) -> Vec<f32> {
     data.par_iter()
         .map(|(d, _, (s, _))| get_weight(&d, *s))
