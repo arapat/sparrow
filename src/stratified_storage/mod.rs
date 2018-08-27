@@ -14,6 +14,7 @@ use super::ExampleWithScore;
 
 use self::assigners::Assigners;
 use self::selectors::Selectors;
+use self::serial_storage::SerialStorage;
 use self::strata::Strata;
 
 
@@ -81,6 +82,33 @@ pub fn run_stratified(
     assigners.run(num_assigners);
     selectors.run(num_selectors);
     (counts_table, weights_table)
+}
+
+
+pub fn fill_stratified(
+        stratified_sender: Sender<ExampleWithScore>,
+        filename: String,
+        size: usize,
+        batch_size: usize,
+        feature_size: usize,
+        is_binary: bool,
+        bytes_per_example: Option<usize>,
+) {
+    let mut reader = SerialStorage::new(
+        filename,
+        size,
+        feature_size,
+        is_binary,
+        bytes_per_example,
+    );
+
+    let mut index = 0;
+    while index < size {
+        reader.read(batch_size).into_iter().for_each(|data| {
+            stratified_sender.send((data, (0.0, 0)));
+        });
+        index += batch_size;
+    }
 }
 
 

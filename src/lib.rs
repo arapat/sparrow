@@ -50,6 +50,7 @@ use boosting::Boosting;
 use buffer_loader::BufferLoader;
 use commons::io::create_bufreader;
 use sampler::run_sampler;
+use stratified_storage::fill_stratified;
 use stratified_storage::run_stratified;
 
 // Types
@@ -64,6 +65,10 @@ pub type ExampleWithScore = (Example, (f32, usize));
 /// Configuration of the RustBoost
 #[derive(Serialize, Deserialize)]
 struct Config {
+    pub training_filename: String,
+    pub training_is_binary: bool,
+    pub training_bytes_per_example: usize,
+
     pub num_examples: usize,
     pub num_features: usize,
     pub range: std::ops::Range<usize>, 
@@ -118,6 +123,15 @@ pub fn run_rust_boost(
         config.num_selectors,
         r_updated_examples,
         s_loaded_examples
+    );
+    fill_stratified(
+        s_updated_examples.clone(),
+        config.training_filename.clone(),
+        config.num_examples,
+        config.batch_size,
+        config.num_features,
+        config.training_is_binary,
+        Some(config.training_bytes_per_example),
     );
     run_sampler(
         config.sampler_num_threads,

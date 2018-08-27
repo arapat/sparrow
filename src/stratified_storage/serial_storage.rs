@@ -34,11 +34,13 @@ pub struct SerialStorage {
 impl SerialStorage {
     pub fn new(
             filename: String,
-            is_binary: bool,
             size: usize,
             feature_size: usize,
+            is_binary: bool,
             bytes_per_example: Option<usize>,
     ) -> SerialStorage {
+        assert!(!is_binary || bytes_per_example.is_some());
+
         let reader = create_bufreader(&filename);
         let binary_cons = if is_binary {
             None
@@ -66,7 +68,7 @@ impl SerialStorage {
         }
     }
 
-    fn fetch(&mut self, batch_size: usize) -> Vec<Example> {
+    pub fn read(&mut self, batch_size: usize) -> Vec<Example> {
         let head = self.index;
         let tail = min(self.index + batch_size, self.size);
         let true_batch_size = tail - head;
@@ -118,6 +120,7 @@ impl SerialStorage {
          self.reader = create_bufreader(&self.filename);
     }
 
+    #[allow(dead_code)]
     pub fn load_to_memory(&mut self, batch_size: usize) {
         info!("Load current file into the memory.");
         assert_eq!(self.in_memory, false);
@@ -125,7 +128,7 @@ impl SerialStorage {
         self.try_reset(true /* force */);
         let num_batch = (self.size + batch_size - 1) / batch_size;
         for _ in 0..num_batch {
-            let data = self.fetch(batch_size);
+            let data = self.read(batch_size);
             self.memory_buffer.extend(data);
         }
         self.in_memory = true;
@@ -136,7 +139,7 @@ impl SerialStorage {
 
 
 #[derive(Debug)]
-pub struct TextToBinHelper {
+struct TextToBinHelper {
     filename: String,
     size: usize,
     bytes_per_example: usize,
