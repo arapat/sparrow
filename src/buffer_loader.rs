@@ -218,7 +218,7 @@ impl BufferLoader {
     fn update_ess(&mut self) {
         let count = self.size;
         let ess = self.sum_weights.powi(2) / self.sum_weight_squared / (count as f32);
-        debug!("loader-reset, {}", ess);
+        trace!("loader-reset, {}", ess);
         self.ess = Some(ess);
         self.sum_weights = 0.0;
         self.sum_weight_squared = 0.0;
@@ -254,6 +254,9 @@ fn load_buffer(capacity: usize,
         // Fill the new buffer
         {
             if let Ok(mut examples) = examples_in_cons.write() {
+                debug!("BUFFER LOADING START");
+                let mut pm = PerformanceMonitor::new();
+                pm.start();
                 while examples.len() < capacity {
                     if let Ok((example, (score, node))) = sampled_examples.recv() {
                         examples.push((example, (score.clone(), node.clone()), (score, node)));
@@ -262,6 +265,8 @@ fn load_buffer(capacity: usize,
                     }
                 }
                 thread_rng().shuffle(&mut *examples);
+                pm.pause();
+                debug!("BUFFER LOADING FINISH, {}", capacity as f32 / pm.get_duration());
             }
         }
         {

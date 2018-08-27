@@ -1,11 +1,13 @@
 use rand;
 use rand::Rng;
+use rayon::prelude::*;
 
 use std::cmp::min;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufWriter;
 
+use commons::Model;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::read_k_labeled_data;
@@ -28,6 +30,11 @@ pub struct SerialStorage {
     reader: BufReader<File>,
     memory_buffer: Vec<Example>,
     index: usize,
+
+    head: usize,
+    tail: usize,
+    scores: Vec<f32>,
+    scores_version: Vec<usize>,
 }
 
 
@@ -55,7 +62,7 @@ impl SerialStorage {
             };
         SerialStorage {
             filename: filename,
-            size: size,
+            size: size.clone(),
             feature_size: feature_size,
             is_binary: is_binary,
             in_memory: false,
@@ -65,19 +72,22 @@ impl SerialStorage {
             reader: reader,
             memory_buffer: vec![],
             index: 0,
+
+            head: 0,
+            tail: 0,
+            scores: vec![0.0; size.clone()],
+            scores_version: vec![0; size.clone()],
         }
     }
 
     pub fn read(&mut self, batch_size: usize) -> Vec<Example> {
-        let head = self.index;
-        let tail = min(self.index + batch_size, self.size);
-        let true_batch_size = tail - head;
-        self.index = tail;
-        self.try_reset(false /* not forcing */);
+        self.head = self.index;
+        self.tail = min(self.index + batch_size, self.size);
+        let true_batch_size = self.tail - self.head;
 
         // Load from memory
         if self.in_memory {
-            return self.memory_buffer[head..tail].to_vec();
+            return self.memory_buffer[self.head..self.tail].to_vec();
         }
         // Load from disk
         let batch: Vec<Example> =
@@ -93,6 +103,9 @@ impl SerialStorage {
                 cons.append_data(data);
             });
         }
+
+        self.index = self.tail;
+        self.try_reset(false /* not forcing */);
         batch
     }
 
@@ -120,6 +133,39 @@ impl SerialStorage {
          self.reader = create_bufreader(&self.filename);
     }
 
+    pub fn update_scores(&mut self, data: &Vec<Example>, model: &Model) {
+        let model_size = model.len();
+        let inc_scores: Vec<f32> =
+            self.scores_version[self.head..self.tail]
+                .iter()
+                .zip(data.iter())
+                .map(|(version, example)| {
+                    model[*version..model_size]
+                        .par_iter()
+                        .map(|tree| {
+                            tree.get_leaf_prediction(example)
+                        })
+                        .sum()
+                })
+                .collect();
+        self.scores[self.head..self.tail]
+            .par_iter_mut()
+            .zip(inc_scores.par_iter())
+            .for_each(|(score, increase)| {
+                *score += increase;
+            });
+        self.scores_version[self.head..self.tail]
+            .par_iter_mut()
+            .for_each(|version| {
+                *version = model_size;
+            });
+    }
+
+    pub fn get_scores(&self) -> Vec<f32> {
+        // TODO: check if the change is updated
+        self.scores[self.head..self.tail].to_vec()
+    }
+
     #[allow(dead_code)]
     pub fn load_to_memory(&mut self, batch_size: usize) {
         info!("Load current file into the memory.");
@@ -134,6 +180,10 @@ impl SerialStorage {
         self.in_memory = true;
         self.is_binary = true;
         info!("In-memory conversion finished.");
+    }
+
+    pub fn get_size(&self) -> usize {
+        self.size
     }
 }
 

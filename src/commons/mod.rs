@@ -11,9 +11,6 @@ pub type ExampleInSampleSet = (Example, (f32, usize), (f32, usize));
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
 
-#[allow(dead_code)]
-pub type LossFunc = Fn(&Vec<(f32, f32)>) -> f32;
-
 const DELTA: f32  = 0.0001;
 const SHRINK: f32 = 1.0;
 const THRESHOLD_FACTOR: f32 = 6.0;

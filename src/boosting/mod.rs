@@ -37,12 +37,13 @@ pub struct Boosting {
     last_backup_time: f32,
     persist_id: u32,
 
-    sender: Option<Sender<ModelScore>>,
-    receiver: Option<Receiver<ModelScore>>,
+    network_sender: Option<Sender<ModelScore>>,
+    network_receiver: Option<Receiver<ModelScore>>,
     sum_gamma: f32,
     prev_sum_gamma: f32,
 
-    model_send: Sender<Model>,
+    sampler_send: Sender<Model>,
+    validator_send: Sender<Model>,
 }
 
 impl Boosting {
@@ -61,7 +62,8 @@ impl Boosting {
                 max_sample_size: usize,
                 max_bin_size: usize,
                 default_gamma: f32,
-                model_send: Sender<Model>
+                sampler_send: Sender<Model>,
+                validator_send: Sender<Model>,
             ) -> Boosting {
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
         let learner = Learner::new(default_gamma, bins, &range);
@@ -79,12 +81,13 @@ impl Boosting {
             last_backup_time: 0.0,
             persist_id: 0,
 
-            sender: None,
-            receiver: None,
+            network_sender: None,
+            network_receiver: None,
             sum_gamma: gamma_squared.clone(),
             prev_sum_gamma: gamma_squared,
 
-            model_send: model_send,
+            sampler_send: sampler_send,
+            validator_send: validator_send,
         }
     }
 
@@ -95,8 +98,8 @@ impl Boosting {
     pub fn enable_network(&mut self, name: String, remote_ips: &Vec<String>, port: u16) {
         let (local_send, local_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
         let (other_send, other_recv): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
-        self.sender = Some(local_send);
-        self.receiver = Some(other_recv);
+        self.network_sender = Some(local_send);
+        self.network_receiver = Some(other_recv);
         start_network(name.as_ref(), remote_ips, port, true, other_send, local_recv);
     }
 
@@ -126,6 +129,9 @@ impl Boosting {
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
+            if self.learner.get_gamma() <= 0.0001 {
+                break;
+            }
 
             {
                 self.training_loader.fetch_next_batch(true);
@@ -154,7 +160,7 @@ impl Boosting {
             if found_new_rule {
                 self.sum_gamma += self.learner.get_gamma().powi(2);
                 self.try_send_model();
-                debug!(
+                info!(
                     "new-tree-info, {}, {}, {}, {}, {}",
                     self.model.len(),
                     self.learner.get_count(),
@@ -165,7 +171,6 @@ impl Boosting {
                 scanned_counter = 0;
                 model_ts = global_timer.get_duration();
                 self.learner.reset();
-                self._validate();
             }
 
             if self.handle_network() {
@@ -199,10 +204,10 @@ impl Boosting {
 
     fn handle_network(&mut self) -> bool {
         let mut replaced = false;
-        if self.receiver.is_some() {
+        if self.network_receiver.is_some() {
             // info!("Processing models received from the network");
             // handle receiving
-            let recv = self.receiver.as_ref().unwrap();  // safe, guaranteed in the IF statement
+            let recv = self.network_receiver.as_ref().unwrap();  // safe, guaranteed in the IF statement
             let mut best_model = None;
             let mut max_score = 0.0;
             // process all models received so far
@@ -229,7 +234,7 @@ impl Boosting {
 
             // handle sending
             if self.sum_gamma > self.prev_sum_gamma {
-                let send_result = self.sender.as_ref().unwrap()
+                let send_result = self.network_sender.as_ref().unwrap()
                                       .send((self.model.clone(), self.sum_gamma));
                 if let Err(err) = send_result {
                     error!("Attempt to send the local model
@@ -255,15 +260,11 @@ impl Boosting {
     }
 
     fn try_send_model(&mut self) {
-        if let Some(ref mut sender) = self.sender {
-            sender.send((self.model.clone(), self.sum_gamma)).unwrap();
+        if let Some(ref mut network_sender) = self.network_sender {
+            network_sender.send((self.model.clone(), self.sum_gamma)).unwrap();
         }
-        self.model_send.send(self.model.clone()).unwrap();
-    }
-
-    fn _validate(&mut self) {
-        info!("Validation is skipped.");
-        // TODO: start validation in a non-blocking way
+        self.sampler_send.send(self.model.clone()).unwrap();
+        self.validator_send.send(self.model.clone()).unwrap();
     }
 }
 
@@ -274,7 +275,7 @@ fn get_base_tree(max_sample_size: usize, data_loader: &mut BufferLoader) -> (Tre
     let mut n_neg = 0;
     while remaining_reads > 0 {
         data_loader.fetch_next_batch(true);
-        let data = data_loader.get_curr_batch(true);
+        let data = data_loader.get_curr_batch(false /* skip scores update */);
         let (num_pos, num_neg) = data.par_iter().map(|example| {
             if is_positive(&get_symmetric_label(&example.0)) {
                 (1, 0)

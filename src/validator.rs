@@ -1,41 +1,82 @@
 use rayon::prelude::*;
 
-use buffer_loader::NormalLoader;
+use std::sync::mpsc::Receiver;
+use std::thread::spawn;
+
+use super::stratified_storage::serial_storage::SerialStorage;
 use commons::Model;
-use commons::LossFunc;
 use commons::is_positive;
 use commons::is_zero;
 use commons::get_symmetric_label;
 
 
-pub fn validate (
-            data_loader: &mut NormalLoader, trees: &Model, eval_funcs: &Vec<&LossFunc>
-        ) -> Vec<String> {
-    let num_batches = data_loader.get_num_batches();
+#[allow(dead_code)]
+pub enum EvalFunc {
+    AdaBoostLoss,
+    ErrorRate,
+    AUPRC,
+    AUROC,
+}
+
+pub fn run_validate(
+        testing_filename: String,
+        testing_size: usize,
+        feature_size: usize,
+        testing_is_binary: bool,
+        bytes_per_example: Option<usize>,
+        eval_funcs: Vec<EvalFunc>,
+        receive_model: Receiver<Model>
+) {
+    let mut data_loader = SerialStorage::new(
+        testing_filename,
+        testing_size,
+        feature_size,
+        testing_is_binary,
+        bytes_per_example,
+    );
+    spawn(move || {
+        while let Ok(model) = receive_model.recv() {
+            validate(&mut data_loader, &model, &eval_funcs);
+        }
+    });
+}
+
+fn validate (
+        data_loader: &mut SerialStorage,
+        trees: &Model,
+        eval_funcs: &Vec<EvalFunc>
+) -> Vec<String> {
+    let batch_size = 128;
+    let num_batches = (data_loader.get_size() + batch_size - 1) / batch_size;
     let mut scores_labels: Vec<(f32, f32)> = (0..num_batches).flat_map(|_| {
-        data_loader.fetch_next_batch();
-        data_loader.fetch_scores(trees);
-        let labels: Vec<f32> = data_loader.get_curr_batch()
-                                          .iter()
-                                          .map(|d| get_symmetric_label(d))
-                                          .collect();
-        let scores: Vec<f32> = data_loader.get_absolute_scores()
-                                          .iter()
-                                          .cloned()
-                                          .collect();
-        scores.into_iter().zip(labels.into_iter())
+        let examples = data_loader.read(batch_size);
+        data_loader.update_scores(&examples, trees);
+        data_loader.get_scores()
+                   .into_iter()
+                   .zip(
+                        examples.into_iter()
+                                .map(|data| get_symmetric_label(&data))
+                   )
     }).collect();
     scores_labels.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().reverse());
     let sorted_scores_labels = scores_labels;
-    let scores: Vec<f32> = eval_funcs.iter()
-                                     .map(|f| f(&sorted_scores_labels))
-                                     .collect();
+    let scores: Vec<f32> =
+        eval_funcs.iter()
+                  .map(|func| {
+                      match func {
+                          EvalFunc::AdaBoostLoss => get_adaboost_loss(&sorted_scores_labels),
+                          EvalFunc::ErrorRate    => get_error_rate(&sorted_scores_labels),
+                          EvalFunc::AUPRC        => get_auprc(&sorted_scores_labels),
+                          EvalFunc::AUROC        => get_auroc(&sorted_scores_labels),
+                      }
+                  })
+                  .collect();
     let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
     debug!("validation-results, {}, {}", trees.len(), output.join(", "));
     output
 }
 
-pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
+fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let loss: f32 = scores_labels.par_iter()
                                  // .map(|&(score, label)| min(1.0, (-score * label).exp()))
                                  .map(|&(score, label)| (-score * label).exp())
@@ -43,8 +84,7 @@ pub fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
     loss / (scores_labels.len() as f32)
 }
 
-#[allow(dead_code)]
-pub fn get_error_rate(scores_labels: &Vec<(f32, f32)>) -> f32 {
+fn get_error_rate(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let error: usize = scores_labels.par_iter()
                                     .map(|&(score, label)| {
                                         if score * label <= 0.0 {
@@ -56,8 +96,7 @@ pub fn get_error_rate(scores_labels: &Vec<(f32, f32)>) -> f32 {
     (error as f32) / (scores_labels.len() as f32)
 }
 
-#[allow(dead_code)]
-pub fn get_auprc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
+fn get_auprc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     let (fps, tps, _) = get_fps_tps(sorted_scores_labels);
 
     let num_positive = tps[tps.len() - 1] as f32;
@@ -75,8 +114,7 @@ pub fn get_auprc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     area_first_seg + get_auc(&mut points, true)
 }
 
-#[allow(dead_code)]
-pub fn get_auroc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
+fn get_auroc(sorted_scores_labels: &Vec<(f32, f32)>) -> f32 {
     let (fps, tps, _) = get_fps_tps(sorted_scores_labels);
 
     let num_fp = fps[fps.len() - 1] as f32;

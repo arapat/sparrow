@@ -17,7 +17,7 @@ use labeled_data::LabeledData;
 
 
 pub fn create_bufreader(filename: &String) -> BufReader<File> {
-    let f = File::open(filename).unwrap();
+    let f = File::open(filename).expect(&format!("Cannot open the file `{}`.", filename));
     BufReader::new(f)
 }
 
