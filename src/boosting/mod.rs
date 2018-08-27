@@ -100,6 +100,7 @@ impl Boosting {
         start_network(name.as_ref(), remote_ips, port, true, other_send, local_recv);
     }
 
+
     /// Start training the boosting algorithm.
     ///
     /// * `num_iterations`: the number of boosting iteration. If it equals to 0, then the algorithm runs indefinitely.
@@ -164,6 +165,7 @@ impl Boosting {
                 scanned_counter = 0;
                 model_ts = global_timer.get_duration();
                 self.learner.reset();
+                self._validate();
             }
 
             if self.handle_network() {

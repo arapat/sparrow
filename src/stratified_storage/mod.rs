@@ -1,7 +1,7 @@
 mod strata;
 mod assigners;
 mod selectors;
-// mod mpmc_map;
+mod serial_storage;
 
 use std::collections::HashMap;
 use std::sync::Arc;
