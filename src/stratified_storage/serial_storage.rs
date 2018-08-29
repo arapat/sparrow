@@ -52,7 +52,7 @@ impl SerialStorage {
         let binary_cons = if is_binary {
             None
         } else {
-            Some(TextToBinHelper::new())
+            Some(TextToBinHelper::new(&filename))
         };
         let unwrap_bytes_per_example =
             if let Some(t) = bytes_per_example {
@@ -198,8 +198,8 @@ struct TextToBinHelper {
 
 
 impl TextToBinHelper {
-    pub fn new() -> TextToBinHelper {
-        let filename = gen_filename();
+    pub fn new(original_filename: &String) -> TextToBinHelper {
+        let filename = original_filename.clone() + "_bin";
         let writer = create_bufwriter(&filename);
         TextToBinHelper {
             filename: filename,
@@ -224,6 +224,7 @@ impl TextToBinHelper {
 }
 
 
+#[allow(dead_code)]
 fn gen_filename() -> String {
     let random_str =
         rand::thread_rng()
