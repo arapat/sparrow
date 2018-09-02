@@ -2,13 +2,11 @@
 training_filename: ../rust-boost/tests/data/a1a.t
 training_is_binary: false
 training_bytes_per_example: 0
-# testing_filename: ../rust-boost/tests/data/a1a
 testing_filename: ../rust-boost/tests/data/a1a.t
 testing_is_binary: false
 testing_bytes_per_example: 0
 num_examples: 30956
 num_testing_examples: 30956
-# num_testing_examples: 1605
 num_features: 125
 range:
   start: 0

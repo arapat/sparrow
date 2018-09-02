@@ -15,3 +15,7 @@ logs-analysis/local/run*
 logs-analysis/network/*-nodes
 logs-analysis/network/node-*
 neighbors.txt
+
+*_bin
+model-*.json
+.vscode
