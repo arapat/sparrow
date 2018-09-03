@@ -105,9 +105,7 @@ struct Config {
 }
 
 
-pub fn run_rust_boost(
-    config_file: String
-) {
+pub fn run_rust_boost(config_file: String) {
     // Load configurations
     let config: Config = serde_yaml::from_reader(
         create_bufreader(&config_file)

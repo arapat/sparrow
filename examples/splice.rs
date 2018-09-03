@@ -23,6 +23,6 @@ fn main() {
         })
         .init();
 
-    let config_file = String::from("../rust-boost/examples/config2.yaml");
+    let config_file = String::from("./examples/config_splice.yaml");
     run_rust_boost(config_file);
 }
