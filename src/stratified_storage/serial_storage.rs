@@ -45,11 +45,12 @@ impl SerialStorage {
             feature_size: usize,
             is_binary: bool,
             bytes_per_example: Option<usize>,
+            one_pass: bool,
     ) -> SerialStorage {
         assert!(!is_binary || bytes_per_example.is_some());
 
         let reader = create_bufreader(&filename);
-        let binary_cons = if is_binary {
+        let binary_cons = if is_binary || one_pass {
             None
         } else {
             Some(TextToBinHelper::new(&filename))
@@ -114,7 +115,7 @@ impl SerialStorage {
             return;
         }
 
-        if self.index >= self.size && !self.is_binary {
+        if self.index >= self.size && self.binary_cons.is_some() {
             let cons = self.binary_cons.as_ref().unwrap();
             let orig_filename = self.filename.clone();
             let (filename, size, bytes_per_example) = cons.get_content();

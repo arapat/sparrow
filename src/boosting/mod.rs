@@ -129,9 +129,9 @@ impl Boosting {
             if self.learner.get_count() >= timeout {
                 self.learner.shrink_target();
             }
-            if self.learner.get_gamma() <= 0.0001 {
-                break;
-            }
+            // if self.learner.get_gamma() <= 0.0001 {
+            //     break;
+            // }
 
             {
                 self.training_loader.fetch_next_batch(true);
