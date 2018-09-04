@@ -33,6 +33,7 @@ pub fn run_validate(
         feature_size,
         testing_is_binary,
         bytes_per_example,
+        false,
     );
     spawn(move || {
         while let Ok(model) = receive_model.recv() {

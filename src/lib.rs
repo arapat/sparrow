@@ -122,6 +122,7 @@ pub fn run_rust_boost(config_file: String) {
     // Booster -> Validator
     let (s_model_for_validate, r_model_for_validate) = channel();
 
+    info!("Starting the stratified structure.");
     let (_counts_table, _weights_table) = run_stratified(
         config.num_examples,
         config.num_features,
@@ -132,6 +133,7 @@ pub fn run_rust_boost(config_file: String) {
         r_updated_examples,
         s_loaded_examples
     );
+    info!("Initializing the stratified structure.");
     fill_stratified(
         s_updated_examples.clone(),
         config.training_filename.clone(),
@@ -141,6 +143,7 @@ pub fn run_rust_boost(config_file: String) {
         config.training_is_binary,
         Some(config.training_bytes_per_example),
     );
+    info!("Starting the sampler.");
     run_sampler(
         config.sampler_num_threads,
         config.sampler_init_grid_size,
@@ -150,12 +153,14 @@ pub fn run_rust_boost(config_file: String) {
         s_sampled_examples,
         r_next_model
     );
+    info!("Starting the buffered loader.");
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
         r_sampled_examples,
         true,
     );
+    info!("Starting the booster.");
     let mut booster = Boosting::new(
         buffer_loader,
         config.range,
@@ -168,6 +173,7 @@ pub fn run_rust_boost(config_file: String) {
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);
     }
+    info!("Starting the validator.");
     run_validate(
         config.testing_filename,
         config.num_testing_examples,

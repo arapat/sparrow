@@ -1,13 +1,13 @@
 ---
 # training_filename: /Users/arapat/Documents/data/splice/training-data-100K.libsvm
-training_filename: /Users/arapat/Documents/data/splice/training-data.libsvm
+training_filename: /mnt/training-shuffled.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
-testing_filename: /Users/arapat/Documents/data/splice/training-data-10K.libsvm
+testing_filename: /mnt/testing-correct.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 0
 num_examples: 50000000
-num_testing_examples: 10000
+num_testing_examples: 4627840
 num_features: 565
 range:
   start: 0
@@ -15,7 +15,7 @@ range:
 max_sample_size: 20000
 max_bin_size: 10
 default_gamma: 0.25
-num_iterations: 64
+num_iterations: 0
 max_trials_before_shrink: 1000000
 channel_size: 128
 buffer_size: 50000

@@ -100,6 +100,7 @@ pub fn fill_stratified(
         feature_size,
         is_binary,
         bytes_per_example,
+        true,
     );
 
     let mut index = 0;
