@@ -36,7 +36,11 @@ pub fn run_validate(
         false,
     );
     spawn(move || {
-        while let Ok(model) = receive_model.recv() {
+        loop {
+            let mut model = receive_model.recv().expect("Sampler failed to receive updated model");
+            while let Ok(r) = receive_model.try_recv() {
+                model = r;
+            }
             validate(&mut data_loader, &model, &eval_funcs);
         }
     });

@@ -78,6 +78,7 @@ fn update_model(model: Arc<RwLock<Model>>, next_model: mpsc::Receiver<Model>) {
     for new_model in next_model.iter() {
         if let Ok(mut model_w) = model.write() {
             *model_w = new_model;
+            info!("sampler model update, {}", model_w.len());
         }
     }
 }
