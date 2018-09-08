@@ -3,9 +3,9 @@
 training_filename: /mnt/training-shuffled.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
-testing_filename: /mnt/testing-correct.libsvm
-testing_is_binary: false
-testing_bytes_per_example: 0
+testing_filename: /mnt/testing-correct.libsvm_bin
+testing_is_binary: true
+testing_bytes_per_example: 574
 num_examples: 50000000
 num_testing_examples: 4627840
 num_features: 565
@@ -18,7 +18,7 @@ default_gamma: 0.25
 num_iterations: 0
 max_trials_before_shrink: 1000000
 channel_size: 128
-buffer_size: 50000
+buffer_size: 2000000
 batch_size: 10000
 sampler_num_threads: 2
 sampler_init_grid_size: 1.0

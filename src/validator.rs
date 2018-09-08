@@ -1,7 +1,11 @@
 use rayon::prelude::*;
 
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::sync::mpsc::Receiver;
 use std::thread::spawn;
+use std::thread::sleep;
+use std::time;
 
 use super::stratified_storage::serial_storage::SerialStorage;
 use commons::Model;
@@ -35,13 +39,33 @@ pub fn run_validate(
         bytes_per_example,
         false,
     );
+    let model: Arc<RwLock<Model>> = Arc::new(RwLock::new(vec![]));
+    let model_w = model.clone();
     spawn(move || {
-        loop {
-            let mut model = receive_model.recv().expect("Sampler failed to receive updated model");
-            while let Ok(r) = receive_model.try_recv() {
-                model = r;
+        for new_model in receive_model.iter() {
+            if let Ok(mut ok_model) = model_w.write() {
+                *ok_model = new_model;
+                info!("validator model update, {}", ok_model.len());
             }
-            validate(&mut data_loader, &model, &eval_funcs);
+        }
+    });
+    spawn(move || {
+        let mut last_validate_len = 0;
+        loop {
+            let some_trees = {
+                if let Ok(ok_model) = model.read() {
+                    Some(ok_model)
+                } else {
+                    None
+                }
+            };
+            let trees = some_trees.unwrap();
+            if last_validate_len < trees.len() {
+                validate(&mut data_loader, &trees, &eval_funcs);
+                last_validate_len = trees.len();
+            } else {
+                sleep(time::Duration::from_millis(1000));
+           }
         }
     });
 }
