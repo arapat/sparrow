@@ -11,6 +11,7 @@ use super::ExampleWithScore;
 use super::Strata;
 use super::CountsTable;
 use super::WeightsTable;
+use commons::performance_monitor::PerformanceMonitor;
 
 use commons::get_sign;
 use commons::get_weight;
@@ -55,42 +56,40 @@ fn fill_loaded_examples(counts_table: CountsTable,
                         weights_table: WeightsTable,
                         strata: Arc<RwLock<Strata>>,
                         loaded_examples: Sender<ExampleWithScore>) {
+    let mut pm = PerformanceMonitor::new();
     loop {
-        let sample = {
-            let p: Vec<(i8, f64)> = {
-                let mut hash_map = weights_table.read().unwrap();
-                hash_map.iter()
-                        .map(|(a, b)| (a.clone(), b.clone()))
-                        .collect()
-            };
-            if let Some(index) = get_sample_from(p) {
-                let existing_receiver = strata.read().unwrap().get_out_queue(index);
-                let receiver = {
-                    if let Some(receiver) = existing_receiver {
-                        receiver
-                    } else {
-                        let (_, receiver) = strata.write().unwrap().create(index);
-                        receiver
-                    }
-                };
-                let (example, (score, version)) = receiver.recv().unwrap();
-                let weight = get_weight(&example, score);
-                {
-                    let mut weights = weights_table.write().unwrap();
-                    let prev_weight = weights.entry(index).or_insert(0.0);
-                    *prev_weight -= weight as f64;
-
-                    let mut counts = counts_table.write().unwrap();
-                    let prev_count = counts.entry(index).or_insert(0);
-                    *prev_count -= 1;
-                }
-                Some((example, (score, version)))
-            } else {
-                None
-            }
+        let p: Vec<(i8, f64)> = {
+            let mut hash_map = weights_table.read().unwrap();
+            hash_map.iter()
+                    .map(|(a, b)| (a.clone(), b.clone()))
+                    .collect()
         };
-        if let Some(example) = sample {
-            loaded_examples.send(example);
+        if let Some(index) = get_sample_from(p) {
+            let read_strata = strata.read().unwrap();
+            let existing_receiver = read_strata.get_out_queue(index);
+            drop(read_strata);
+            let receiver = {
+                if let Some(receiver) = existing_receiver {
+                    receiver
+                } else {
+                    let (_, receiver) = strata.write().unwrap().create(index);
+                    receiver
+                }
+            };
+            let (example, (score, version)) = receiver.recv().unwrap();
+            let weight = get_weight(&example, score);
+            {
+                let mut weights = weights_table.write().unwrap();
+                let prev_weight = weights.entry(index).or_insert(0.0);
+                *prev_weight -= weight as f64;
+
+                let mut counts = counts_table.write().unwrap();
+                let prev_count = counts.entry(index).or_insert(0);
+                *prev_count -= 1;
+            }
+            loaded_examples.send((example, (score, version)));
+            pm.update(1);
+            pm.write_log("selector");
         } else {
             sleep(Duration::from_millis(100));
         }

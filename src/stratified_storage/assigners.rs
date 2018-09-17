@@ -9,6 +9,7 @@ use super::ExampleWithScore;
 use super::Strata;
 use super::CountsTable;
 use super::WeightsTable;
+use commons::performance_monitor::PerformanceMonitor;
 
 use commons::get_weight;
 
@@ -52,21 +53,18 @@ fn clear_updated_examples(counts_table: CountsTable,
                           weights_table: WeightsTable,
                           updated_examples_out: Receiver<ExampleWithScore>,
                           strata: Arc<RwLock<Strata>>) {
+    let mut pm = PerformanceMonitor::new();
     while let Some(ret) = updated_examples_out.recv() {
         let (example, (score, version)) = ret;
         let weight = get_weight(&example, score);
         let index = get_strata_idx(weight);
-
-        let existing_sender = strata.read().unwrap().get_in_queue(index);
-        let mut sender = {
-            if let Some(sender) = existing_sender {
-                sender
-            } else {
-                let (sender, _) = strata.write().unwrap().create(index);
-                sender
-            }
-        };
-        sender.send((example, (score, version))).unwrap();
+        let read_strata = strata.read().unwrap();
+        let mut sender = read_strata.get_in_queue(index);
+        drop(read_strata);
+        if sender.is_none() {
+            sender = Some(strata.write().unwrap().create(index).0);
+        }
+        sender.unwrap().send((example, (score, version))).unwrap();
         {
             let mut weights = weights_table.write().unwrap();
             let prev_weight = weights.entry(index).or_insert(0.0);
@@ -76,6 +74,8 @@ fn clear_updated_examples(counts_table: CountsTable,
             let prev_count = counts.entry(index).or_insert(0);
             *prev_count += 1;
         }
+        pm.update(1);
+        pm.write_log("selector");
     }
     error!("Updated examples queue was closed.");
 }

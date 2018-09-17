@@ -121,9 +121,6 @@ impl Boosting {
 
         let mut model_ts = global_timer.get_duration();
 
-        let speed_test = false;
-        let mut speed_read = 0;
-
         let mut scanned_counter = 0;
         while num_iterations <= 0 || self.model.len() < num_iterations {
             if self.learner.get_count() >= timeout {
@@ -181,18 +178,8 @@ impl Boosting {
                 self.last_backup_time = model_ts;
             }
 
-            let (since_last_check, count, duration, speed) = global_timer.get_performance();
-            if speed_test || since_last_check >= 2 {
-                let (_, count_learn, duration_learn, speed_learn) = learner_timer.get_performance();
-                debug!("boosting_speed, {}, {}, {}, {}, {}, {}, {}",
-                       self.model.len(), duration, count, speed,
-                       duration_learn, count_learn, speed_learn);
-                global_timer.reset_last_check();
-
-                speed_read += 1;
-                if speed_test && speed_read >= 10 {
-                    return;
-                }
+            if global_timer.write_log("boosting-overall") {
+                learner_timer.write_log("boosting-learning");
             }
         }
         info!("Model in JSON:\n{}", serde_json::to_string(&self.model).unwrap());

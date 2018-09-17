@@ -126,8 +126,6 @@ impl BufferLoader {
 
     /// Read next batch of examples.
     pub fn fetch_next_batch(&mut self, allow_switch: bool) {
-        // self.performance.resume();
-
         if allow_switch {
             self.try_switch();
         }
@@ -223,16 +221,6 @@ impl BufferLoader {
         self.sum_weights = 0.0;
         self.sum_weight_squared = 0.0;
     }
-
-    /*
-    fn report_timer(&mut self, timer: &mut PerformanceMonitor, timer_label: &str) {
-        let (since_last_check, _, _, speed) = timer.get_performance();
-        if since_last_check >= 300 {
-            debug!("{}, {}, {}", timer_label, self.name, speed);
-            timer.reset_last_check();
-        }
-    }
-    */
 }
 
 

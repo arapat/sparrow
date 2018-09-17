@@ -64,14 +64,15 @@ impl PerformanceMonitor {
         self.status = PerformanceMonitorStatus::PAUSE;
     }
 
-    pub fn get_performance(&mut self) -> (i64, usize, f32, f32) {
-        let since_last_check = self.last_check.to(PreciseTime::now()).num_seconds();
-        let duration = self.get_duration();
-        (since_last_check, self.counter, duration, (self.counter as f32) / duration)
-    }
-
-    pub fn reset_last_check(&mut self) {
-        self.last_check = PreciseTime::now();
+    pub fn write_log(&mut self, name: &str) -> bool {
+        let (since_last_check, count, duration, speed) = self.get_performance();
+        if since_last_check >= 5 {
+            debug!("{}-perf-mon, {}, {}, {}", name, duration, count, speed);
+            self.last_check = PreciseTime::now();
+            true
+        } else {
+            false
+        }
     }
 
     pub fn get_duration(&self) -> f32 {
@@ -82,5 +83,11 @@ impl PerformanceMonitor {
                 0
             };
         1e-6 * microseconds as f32
+    }
+
+    fn get_performance(&mut self) -> (i64, usize, f32, f32) {
+        let since_last_check = self.last_check.to(PreciseTime::now()).num_seconds();
+        let duration = self.get_duration();
+        (since_last_check, self.counter, duration, (self.counter as f32) / duration)
     }
 }
