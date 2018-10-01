@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::sync::mpsc::Sender;
 use std::sync::mpsc::Receiver;
 
-use rust_tmsn::network::start_network;
+use tmsn::network::start_network;
 
 use buffer_loader::BufferLoader;
 use tree::Tree;

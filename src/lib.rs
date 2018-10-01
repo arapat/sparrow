@@ -21,7 +21,7 @@ extern crate serde_json;
 extern crate serde_yaml;
 extern crate threadpool;
 extern crate time;
-extern crate rust_tmsn;
+extern crate tmsn;
 
 
 /// The class of the weak learner, namely a decision stump.

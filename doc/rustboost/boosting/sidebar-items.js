@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["Boosting","The boosting algorithm. It contains two functions, one for starting the network communication, the other for starting the training procedure."]]});
