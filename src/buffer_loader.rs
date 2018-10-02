@@ -164,9 +164,7 @@ impl BufferLoader {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
     use std::thread::sleep;
-    use std::thread::spawn;
 
     use std::time::Duration;
 
@@ -178,7 +176,7 @@ mod tests {
     #[test]
     fn test_buffer_loader() {
         let mut buffer_loader = BufferLoader::new(100, 10, false);
-        let mut new_examples = buffer_loader.new_examples.clone();
+        let new_examples = buffer_loader.new_examples.clone();
         if let Ok(mut t) = new_examples.write() {
             *t = Some(vec![get_example(vec![0, 1, 2], 1.0); 100]);
         }

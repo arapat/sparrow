@@ -22,11 +22,14 @@ pub fn create_bufreader(filename: &String) -> BufReader<File> {
 }
 
 pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
-    let f = File::create(filename).unwrap();
+    let f = File::create(filename).expect(&format!("Cannot create the file `{}`.", filename));
     BufWriter::new(f)
 }
 
-#[allow(dead_code)]
+pub fn write_to_text_file(writer: &mut BufWriter<File>, content: &String) {
+    writer.write(content.as_ref()).unwrap();
+}
+
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
     let mut ret: Vec<String> = vec![String::new(); k];
     for string in &mut ret {
@@ -35,19 +38,27 @@ pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
     ret
 }
 
-#[allow(dead_code)]
 pub fn read_k_labeled_data<TFeature, TLabel>(
-            reader: &mut BufReader<File>, k: usize, missing_val: TFeature, size: usize
-        ) -> Vec<LabeledData<TFeature, TLabel>>
-        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
-              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
+    reader: &mut BufReader<File>,
+    k: usize,
+    missing_val: TFeature,
+    size: usize
+) -> Vec<LabeledData<TFeature, TLabel>>
+where
+    TFeature: FromStr + Clone + Send + Sync,
+    TFeature::Err: Debug,
+    TLabel: FromStr + Send + Sync,
+    TLabel::Err: Debug,
+{
     let lines = read_k_lines(reader, k);
     parse_libsvm(&lines, missing_val, size)
 }
 
-#[allow(dead_code)]
 pub fn read_k_labeled_data_from_binary_file(
-        reader: &mut BufReader<File>, k: usize, data_size: usize) -> Vec<Example> {
+    reader: &mut BufReader<File>,
+    k: usize,
+    data_size: usize
+) -> Vec<Example> {
     let data: Vec<Vec<u8>> = (0..k).map(|_| {
         let mut buf: Vec<u8> = vec![0; data_size];
         reader.read_exact(&mut buf[..]).unwrap();
@@ -58,41 +69,50 @@ pub fn read_k_labeled_data_from_binary_file(
     }).collect()
 }
 
-#[allow(dead_code)]
 pub fn write_to_binary_file(writer: &mut BufWriter<File>, data: &Example) -> usize {
     let serialized = serialize(data).unwrap();
     writer.write(serialized.as_ref()).unwrap();
     serialized.len()
 }
 
-pub fn write_to_text_file(writer: &mut BufWriter<File>, content: &String) {
-    writer.write(content.as_ref()).unwrap();
-}
-
-#[allow(dead_code)]
-pub fn parse_libsvm_one_line<TFeature, TLabel>(
-            raw_string: &String, missing_val: TFeature, size: usize
-        ) -> LabeledData<TFeature, TLabel>
-        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
-              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
+#[inline]
+fn parse_libsvm_one_line<TFeature, TLabel>(
+    raw_string: &String,
+    missing_val: TFeature,
+    size: usize,
+) -> LabeledData<TFeature, TLabel>
+where
+    TFeature: FromStr + Clone + Send + Sync,
+    TFeature::Err: Debug,
+    TLabel: FromStr + Send + Sync,
+    TLabel::Err: Debug
+{
     let mut numbers = raw_string.split_whitespace();
     let label: TLabel = numbers.next().unwrap().parse().unwrap();
     let mut feature: Vec<TFeature> = vec![missing_val; size];
     numbers.map(|index_value| {
         let sep = index_value.find(':').unwrap();
-        (index_value[..sep].parse().unwrap(),
-         index_value[sep+1..].parse().unwrap())
+        (
+            index_value[..sep].parse().unwrap(),
+            index_value[sep+1..].parse().unwrap()
+        )
     }).for_each(|(index, value): (usize, TFeature)| {
         feature[index] = value;
     });
     LabeledData::new(feature, label)
 }
 
-#[allow(dead_code)]
-pub fn parse_libsvm<TFeature, TLabel>(raw_strings: &Vec<String>, missing_val: TFeature, size: usize)
-        -> Vec<LabeledData<TFeature, TLabel>>
-        where TFeature: FromStr + Clone + Send + Sync, TFeature::Err: Debug,
-              TLabel: FromStr + Send + Sync, TLabel::Err: Debug {
+fn parse_libsvm<TFeature, TLabel>(
+    raw_strings: &Vec<String>,
+    missing_val: TFeature,
+    size: usize,
+) -> Vec<LabeledData<TFeature, TLabel>>
+where
+    TFeature: FromStr + Clone + Send + Sync,
+    TFeature::Err: Debug,
+    TLabel: FromStr + Send + Sync,
+    TLabel::Err: Debug
+{
     raw_strings.par_iter()
                .map(|s| parse_libsvm_one_line(&s, missing_val.clone(), size))
                .collect()

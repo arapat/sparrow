@@ -27,6 +27,7 @@ pub fn get_weight(data: &Example, score: f32) -> f32 {
 }
 
 #[allow(dead_code)]
+#[inline]
 pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
     data.par_iter()
         .zip(scores.par_iter())
