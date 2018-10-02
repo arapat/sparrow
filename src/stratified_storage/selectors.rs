@@ -7,11 +7,11 @@ use rand;
 use std::thread::sleep;
 use std::thread::spawn;
 
-use super::ExampleWithScore;
+use commons::ExampleWithScore;
+use commons::performance_monitor::PerformanceMonitor;
 use super::Strata;
 use super::CountsTable;
 use super::WeightsTable;
-use commons::performance_monitor::PerformanceMonitor;
 
 use commons::get_sign;
 use commons::get_weight;
@@ -57,6 +57,7 @@ fn fill_loaded_examples(counts_table: CountsTable,
                         strata: Arc<RwLock<Strata>>,
                         loaded_examples: Sender<ExampleWithScore>) {
     let mut pm = PerformanceMonitor::new();
+    pm.start();
     loop {
         let p: Vec<(i8, f64)> = {
             let mut hash_map = weights_table.read().unwrap();

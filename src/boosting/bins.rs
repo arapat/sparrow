@@ -87,8 +87,7 @@ pub fn create_bins(max_sample_size: usize, max_bin_size: usize,
         mappers.push(BinMapper::new());
     }
     while remaining_reads > 0 {
-        data_loader.fetch_next_batch(false);
-        let data = data_loader.get_curr_batch(false);
+        let data = data_loader.get_next_batch(false);
         data.iter().for_each(|example| {
             let features = example.0.get_features();
             mappers.iter_mut()

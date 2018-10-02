@@ -2,12 +2,12 @@ extern crate log;
 extern crate env_logger;
 extern crate time;
 
-extern crate rustboost;
+extern crate sparrow;
 
 use std::io::Write;
 use time::get_time;
 
-use rustboost::run_rust_boost;
+use sparrow::run_rust_boost;
 
 
 fn main() {

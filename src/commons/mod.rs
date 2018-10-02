@@ -8,6 +8,7 @@ use tree::Tree;
 use super::Example;
 
 pub type ExampleInSampleSet = (Example, (f32, usize), (f32, usize));
+pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
 

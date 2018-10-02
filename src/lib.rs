@@ -62,7 +62,6 @@ use labeled_data::LabeledData;
 pub type TFeature = u8;
 pub type TLabel = u8;
 pub type Example = LabeledData<TFeature, TLabel>;
-pub type ExampleWithScore = (Example, (f32, usize));
 
 
 /// Configuration of the RustBoost
@@ -115,8 +114,6 @@ pub fn run_rust_boost(config_file: String) {
     let (s_loaded_examples, r_loaded_examples) = chan::sync(config.channel_size);
     // Sampler -> Strata
     let (s_updated_examples, r_updated_examples) = chan::sync(config.channel_size);
-    // Sampler -> BufferLoader
-    let (s_sampled_examples, r_sampled_examples) = sync_channel(config.channel_size);
     // Booster -> Sampler
     let (s_next_model, r_next_model) = channel();
     // Booster -> Validator
@@ -143,6 +140,13 @@ pub fn run_rust_boost(config_file: String) {
         config.training_is_binary,
         Some(config.training_bytes_per_example),
     );
+    info!("Starting the buffered loader.");
+    // TODO: fix new bufferloader api
+    let buffer_loader = BufferLoader::new(
+        config.buffer_size,
+        config.batch_size,
+        true,
+    );
     info!("Starting the sampler.");
     run_sampler(
         config.sampler_num_threads,
@@ -150,15 +154,9 @@ pub fn run_rust_boost(config_file: String) {
         config.sampler_average_window_size,
         r_loaded_examples,
         s_updated_examples,
-        s_sampled_examples,
-        r_next_model
-    );
-    info!("Starting the buffered loader.");
-    let buffer_loader = BufferLoader::new(
+        r_next_model,
+        buffer_loader.new_examples.clone(),
         config.buffer_size,
-        config.batch_size,
-        r_sampled_examples,
-        true,
     );
     info!("Starting the booster.");
     let mut booster = Boosting::new(

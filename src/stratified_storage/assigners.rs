@@ -5,11 +5,11 @@ use chan::Receiver;
 
 use std::thread::spawn;
 
-use super::ExampleWithScore;
+use commons::ExampleWithScore;
+use commons::performance_monitor::PerformanceMonitor;
 use super::Strata;
 use super::CountsTable;
 use super::WeightsTable;
-use commons::performance_monitor::PerformanceMonitor;
 
 use commons::get_weight;
 
@@ -54,6 +54,7 @@ fn clear_updated_examples(counts_table: CountsTable,
                           updated_examples_out: Receiver<ExampleWithScore>,
                           strata: Arc<RwLock<Strata>>) {
     let mut pm = PerformanceMonitor::new();
+    pm.start();
     while let Some(ret) = updated_examples_out.recv() {
         let (example, (score, version)) = ret;
         let weight = get_weight(&example, score);

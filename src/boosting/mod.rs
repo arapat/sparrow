@@ -131,9 +131,9 @@ impl Boosting {
             // }
 
             {
-                self.training_loader.fetch_next_batch(true);
-                self.training_loader.update_scores(&self.model);
-                let data = self.training_loader.get_curr_batch(true);
+                self.training_loader.get_next_batch(true);
+                // self.training_loader.update_scores(&self.model);
+                let data = self.training_loader.get_curr_batch();
                 let weights = get_relative_weights(data);
                 learner_timer.resume();
                 self.learner.update(data, &weights);
@@ -261,8 +261,7 @@ fn get_base_tree(max_sample_size: usize, data_loader: &mut BufferLoader) -> (Tre
     let mut n_pos = 0;
     let mut n_neg = 0;
     while remaining_reads > 0 {
-        data_loader.fetch_next_batch(true);
-        let data = data_loader.get_curr_batch(false /* skip scores update */);
+        let data = data_loader.get_next_batch(true);
         let (num_pos, num_neg) = data.par_iter().map(|example| {
             if is_positive(&get_symmetric_label(&example.0)) {
                 (1, 0)

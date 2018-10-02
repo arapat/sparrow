@@ -12,8 +12,8 @@ use std::sync::mpsc::Receiver;
 use std::sync::mpsc::Sender;
 use std::time::Duration;
 
+use commons::ExampleWithScore;
 use super::Block;
-use super::ExampleWithScore;
 use super::InQueueSender;
 use super::OutQueueReceiver;
 use super::disk_buffer::DiskBuffer;

@@ -10,8 +10,8 @@ use chan::Receiver;
 
 use bincode::serialize;
 
+use commons::ExampleWithScore;
 use super::Example;
-use super::ExampleWithScore;
 
 use super::super::TFeature;
 use super::super::TLabel;
