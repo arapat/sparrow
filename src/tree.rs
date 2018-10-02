@@ -8,7 +8,7 @@ type DimScaleType = u16;
 
 
 /*
-Why JSON (rather than binary)?
+Why JSON but not binary?
     - Readable for human
     - Compatible with Python
     - BufReader-friendly by using newline as separator
@@ -17,6 +17,7 @@ Why JSON (rather than binary)?
 pub struct Tree {
     max_leaves:     DimScaleType,
     num_leaves:     DimScaleType,
+    // left_child[i] is the left child of the node i
     left_child:     Vec<DimScaleType>,
     right_child:    Vec<DimScaleType>,
     split_feature:  Vec<Option<DimScaleType>>,

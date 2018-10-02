@@ -45,7 +45,6 @@ mod labeled_data;
 mod validator;
 
 use std::sync::mpsc::channel;
-use std::sync::mpsc::sync_channel;
 
 use boosting::Boosting;
 use buffer_loader::BufferLoader;
@@ -141,7 +140,6 @@ pub fn run_rust_boost(config_file: String) {
         Some(config.training_bytes_per_example),
     );
     info!("Starting the buffered loader.");
-    // TODO: fix new bufferloader api
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,

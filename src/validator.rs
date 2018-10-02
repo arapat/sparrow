@@ -23,13 +23,13 @@ pub enum EvalFunc {
 }
 
 pub fn run_validate(
-        testing_filename: String,
-        testing_size: usize,
-        feature_size: usize,
-        testing_is_binary: bool,
-        bytes_per_example: Option<usize>,
-        eval_funcs: Vec<EvalFunc>,
-        receive_model: Receiver<Model>
+    testing_filename: String,
+    testing_size: usize,
+    feature_size: usize,
+    testing_is_binary: bool,
+    bytes_per_example: Option<usize>,
+    eval_funcs: Vec<EvalFunc>,
+    receive_model: Receiver<Model>,
 ) {
     let mut data_loader = SerialStorage::new(
         testing_filename,
@@ -71,9 +71,9 @@ pub fn run_validate(
 }
 
 fn validate (
-        data_loader: &mut SerialStorage,
-        trees: &Model,
-        eval_funcs: &Vec<EvalFunc>
+    data_loader: &mut SerialStorage,
+    trees: &Model,
+    eval_funcs: &Vec<EvalFunc>,
 ) -> Vec<String> {
     let batch_size = 128;
     let num_batches = (data_loader.get_size() + batch_size - 1) / batch_size;
@@ -107,7 +107,6 @@ fn validate (
 
 fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let loss: f32 = scores_labels.par_iter()
-                                 // .map(|&(score, label)| min(1.0, (-score * label).exp()))
                                  .map(|&(score, label)| (-score * label).exp())
                                  .sum();
     loss / (scores_labels.len() as f32)
@@ -115,13 +114,8 @@ fn get_adaboost_loss(scores_labels: &Vec<(f32, f32)>) -> f32 {
 
 fn get_error_rate(scores_labels: &Vec<(f32, f32)>) -> f32 {
     let error: usize = scores_labels.par_iter()
-                                    .map(|&(score, label)| {
-                                        if score * label <= 0.0 {
-                                            1
-                                        } else {
-                                            0
-                                        }
-                                    }).sum();
+                                    .map(|&(score, label)| (score * label <= 1e-8) as usize)
+                                    .sum();
     (error as f32) / (scores_labels.len() as f32)
 }
 

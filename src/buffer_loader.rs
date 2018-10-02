@@ -1,11 +1,8 @@
 use rayon::prelude::*;
 
-use std::ops::Range;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::thread::spawn;
 use std::time::Duration;
-use std::sync::mpsc::Receiver;
 
 use std::cmp::min;
 use std::thread::sleep;
@@ -13,7 +10,7 @@ use std::thread::sleep;
 use commons::ExampleInSampleSet;
 use commons::ExampleWithScore;
 use commons::Model;
-use commons::performance_monitor::PerformanceMonitor;
+// use commons::performance_monitor::PerformanceMonitor;
 
 use commons::get_weight;
 

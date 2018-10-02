@@ -155,6 +155,7 @@ impl Boosting {
                     false
                 };
             if found_new_rule {
+                self.training_loader.update_scores(&self.model);
                 self.sum_gamma += self.learner.get_gamma().powi(2);
                 self.try_send_model();
                 info!(
