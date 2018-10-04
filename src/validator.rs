@@ -39,33 +39,17 @@ pub fn run_validate(
         bytes_per_example,
         false,
     );
-    let model: Arc<RwLock<Model>> = Arc::new(RwLock::new(vec![]));
-    let model_w = model.clone();
     spawn(move || {
-        for new_model in receive_model.iter() {
-            if let Ok(mut ok_model) = model_w.write() {
-                *ok_model = new_model;
-                info!("validator model update, {}", ok_model.len());
-            }
+        let mut model: Option<Model> = None;
+        while let Ok(mut rmodel) = receive_model.try_recv() {
+            model = Some(rmodel);
         }
-    });
-    spawn(move || {
-        let mut last_validate_len = 0;
-        loop {
-            let some_trees = {
-                if let Ok(ok_model) = model.read() {
-                    Some(ok_model)
-                } else {
-                    None
-                }
-            };
-            let trees = some_trees.unwrap();
-            if last_validate_len < trees.len() {
-                validate(&mut data_loader, &trees, &eval_funcs);
-                last_validate_len = trees.len();
-            } else {
-                sleep(time::Duration::from_millis(1000));
-           }
+        if model.is_some() {
+            let model = model.unwrap();
+            info!("validator model update, {}", model.len());
+            validate(&mut data_loader, &model, &eval_funcs);
+        } else {
+            sleep(time::Duration::from_millis(1000));
         }
     });
 }
