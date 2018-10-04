@@ -49,10 +49,12 @@ macro_rules! unlock_write {
 
 
 impl Strata {
-    pub fn new(num_examples: usize,
-               feature_size: usize,
-               num_examples_per_block: usize,
-               disk_buffer_name: &str) -> Strata {
+    pub fn new(
+        num_examples: usize,
+        feature_size: usize,
+        num_examples_per_block: usize,
+        disk_buffer_name: &str,
+    ) -> Strata {
         let disk_buffer = get_disk_buffer(
             disk_buffer_name, feature_size, num_examples, num_examples_per_block);
         Strata {
@@ -80,26 +82,30 @@ impl Strata {
     }
 
     pub fn create(&mut self, index: i8) -> (InQueueSender, OutQueueReceiver) {
-        if unlock_read!(self.in_queues).contains_key(&index) {
-            (
-                unlock_read!(self.in_queues).get(&index).unwrap().clone(),
-                unlock_read!(self.out_queues).get(&index).unwrap().clone()
-            )
+        let (mut in_queues, mut out_queues) =
+            (unlock_write!(self.in_queues), unlock_write!(self.out_queues));
+        if in_queues.contains_key(&index) {
+            // Other process have created the stratum before this process secures the writing lock
+            (in_queues[&index].clone(), out_queues[&index].clone())
         } else {
+            // Each stratum will create two threads for writing in and reading out examples
+            // TODO: create a systematic approach to manage stratum threads
             let mut stratum = Stratum::new(self.num_examples_per_block, self.disk_buffer.clone());
-            stratum.run();
-            let in_queue = stratum.get_in_queue();
-            let out_queue = stratum.get_out_queue();
-            unlock_write!(self.in_queues).insert(index, in_queue.clone());
-            unlock_write!(self.out_queues).insert(index, out_queue.clone());
+            let (in_queue, out_queue) = (stratum.in_queue_s.clone(), stratum.out_queue_r.clone());
+            in_queues.insert(index, in_queue.clone());
+            out_queues.insert(index, out_queue.clone());
             (in_queue, out_queue)
         }
     }
 }
 
 
-pub fn get_disk_buffer(filename: &str, feature_size: usize,
-                       num_examples: usize, num_examples_per_block: usize) -> DiskBuffer {
+pub fn get_disk_buffer(
+    filename: &str,
+    feature_size: usize,
+    num_examples: usize,
+    num_examples_per_block: usize,
+) -> DiskBuffer {
     let num_disk_block = (num_examples + num_examples_per_block - 1) / num_examples_per_block;
     let block_size = get_block_size(feature_size, num_examples_per_block);
     DiskBuffer::new(filename, block_size, num_disk_block)

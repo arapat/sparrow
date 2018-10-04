@@ -7,15 +7,16 @@ pub struct BitMap {
 impl BitMap {
     pub fn new(size: usize, all_full: bool) -> BitMap {
         let vec_size = (size + 31) / 32;
-        let is_free = if all_full {
-            vec![0; vec_size]
-        } else {
-            // all free
-            vec![-1; vec_size]
+        let value = {
+            if all_full {
+                0
+            } else {  // all free
+                -1    // 11111...1 in binary
+            }
         };
         BitMap {
             size: size,
-            is_free: is_free
+            is_free: vec![value; vec_size]
         }
     }
 

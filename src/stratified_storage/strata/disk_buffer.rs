@@ -15,7 +15,7 @@ pub struct DiskBuffer {
     block_size: usize,
     capacity: usize,
     size: usize,
-    _file: File
+    file: File
 }
 
 
@@ -32,7 +32,7 @@ impl DiskBuffer {
             block_size: block_size,
             capacity: capacity,
             size: 0,
-            _file: file
+            file: file,
         }
     }
 
@@ -51,20 +51,20 @@ impl DiskBuffer {
         }
         assert!(self.size <= self.capacity);
         let offset = position * self.block_size;
-        self._file.seek(SeekFrom::Start(offset as u64)).expect(
+        self.file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while writing.", offset));
-        self._file.write_all(data).unwrap();
-        self._file.flush().unwrap();
+        self.file.write_all(data).unwrap();
+        self.file.flush().unwrap();
         position
     }
 
     pub fn read(&mut self, position: usize) -> Vec<u8> {
         assert!(position < self.size);
         let offset = position * self.block_size;
-        self._file.seek(SeekFrom::Start(offset as u64)).expect(
+        self.file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while reading.", offset));
         let mut block_buffer: Vec<u8> = vec![0; self.block_size];
-        self._file.read_exact(block_buffer.as_mut_slice()).expect(
+        self.file.read_exact(block_buffer.as_mut_slice()).expect(
             &format!("Read from disk failed. Disk buffer size is `{}`. Position to read is `{}`.",
                      self.size, position)
         );

@@ -8,25 +8,27 @@ use std::thread::spawn;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 use super::Strata;
-use super::CountsTable;
-use super::WeightsTable;
+use super::SharedCountsTable;
+use super::SharedWeightsTable;
 
 use commons::get_weight;
 
 
 pub struct Assigners {
-    counts_table: CountsTable,
-    weights_table: WeightsTable,
+    counts_table: SharedCountsTable,
+    weights_table: SharedWeightsTable,
     updated_examples_out: Receiver<ExampleWithScore>,
     strata: Arc<RwLock<Strata>>
 }
 
 
 impl Assigners {
-    pub fn new(counts_table: CountsTable,
-               weights_table: WeightsTable,
-               updated_examples_out: Receiver<ExampleWithScore>,
-               strata: Arc<RwLock<Strata>>) -> Assigners {
+    pub fn new(
+        counts_table: SharedCountsTable,
+        weights_table: SharedWeightsTable,
+        updated_examples_out: Receiver<ExampleWithScore>,
+        strata: Arc<RwLock<Strata>>,
+    ) -> Assigners {
         Assigners {
             counts_table: counts_table,
             weights_table: weights_table,
@@ -49,10 +51,12 @@ impl Assigners {
 }
 
 
-fn clear_updated_examples(counts_table: CountsTable,
-                          weights_table: WeightsTable,
-                          updated_examples_out: Receiver<ExampleWithScore>,
-                          strata: Arc<RwLock<Strata>>) {
+fn clear_updated_examples(
+    counts_table: SharedCountsTable,
+    weights_table: SharedWeightsTable,
+    updated_examples_out: Receiver<ExampleWithScore>,
+    strata: Arc<RwLock<Strata>>,
+) {
     let mut pm = PerformanceMonitor::new();
     pm.start();
     while let Some(ret) = updated_examples_out.recv() {
@@ -103,7 +107,7 @@ mod tests {
     use commons::ExampleWithScore;
     use super::super::Strata;
     use super::Assigners;
-    use super::CountsTable;
+    use super::SharedCountsTable;
 
     #[test]
     fn test_assigner_1_thread() {
@@ -141,7 +145,7 @@ mod tests {
         remove_file(filename).unwrap();
     }
 
-    fn get_assigner(filename: &str) -> (CountsTable, Sender<ExampleWithScore>, Assigners) {
+    fn get_assigner(filename: &str) -> (SharedCountsTable, Sender<ExampleWithScore>, Assigners) {
         let strata = Arc::new(RwLock::new(
                 Strata::new(100, 3, 10, filename)));
         let counts_table = Arc::new(RwLock::new(HashMap::new()));

@@ -22,9 +22,8 @@ use super::disk_buffer::DiskBuffer;
 pub struct Stratum {
     num_examples_per_block: usize,
     disk_buffer: Arc<RwLock<DiskBuffer>>,
-
-    in_queue_in: Option<InQueueSender>,
-    out_queue_out: Option<OutQueueReceiver>
+    pub in_queue_s: InQueueSender,
+    pub out_queue_r: OutQueueReceiver,
 }
 
 
@@ -35,61 +34,44 @@ macro_rules! unlock_write {
 
 impl Stratum {
     pub fn new(num_examples_per_block: usize, disk_buffer: Arc<RwLock<DiskBuffer>>) -> Stratum {
+        // memory buffer for incoming examples
+        let (in_queue_s, in_queue_r) = mpsc::sync_channel(num_examples_per_block * 2);
+        // disk slot for storing most examples
+        let (slot_s, slot_r) = mpsc::channel();
+        // memory buffer for outgoing examples
+        let (out_queue_s, out_queue_r) = chan::sync(num_examples_per_block * 2);
+        // write in examples
+        {
+            let num_examples_per_block = num_examples_per_block.clone();
+            let disk_buffer = disk_buffer.clone();
+            let out_queue_s = out_queue_s.clone();
+            spawn(move || {
+                clear_in_queues(
+                    num_examples_per_block,
+                    in_queue_r,
+                    slot_s,
+                    out_queue_s,
+                    disk_buffer,
+                )
+            });
+        }
+        // read out examples
+        {
+            let disk_buffer = disk_buffer.clone();
+            spawn(move || {
+                fill_out_queues(
+                    slot_r,
+                    out_queue_s,
+                    disk_buffer,
+                )
+            });
+        }
         Stratum {
             num_examples_per_block: num_examples_per_block,
             disk_buffer: disk_buffer,
-
-            in_queue_in: None,
-            out_queue_out: None
+            in_queue_s: in_queue_s,
+            out_queue_r: out_queue_r,
         }
-    }
-
-    pub fn get_in_queue(&mut self) -> InQueueSender {
-        let mut t = get_clone(&mut self.in_queue_in);
-        while t.is_none() {
-            t = get_clone(&mut self.in_queue_in);
-        }
-        t.unwrap()
-    }
-
-    pub fn get_out_queue(&mut self) -> OutQueueReceiver {
-        let mut t = get_clone(&mut self.out_queue_out);
-        while t.is_none() {
-            t = get_clone(&mut self.out_queue_out);
-        }
-        t.unwrap()
-    }
-
-    pub fn run(&mut self) {
-        let (slot_in, slot_out) = mpsc::channel();
-        let (in_queue_in, in_queue_out) = mpsc::sync_channel(self.num_examples_per_block * 2);
-        let (out_queue_in, out_queue_out) = chan::sync(self.num_examples_per_block * 2);
-        self.in_queue_in = Some(in_queue_in);
-        self.out_queue_out = Some(out_queue_out);
-
-        // read in examples
-        let num_examples_per_block = self.num_examples_per_block.clone();
-        let disk_buffer = self.disk_buffer.clone();
-        let out_queue_in_clone = out_queue_in.clone();
-        spawn(move|| {
-            clear_in_queues(
-                num_examples_per_block,
-                in_queue_out,
-                slot_in,
-                out_queue_in_clone,
-                disk_buffer
-            )
-        });
-
-        // send out examples
-        let disk_buffer = self.disk_buffer.clone();
-        spawn(move|| {
-            fill_out_queues(
-                slot_out,
-                out_queue_in,
-                disk_buffer
-            )
-        });
     }
 }
 
@@ -146,15 +128,6 @@ fn fill_out_queues(slot_out: Receiver<usize>,
         }
     }
     error!("Slot Queue in stratum was closed.");
-}
-
-
-fn get_clone<T: Clone>(t: &mut Option<T>) -> Option<T> {
-    if let Some(ref mut val) = t {
-        Some(val.clone())
-    } else {
-        None
-    }
 }
 
 
@@ -216,7 +189,6 @@ mod tests {
     fn get_in_out_queues(filename: &str, size: usize) -> (InQueueSender, OutQueueReceiver) {
         let disk_buffer = get_disk_buffer(filename, 3, size, 10);
         let mut stratum = Stratum::new(10, Arc::new(RwLock::new(disk_buffer)));
-        stratum.run();
-        (stratum.get_in_queue(), stratum.get_out_queue())
+        (stratum.in_queue_s.clone(), stratum.out_queue_r.clone())
     }
 }

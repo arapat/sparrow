@@ -28,7 +28,7 @@ extern crate tmsn;
 pub mod tree;
 
 /// The implementation of the AdaBoost algorithm with early stopping rule.
-mod boosting;
+mod booster;
 /// A data loader with two independent caches. Alternatively, we use one
 /// of the caches to feed data to the boosting algorithm, and the other
 /// to load next sample set.
@@ -37,8 +37,6 @@ mod buffer_loader;
 mod stratified_storage;
 /// Common functions and classes.
 mod commons;
-/// Sampling data from the stratified storage.
-mod sampler;
 /// The class of the training examples.
 mod labeled_data;
 /// Validating models
@@ -46,13 +44,12 @@ mod validator;
 
 use std::sync::mpsc::channel;
 
-use boosting::Boosting;
+use booster::Boosting;
 use buffer_loader::BufferLoader;
+use stratified_storage::StratifiedStorage;
 use validator::EvalFunc;
+
 use commons::io::create_bufreader;
-use sampler::run_sampler;
-use stratified_storage::fill_stratified;
-use stratified_storage::run_stratified;
 use validator::run_validate;
 
 // Types
@@ -88,14 +85,11 @@ struct Config {
     pub channel_size: usize,
     pub buffer_size: usize,
     pub batch_size: usize,
-    pub sampler_num_threads: usize,
-    pub sampler_init_grid_size: f32,
-    pub sampler_average_window_size: usize,
 
     pub num_examples_per_block: usize,
     pub disk_buffer_filename: String,
     pub num_assigners: usize,
-    pub num_selectors: usize,
+    pub num_samplers: usize,
 
     pub network: Vec<String>,
     pub port: u16,
@@ -109,29 +103,26 @@ pub fn run_rust_boost(config_file: String) {
         create_bufreader(&config_file)
     ).unwrap();
 
-    // Strata -> Sampler
-    let (s_loaded_examples, r_loaded_examples) = chan::sync(config.channel_size);
-    // Sampler -> Strata
-    let (s_updated_examples, r_updated_examples) = chan::sync(config.channel_size);
-    // Booster -> Sampler
-    let (s_next_model, r_next_model) = channel();
+    // Strata -> BufferLoader
+    let (sampled_examples_s, sampled_examples_r) = channel();
+    // Booster -> Strata
+    let (next_model_s, next_model_r) = channel();
     // Booster -> Validator
-    let (s_model_for_validate, r_model_for_validate) = channel();
+    let (model_validate_s, model_validate_r) = channel();
 
     info!("Starting the stratified structure.");
-    let (_counts_table, _weights_table) = run_stratified(
+    let stratified_structure = StratifiedStorage::new(
         config.num_examples,
         config.num_features,
         config.num_examples_per_block,
         config.disk_buffer_filename.as_ref(),
         config.num_assigners,
-        config.num_selectors,
-        r_updated_examples,
-        s_loaded_examples
+        config.num_samplers,
+        sampled_examples_s,
+        next_model_r,
     );
     info!("Initializing the stratified structure.");
-    fill_stratified(
-        s_updated_examples.clone(),
+    stratified_structure.init_stratified_from_file(
         config.training_filename.clone(),
         config.num_examples,
         config.batch_size,
@@ -143,18 +134,8 @@ pub fn run_rust_boost(config_file: String) {
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
+        Some(sampled_examples_r),
         true,
-    );
-    info!("Starting the sampler.");
-    run_sampler(
-        config.sampler_num_threads,
-        config.sampler_init_grid_size,
-        config.sampler_average_window_size,
-        r_loaded_examples,
-        s_updated_examples,
-        r_next_model,
-        buffer_loader.new_examples.clone(),
-        config.buffer_size,
     );
     info!("Starting the booster.");
     let mut booster = Boosting::new(
@@ -163,8 +144,8 @@ pub fn run_rust_boost(config_file: String) {
         config.max_sample_size,
         config.max_bin_size,
         config.default_gamma,
-        s_next_model,
-        s_model_for_validate,
+        next_model_s,
+        model_validate_s,
     );
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);
@@ -177,7 +158,7 @@ pub fn run_rust_boost(config_file: String) {
         config.testing_is_binary,
         Some(config.testing_bytes_per_example),
         vec![EvalFunc::AdaBoostLoss],
-        r_model_for_validate,
+        model_validate_r,
     );
     booster.training(
         config.num_iterations,

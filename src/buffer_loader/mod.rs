@@ -1,7 +1,10 @@
+mod gatherer;
+
 use rayon::prelude::*;
 
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::mpsc::Receiver;
 use std::time::Duration;
 
 use std::cmp::min;
@@ -13,6 +16,7 @@ use commons::Model;
 // use commons::performance_monitor::PerformanceMonitor;
 
 use commons::get_weight;
+use self::gatherer::run_gatherer;
 
 
 /// Double-buffered sample set. It consists of two buffers stores in memory. One of the
@@ -49,8 +53,16 @@ impl BufferLoader {
     /// set is created (i.e. enough examples is received from the sampler).
     /// Alternatively, one can explicitly call the `load` function to create the first sample set
     /// before start training the boosting algorithm.
-    pub fn new(size: usize, batch_size: usize, init_block: bool) -> BufferLoader {
+    pub fn new(
+        size: usize,
+        batch_size: usize,
+        gather_new_sample: Option<Receiver<ExampleWithScore>>,
+        init_block: bool
+    ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
+        if gather_new_sample.is_some() {
+            run_gatherer(gather_new_sample.unwrap(), new_examples.clone(), size);
+        }
         let num_batch = (size + batch_size - 1) / batch_size;
         let mut buffer_loader = BufferLoader {
             size: size,
@@ -65,7 +77,6 @@ impl BufferLoader {
             curr_example: 0,
             // performance: PerformanceMonitor::new()
         };
-
         if init_block {
             buffer_loader.load();
         }
@@ -164,6 +175,7 @@ impl BufferLoader {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::mpsc::channel;
     use std::thread::sleep;
 
     use std::time::Duration;
@@ -175,11 +187,10 @@ mod tests {
 
     #[test]
     fn test_buffer_loader() {
-        let mut buffer_loader = BufferLoader::new(100, 10, false);
-        let new_examples = buffer_loader.new_examples.clone();
-        if let Ok(mut t) = new_examples.write() {
-            *t = Some(vec![get_example(vec![0, 1, 2], 1.0); 100]);
-        }
+        let (sender, receiver) = channel();
+        let mut buffer_loader = BufferLoader::new(100, 10, Some(receiver), false);
+        (0..100).for_each(|_| sender.send(get_example(vec![0, 1, 2], 1.0)).unwrap());
+        sleep(Duration::from_millis(1000));
         for _ in 0..20 {
             let batch = buffer_loader.get_next_batch(true);
             assert_eq!(batch.len(), 10);
@@ -188,9 +199,7 @@ mod tests {
             assert_eq!((batch[9].1).0, 1.0);
             assert_eq!((batch[9].2).0, 1.0);
         }
-        if let Ok(mut t) = new_examples.write() {
-            *t = Some(vec![get_example(vec![0, 1, 2], 2.0); 100]);
-        }
+        (0..100).for_each(|_| sender.send(get_example(vec![0, 1, 2], 2.0)).unwrap());
         sleep(Duration::from_millis(1000));
         for _ in 0..10 {
             let batch = buffer_loader.get_next_batch(true);

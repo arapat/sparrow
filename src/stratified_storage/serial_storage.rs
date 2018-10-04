@@ -17,6 +17,7 @@ use commons::io::write_to_binary_file;
 use super::super::Example;
 use super::super::TLabel;
 
+/// A naive file loader
 #[derive(Debug)]
 pub struct SerialStorage {
     filename: String,
@@ -40,12 +41,12 @@ pub struct SerialStorage {
 
 impl SerialStorage {
     pub fn new(
-            filename: String,
-            size: usize,
-            feature_size: usize,
-            is_binary: bool,
-            bytes_per_example: Option<usize>,
-            one_pass: bool,
+        filename: String,
+        size: usize,
+        feature_size: usize,
+        is_binary: bool,
+        bytes_per_example: Option<usize>,
+        one_pass: bool,
     ) -> SerialStorage {
         assert!(!is_binary || bytes_per_example.is_some());
 
