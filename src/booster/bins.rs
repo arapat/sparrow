@@ -92,11 +92,11 @@ pub fn create_bins(
     while remaining_reads > 0 {
         let data = data_loader.get_next_batch(false /* no switch buffers */);
         data.iter().for_each(|example| {
-            let features = example.0.get_features();
+            let feature = &(example.0.feature);
             distinct.iter_mut()
                     .enumerate()
                     .for_each(|(idx, mapper)| {
-                        mapper.update(features[start + idx] as f32);
+                        mapper.update(feature[start + idx] as f32);
                     });
         });
         remaining_reads -= data.len();

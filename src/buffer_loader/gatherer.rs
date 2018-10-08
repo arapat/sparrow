@@ -84,7 +84,7 @@ mod tests {
             assert!(mem_buffer.is_some());  // will poison the lock if this fails
             mem_buffer.take().unwrap()
         };
-        all_sampled.sort_by_key(|t| (t.0).get_features()[0]);
+        all_sampled.sort_by_key(|t| (t.0).features[0]);
         for (input, output) in examples.iter().zip(all_sampled.iter()) {
             assert_eq!(*input, *output);
         }

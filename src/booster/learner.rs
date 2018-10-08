@@ -1,12 +1,12 @@
 use rayon::prelude::*;
 
+use std::f32::INFINITY;
 use std::ops::Range;
 
-use super::super::Example;
-
-use tree::Tree;
 use commons::ExampleInSampleSet;
+use tree::Tree;
 use super::bins::Bins;
+use super::super::Example;
 
 use commons::max;
 use commons::min;
@@ -26,6 +26,9 @@ type ScoreBoard = Vec<Vec<[f32; 4]>>;
 type FloatTuple4 = (f32, f32, f32, f32);
 type TupleTuple3 = (FloatTuple4, FloatTuple4, FloatTuple4);
 
+const LEFT_NODE:  [f32; 4] = [1.0, 1.0, -1.0, -1.0];
+const RIGHT_NODE: [f32; 4] = [1.0, -1.0, 1.0, -1.0];
+
 
 // TODO: extend learner to support multi-level trees
 /// A weak rule with an edge larger or equal to the targetting value of `gamma`
@@ -35,21 +38,35 @@ pub struct WeakRule {
     left_predict: f32,
     right_predict: f32,
 
+    pub gamma: f32,
     raw_martingale: f32,
     sum_c: f32,
     sum_c_squared: f32,
-    bound: f32
+    bound: f32,
+    num_scanned: usize,
 }
 
 impl WeakRule {
     /// Return a decision tree (or decision stump) according to the valid weak rule
-    pub fn create_tree(&self) -> Tree {
-        debug!("new-tree-martingale, {}, {}, {}, {}",
-               self.raw_martingale, self.sum_c, self.sum_c_squared, self.bound);
+    pub fn to_tree(self) -> Tree {
         let mut tree = Tree::new(2);
         tree.split(0, self.feature, self.threshold, self.left_predict, self.right_predict);
         tree.release();
         tree
+    }
+
+    pub fn write_log(&self, model_len: usize, curr_sum_gamma: f32) {
+        info!(
+            "new-tree-info, {}, {}, {}, {}, {}, {}, {}, {}",
+            model_len + 1,
+            self.num_scanned,
+            self.gamma,
+            self.raw_martingale,
+            self.sum_c,
+            self.sum_c_squared,
+            self.bound,
+            curr_sum_gamma + self.gamma,
+        );
     }
 }
 
@@ -62,17 +79,16 @@ pub struct Learner {
     range_start: usize,
     default_rho_gamma: f32,
     cur_rho_gamma: f32,
+    num_examples_before_shrink: usize,
 
     weak_rules_score: ScoreBoard,
     sum_c:            ScoreBoard,
     sum_c_squared:    ScoreBoard,
 
-    count: usize,
+    pub count: usize,
     sum_weights: f32,
     sum_weights_squared: f32,
 
-    valid_weak_rule: Option<WeakRule>,
-    outdated: bool
 }
 
 impl Learner {
@@ -83,74 +99,41 @@ impl Learner {
     /// `range` is the range of candidate features for generating weak rules. In most cases,
     /// if the algorithm is running on a single worker, `range` is 0..`num_of_features`;
     /// if the algorithm is running on multiple workers, `range` is a subset of the feature set.
-    pub fn new(default_gamma: f32, bins: Vec<Bins>, range: &Range<usize>) -> Learner {
-        let b1 = get_score_board(&bins);
-        let b2 = get_score_board(&bins);
-        let b3 = get_score_board(&bins);
+    pub fn new(default_gamma: f32, num_examples_before_shrink: u32, bins: Vec<Bins>, range: &Range<usize>) -> Learner {
+        let b = [0.0; 4];
         Learner {
-            bins: bins,
             range_start: range.start,
             default_rho_gamma: default_gamma,
             cur_rho_gamma: default_gamma,
+            num_examples_before_shrink: num_examples_before_shrink as usize,
 
-            weak_rules_score: b1,
-            sum_c:            b2,
-            sum_c_squared:    b3,
+            weak_rules_score: bins.iter().map(|bin| vec![b; bin.len()]).collect(),
+            sum_c:            bins.iter().map(|bin| vec![b; bin.len()]).collect(),
+            sum_c_squared:    bins.iter().map(|bin| vec![b; bin.len()]).collect(),
 
             count: 0,
             sum_weights: 0.0,
             sum_weights_squared: 0.0,
-
-            valid_weak_rule: None,
-            outdated: true
+            bins: bins,
         }
     }
 
     /// Reset the statistics of all candidate weak rules,
     /// but leave the targetting `gamma` unchanged.
     pub fn reset(&mut self) {
-        reset_score_board(&mut self.weak_rules_score);
-        reset_score_board(&mut self.sum_c);
-        reset_score_board(&mut self.sum_c_squared);
+        for i in 0..self.weak_rules_score.len() {
+            for j in 0..self.weak_rules_score[i].len() {
+                for k in 0..4 {
+                    self.weak_rules_score[i][j][k] = 0.0;
+                    self.sum_c[i][j][k]            = 0.0;
+                    self.sum_c_squared[i][j][k]    = 0.0;
+                }
+            }
+        }
 
         self.count = 0;
         self.sum_weights = 0.0;
         self.sum_weights_squared = 0.0;
-    }
-
-    /// Return the number of examples scanned so far since detecting the last
-    /// valid weak rule or since last reset.
-    pub fn get_count(&self) -> usize {
-        self.count
-    }
-
-    /// Return current targetting edge `gamma`
-    pub fn get_gamma(&self) -> f32 {
-        self.cur_rho_gamma
-    }
-
-    fn set_rho_gamma(&mut self, rho_gamma: f32) {
-        self.cur_rho_gamma = rho_gamma;
-        self.reset()
-    }
-
-    /// Reset the targetting `gamma` to `initial_gamma`, and reset all statistics
-    /// of all candidate weak rules.
-    // TODO: use reset-all if required
-    #[allow(dead_code)]
-    pub fn reset_all(&mut self) {
-        let rho_gamma = self.default_rho_gamma;
-        self.set_rho_gamma(rho_gamma);
-    }
-
-    /// Shrinking the value of the targetting edge `gamma` of the valid weak rule
-    pub fn shrink_target(&mut self) {
-        let old_rho_gamma = self.cur_rho_gamma.clone();
-        let max_empirical_ratio = self.get_max_empirical_ratio();
-        self.cur_rho_gamma = min(self.cur_rho_gamma, max_empirical_ratio) * 0.9;
-        self.reset();
-
-        debug!("shrink-gamma, {}, {}", old_rho_gamma, self.cur_rho_gamma);
     }
 
     fn get_max_empirical_ratio(&self) -> f32 {
@@ -163,183 +146,94 @@ impl Learner {
 
     /// Update the statistics of all candidate weak rules using current batch of
     /// training examples. 
-    pub fn update(&mut self, data: &[ExampleInSampleSet], weights: &Vec<f32>) {
+    pub fn update(&mut self, data: &[ExampleInSampleSet], weights: &Vec<f32>) -> Option<WeakRule> {
+        // Shrinking the value of the targetting edge `gamma` if it was too high
+        if self.count >= self.num_examples_before_shrink {
+            let old_rho_gamma = self.cur_rho_gamma;
+            let max_empirical_ratio = self.get_max_empirical_ratio();
+            self.cur_rho_gamma = 0.9 * min(self.cur_rho_gamma, max_empirical_ratio);
+            self.reset();
+            debug!("shrink-gamma, {}, {}", old_rho_gamma, self.cur_rho_gamma);
+        }
+
         // update global stats
         let (sum_w, sum_w_squared) =
             weights.par_iter()
-                   .cloned()
-                   .map(|w| (w, w * w))
-                   .reduce(|| (0.0, 0.0), |a, b| (a.0 + b.0, a.1 + b.1));
+                   .fold(|| (0.0, 0.0), |(ax, ax2), x| (ax + x, ax2 + x * x))
+                   .reduce(|| (0.0, 0.0), |(a1, a2), (b1, b2)| (a1 + b1, a2 + b2));
         self.sum_weights += sum_w;
         self.sum_weights_squared += sum_w_squared;
         self.count += data.len();
 
-        // update each weak rule
+        // preprocess examples
         let gamma = self.cur_rho_gamma;
-        self.update_weak_rules(
+        let data: Vec<(&Example, f32, f32, f32)> =
             data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
-                // accumulate stats for each rule
-                let label = get_symmetric_label(&example.0);
-                let weighted_label = weight * label;
-                let w_pos = (label - 2.0 * gamma) * weight;
-                let w_neg = (-label - 2.0 * gamma) * weight;
-                let w_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
-                /*
-                    1. Left +1, Right +1;
-                    2. Left +1, Right -1;
-                    3. Left -1, Right +1;
-                    4. Left -1, Right -1.
-                */
-                let goes_to_left: TupleTuple3 = (
-                    (weighted_label, weighted_label, -weighted_label, -weighted_label),
-                    (w_pos, w_pos, w_neg, w_neg),
-                    (w_sq, w_sq, w_sq, w_sq)
-                );
-                let goes_to_right: TupleTuple3 = (
-                    (weighted_label, -weighted_label, weighted_label, -weighted_label),
-                    (w_pos, w_neg, w_pos, w_neg),
-                    (w_sq, w_sq, w_sq, w_sq)
-                );
-                (&example.0, goes_to_left, goes_to_right)
-            }).collect()
-        );
+                let label = get_symmetric_label(&(example.0));
+                let label_weight = weight * label;
+                let null_weight = 2.0 * gamma * weight;
+                let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                (&example.0, label_weight, null_weight, c_sq)
+            }).collect();
 
-        self.outdated = true;
-    }
-
-    fn update_weak_rules(&mut self, examples: Vec<(&Example, TupleTuple3, TupleTuple3)>) {
+        // update each weak rule
         let range_start = self.range_start;
-        self.bins.par_iter().zip(
-            self.weak_rules_score.par_iter_mut().zip(
-                self.sum_c.par_iter_mut().zip(
-                    self.sum_c_squared.par_iter_mut()
-                )
-            )
-        ).enumerate().for_each(
-            |(i, (bin, (weak_rules_score, (sum_c, sum_c_squared))))| {
-                examples.iter().for_each(|&(example, goes_to_left, goes_to_right)| {
-                    let feature_val = example.get_features()[i + range_start] as f32;
-                    bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
-                        let direction =
-                            if feature_val <= *threshold {
-                                goes_to_left
-                            } else {
-                                goes_to_right
-                            };
-                        weak_rules_score[j][0] += (direction.0).0;
-                        weak_rules_score[j][1] += (direction.0).1;
-                        weak_rules_score[j][2] += (direction.0).2;
-                        weak_rules_score[j][3] += (direction.0).3;
+        let num_scanned = self.count;
+        self.bins.par_iter_mut().zip(
+            self.weak_rules_score.par_iter_mut()
+        ).zip(
+            self.sum_c.par_iter_mut()
+        ).zip(
+            self.sum_c_squared.par_iter_mut()
+        ).enumerate().map(|(i, (((bin, weak_rules_score), sum_c), sum_c_squared))| {
+            let mut valid_weak_rule = None;
+            let mut iter = data.iter();
+            while let Some((example, label_weight, null_weight, c_sq)) = iter.next() {
+                let feature_val = example.feature[i + range_start] as f32;
+                let mut iter = bin.get_vals().iter().enumerate();
+                while let Some((j, threshold)) = iter.next() {
+                    // 4 possible labeling for each split
+                    let labeling =
+                        if feature_val <= *threshold {
+                            &LEFT_NODE
+                        } else {
+                            &RIGHT_NODE
+                        };
+                    for k in 0..4 {
+                        let prediction = labeling[k];
+                        let weak_rules_score = &mut weak_rules_score[j][k];
+                        let sum_c            = &mut sum_c[j][k];
+                        let sum_c_squared    = &mut sum_c_squared[j][k];
 
-                        sum_c[j][0]            += (direction.1).0;
-                        sum_c[j][1]            += (direction.1).1;
-                        sum_c[j][2]            += (direction.1).2;
-                        sum_c[j][3]            += (direction.1).3;
+                        // update
+                        *weak_rules_score += prediction * label_weight;
+                        *sum_c            += prediction * label_weight - null_weight;
+                        *sum_c_squared    += c_sq;
 
-                        sum_c_squared[j][0]    += (direction.2).0;
-                        sum_c_squared[j][1]    += (direction.2).1;
-                        sum_c_squared[j][2]    += (direction.2).2;
-                        sum_c_squared[j][3]    += (direction.2).3;
-                    });
-                });
-        });
-    }
+                        // check stopping rule
+                        let bound = get_bound(*sum_c, *sum_c_squared).unwrap_or(INFINITY);
+                        if *sum_c > bound {
+                            let base_pred = 0.5 * ((0.5 + gamma) / (0.5 - gamma)).ln();
+                            valid_weak_rule = Some(
+                                WeakRule {
+                                    feature:        i + range_start,
+                                    threshold:      *threshold,
+                                    left_predict:   base_pred * LEFT_NODE[k],
+                                    right_predict:  base_pred * RIGHT_NODE[k],
 
-    /// Return the valid weak rule if one is found, otherwise return `None`.
-    pub fn get_new_weak_rule(&mut self) -> &Option<WeakRule> {
-        if self.outdated {
-            self.set_valid_weak_rule();
-            self.outdated = false;
-        }
-        &self.valid_weak_rule
-    }
-
-    fn set_valid_weak_rule(&mut self) {
-        let gamma = self.cur_rho_gamma;
-        let ret =
-            self.bins.par_iter().zip(
-                self.weak_rules_score.par_iter().zip(
-                    self.sum_c.par_iter().zip(
-                        self.sum_c_squared.par_iter()
-                    )
-                )
-            ).enumerate().map(
-                |(i, (bin, (weak_rules_score, (sum_c, sum_c_squared))))| {
-                    let mut ret = None;
-                    let cur_bin = bin.get_vals();
-                    for j in 0..cur_bin.len() {
-                        let threshold = cur_bin[j];
-                        for k in 0..4 {
-                            let _sum_c = sum_c[j][k];
-                            let _sum_c_squared = sum_c_squared[j][k];
-                            let _score = weak_rules_score[j][k];
-                            if let Some(bound) = get_bound(&_sum_c, &_sum_c_squared) {
-                                if _sum_c > bound {
-                                    let (left_predict, right_predict) = get_prediction(k, gamma);
-                                    ret = Some(WeakRule {
-                                        feature: i + self.range_start,
-                                        threshold: threshold,
-                                        left_predict: left_predict,
-                                        right_predict: right_predict,
-
-                                        raw_martingale: _score,
-                                        sum_c: _sum_c,
-                                        sum_c_squared: _sum_c_squared,
-                                        bound: bound
-                                    });
-                                    break;
+                                    gamma:          gamma,
+                                    raw_martingale: *weak_rules_score,
+                                    sum_c:          *sum_c,
+                                    sum_c_squared:  *sum_c_squared,
+                                    bound:          bound,
+                                    num_scanned:    num_scanned,
                                 }
-                            }
-                        }
-                        if ret.is_some() {
-                            break;
+                            );
                         }
                     }
-                    ret
                 }
-            ).find_any(|r| r.is_some());
-        match ret {
-            Some(valid_weak_rule) => {
-                self.valid_weak_rule = valid_weak_rule;
-            },
-            None                  => {
-                self.valid_weak_rule = None;
             }
-        }
-    }
-}
-
-
-fn get_score_board(bins: &Vec<Bins>) -> ScoreBoard {
-    let init_score_board = [0.0; 4];
-    bins.iter().map(|bin| vec![init_score_board; bin.len()]).collect()
-}
-
-fn reset_score_board(score_board: &mut ScoreBoard) {
-    score_board.par_iter_mut().for_each(|a| {
-        a.iter_mut().for_each(|b| {
-            b.iter_mut().for_each(|x| {
-                *x = 0.0;
-            });
-        });
-    });
-}
-
-#[inline]
-fn get_prediction(rule_id: usize, rho_gamma: f32) -> (f32, f32) {
-    /*
-        1. Left +1, Right +1;
-        2. Left +1, Right -1;
-        3. Left -1, Right +1;
-        4. Left -1, Right -1.
-    */
-    let pos_prediction = 0.5 * ((0.5 + rho_gamma) / (0.5 - rho_gamma)).ln();
-    let neg_prediction = 0.5 * ((0.5 - rho_gamma) / (0.5 + rho_gamma)).ln();
-    assert!(rule_id <= 3);
-    match rule_id {
-        0 => (pos_prediction, pos_prediction),
-        1 => (pos_prediction, neg_prediction),
-        2 => (neg_prediction, pos_prediction),
-        _ => (neg_prediction, neg_prediction) // 3
+            valid_weak_rule
+        }).find(|t| t.is_some()).unwrap_or(None)
     }
 }

@@ -139,6 +139,8 @@ pub fn run_rust_boost(config_file: String) {
     );
     info!("Starting the booster.");
     let mut booster = Boosting::new(
+        config.num_iterations,
+        config.max_trials_before_shrink,
         buffer_loader,
         config.range,
         config.max_sample_size,
@@ -160,8 +162,5 @@ pub fn run_rust_boost(config_file: String) {
         vec![EvalFunc::AdaBoostLoss],
         model_validate_r,
     );
-    booster.training(
-        config.num_iterations,
-        config.max_trials_before_shrink
-    );
+    booster.training();
 }

@@ -167,7 +167,7 @@ fn get_fps_tps(sorted_scores_labels: &Vec<(f32, f32)>) -> (Vec<usize>, Vec<usize
     let ret = iter.next().unwrap();
     let mut last_score = ret.0;
     let last_label = ret.1;
-    let mut tp = is_positive(&last_label) as usize;
+    let mut tp = is_positive(last_label) as usize;
     let mut fp = 1 - tp;
     for &(score, label) in iter {
         if !is_zero(score - last_score) {
@@ -175,7 +175,7 @@ fn get_fps_tps(sorted_scores_labels: &Vec<(f32, f32)>) -> (Vec<usize>, Vec<usize
             tps.push(tp);
             thresholds.push(last_score);
         }
-        let c = is_positive(&label) as usize;
+        let c = is_positive(label) as usize;
         tp += c;
         fp += 1 - c;
         last_score = score;

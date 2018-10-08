@@ -49,10 +49,10 @@ pub fn get_relative_weights(data: &[ExampleInSampleSet]) -> Vec<f32> {
 }
 
 #[inline]
-pub fn get_bound(sum_c: &f32, sum_c_squared: &f32) -> Option<f32> {
+pub fn get_bound(sum_c: f32, sum_c_squared: f32) -> Option<f32> {
     // loglogv will be np.nan if conditons are not satisfied
     let threshold: f32 = THRESHOLD_FACTOR * 173.0 * (4.0 / DELTA).ln();
-    if *sum_c_squared >= threshold {
+    if sum_c_squared >= threshold {
         let log_log_term = 3.0 * sum_c_squared / 2.0 / sum_c.abs();
         if log_log_term > 1.0 {
             let log_log = log_log_term.ln().ln();
@@ -67,8 +67,7 @@ pub fn get_bound(sum_c: &f32, sum_c_squared: &f32) -> Option<f32> {
 
 #[inline]
 pub fn get_symmetric_label(data: &Example) -> f32 {
-    let label = *data.get_label() as f32;
-    if is_positive(&label) {
+    if is_positive(data.label as f32) {
         1.0
     } else {
         -1.0
@@ -113,6 +112,6 @@ pub fn get_sign(a: f64) -> i8 {
 }
 
 #[inline]
-pub fn is_positive(label: &f32) -> bool {
+pub fn is_positive(label: f32) -> bool {
     is_zero(label - 1.0)
 }

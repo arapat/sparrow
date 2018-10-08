@@ -173,7 +173,7 @@ mod tests {
             let retrieve = out_queue.recv().unwrap();
             output.push(retrieve);
         }
-        output.sort_by_key(|t| (t.0).get_features()[0]);
+        output.sort_by_key(|t| (t.0).features[0]);
         for i in 0..100 {
             assert_eq!(output[i], examples[i]);
         }

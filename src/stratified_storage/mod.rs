@@ -185,7 +185,7 @@ mod tests {
         let mut freq = HashMap::new();
         for _ in 0..100 {
             let recv = sampled_examples_recv.recv().unwrap();
-            let c = freq.entry((recv.0).get_features()[2]).or_insert(0u8);
+            let c = freq.entry((recv.0).features[2]).or_insert(0u8);
             *c += 1;
         }
         for (k, v) in freq.iter() {
@@ -210,7 +210,7 @@ mod tests {
         let mut freq = HashMap::new();
         for _ in 0..100 {
             let recv = sampled_examples_recv.recv().unwrap();
-            let c = freq.entry((recv.0).get_features()[2]).or_insert(0u8);
+            let c = freq.entry((recv.0).features[2]).or_insert(0u8);
             *c += 1;
         }
         for (k, v) in freq.iter() {
