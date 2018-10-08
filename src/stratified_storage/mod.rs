@@ -30,8 +30,8 @@ pub struct StratifiedStorage {
     // feature_size: usize,
     // num_examples_per_block: usize,
     // disk_buffer_filename: String,
-    // counts_table: SharedCountsTable,
-    // weights_table: SharedWeightsTable,
+    #[allow(dead_code)] counts_table: SharedCountsTable,
+    #[allow(dead_code)] weights_table: SharedWeightsTable,
     // num_assigners: usize,
     // num_samplers: usize,
     // assigners: Assigners,
@@ -116,8 +116,8 @@ impl StratifiedStorage {
             // feature_size: feature_size,
             // num_examples_per_block: num_examples_per_block,
             // disk_buffer_filename: String::from(disk_buffer_filename),
-            // counts_table: counts_table,
-            // weights_table: weights_table,
+            counts_table: counts_table,
+            weights_table: weights_table,
             // num_assigners: num_assigners,
             // num_samplers: num_samplers,
             // assigners: assigners,
@@ -161,7 +161,9 @@ impl StratifiedStorage {
 mod tests {
     use std::fs::remove_file;
     use std::sync::mpsc;
+    use std::thread::sleep;
     use std::collections::HashMap;
+    use std::time::Duration;
 
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
@@ -217,10 +219,48 @@ mod tests {
         remove_file(filename).unwrap();
     }
 
+    #[test]
+    fn test_mean() {
+        let filename = "unittest-stratified3.bin";
+        let batch = 1000;
+        let num_read = 100000;
+        let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
+        let (_, models_recv) = mpsc::channel();
+        let stratified_storage = StratifiedStorage::new(
+            batch * 10, 1, 10, filename, 6, 2, sampled_examples_send, models_recv
+        );
+        let updated_examples_send = stratified_storage.updated_examples_s.clone();
+        for _ in 0..batch {
+            for i in 1..11 {
+                let t = get_example(vec![i], i as f32);
+                updated_examples_send.send(t.clone());
+            }
+        }
+        loop {
+            let counts = stratified_storage.counts_table.read().unwrap();
+            let total = counts.values().sum::<u32>() as usize;
+            drop(counts);
+            if total >= batch * 10 / 2 {
+                break;
+            }
+            sleep(Duration::from_millis(1000));
+        }
+
+        let mut average = 0.0;
+        for _ in 0..num_read {
+            let recv = sampled_examples_recv.recv().unwrap();
+            average += ((recv.0).feature[0] as f32) / (num_read as f32);
+        }
+        let answer =
+            (1..11).map(|a| a as f32).map(|a| a * a).sum::<f32>() / ((1..11).sum::<i32>() as f32);
+        assert!((average - answer) <= 0.05);
+        remove_file(filename).unwrap();
+    }
+
     fn get_example(feature: Vec<u8>, weight: f32) -> ExampleWithScore {
-        let label: u8 = 0;
+        let label: u8 = 1;
         let example = LabeledData::new(feature, label);
-        let score = weight.ln();
+        let score = -weight.ln();
         (example, (score, 0))
     }
 }
