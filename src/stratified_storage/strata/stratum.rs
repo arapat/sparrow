@@ -20,8 +20,8 @@ use super::disk_buffer::DiskBuffer;
 
 
 pub struct Stratum {
-    num_examples_per_block: usize,
-    disk_buffer: Arc<RwLock<DiskBuffer>>,
+    // num_examples_per_block: usize,
+    // disk_buffer: Arc<RwLock<DiskBuffer>>,
     pub in_queue_s: InQueueSender,
     pub out_queue_r: OutQueueReceiver,
 }
@@ -67,8 +67,8 @@ impl Stratum {
             });
         }
         Stratum {
-            num_examples_per_block: num_examples_per_block,
-            disk_buffer: disk_buffer,
+            // num_examples_per_block: num_examples_per_block,
+            // disk_buffer: disk_buffer,
             in_queue_s: in_queue_s,
             out_queue_r: out_queue_r,
         }
@@ -173,22 +173,22 @@ mod tests {
             let retrieve = out_queue.recv().unwrap();
             output.push(retrieve);
         }
-        output.sort_by_key(|t| (t.0).features[0]);
+        output.sort_by_key(|t| (t.0).feature[0]);
         for i in 0..100 {
             assert_eq!(output[i], examples[i]);
         }
         remove_file(filename).unwrap();
     }
 
-    fn get_example(features: Vec<u8>) -> ExampleWithScore {
+    fn get_example(feature: Vec<u8>) -> ExampleWithScore {
         let label: u8 = 0;
-        let example = LabeledData::new(features, label);
+        let example = LabeledData::new(feature, label);
         (example, (1.0, 0))
     }
 
     fn get_in_out_queues(filename: &str, size: usize) -> (InQueueSender, OutQueueReceiver) {
         let disk_buffer = get_disk_buffer(filename, 3, size, 10);
-        let mut stratum = Stratum::new(10, Arc::new(RwLock::new(disk_buffer)));
+        let stratum = Stratum::new(10, Arc::new(RwLock::new(disk_buffer)));
         (stratum.in_queue_s.clone(), stratum.out_queue_r.clone())
     }
 }

@@ -4,15 +4,10 @@ use std::sync::mpsc::Receiver;
 use rand::Rng;
 
 use std::thread::spawn;
-use rand;
 use rand::thread_rng;
 
 use commons::ExampleWithScore;
-use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
-
-use commons::get_sign;
-use commons::get_weight;
 
 
 /// Start the gatherer.
@@ -57,13 +52,10 @@ mod tests {
 
     use std::sync::Arc;
     use std::sync::RwLock;
-    use std::sync::mpsc::Sender;
     use std::time::Duration;
 
     use commons::ExampleWithScore;
-    use commons::Model;
     use labeled_data::LabeledData;
-    use tree::Tree;
     use super::run_gatherer;
 
     #[test]
@@ -84,7 +76,7 @@ mod tests {
             assert!(mem_buffer.is_some());  // will poison the lock if this fails
             mem_buffer.take().unwrap()
         };
-        all_sampled.sort_by_key(|t| (t.0).features[0]);
+        all_sampled.sort_by_key(|t| (t.0).feature[0]);
         for (input, output) in examples.iter().zip(all_sampled.iter()) {
             assert_eq!(*input, *output);
         }

@@ -1,7 +1,5 @@
 use rayon::prelude::*;
 
-use std::sync::Arc;
-use std::sync::RwLock;
 use std::sync::mpsc::Receiver;
 use std::thread::spawn;
 use std::thread::sleep;
@@ -41,7 +39,7 @@ pub fn run_validate(
     );
     spawn(move || {
         let mut model: Option<Model> = None;
-        while let Ok(mut rmodel) = receive_model.try_recv() {
+        while let Ok(rmodel) = receive_model.try_recv() {
             model = Some(rmodel);
         }
         if model.is_some() {

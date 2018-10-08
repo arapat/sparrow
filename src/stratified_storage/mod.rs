@@ -26,18 +26,18 @@ type SharedWeightsTable = Arc<RwLock<HashMap<i8, f64>>>;
 
 
 pub struct StratifiedStorage {
-    num_examples: usize,
-    feature_size: usize,
-    num_examples_per_block: usize,
-    disk_buffer_filename: String,
-    counts_table: SharedCountsTable,
-    weights_table: SharedWeightsTable,
-    num_assigners: usize,
-    num_samplers: usize,
-    assigners: Assigners,
-    samplers: Samplers,
+    // num_examples: usize,
+    // feature_size: usize,
+    // num_examples_per_block: usize,
+    // disk_buffer_filename: String,
+    // counts_table: SharedCountsTable,
+    // weights_table: SharedWeightsTable,
+    // num_assigners: usize,
+    // num_samplers: usize,
+    // assigners: Assigners,
+    // samplers: Samplers,
+    // updated_examples_r: chan::Receiver<ExampleWithScore>,
     updated_examples_s: chan::Sender<ExampleWithScore>,
-    updated_examples_r: chan::Receiver<ExampleWithScore>,
 }
 
 
@@ -112,18 +112,18 @@ impl StratifiedStorage {
         samplers.run(num_samplers);
 
         StratifiedStorage {
-            num_examples: num_examples,
-            feature_size: feature_size,
-            num_examples_per_block: num_examples_per_block,
-            disk_buffer_filename: String::from(disk_buffer_filename),
-            counts_table: counts_table,
-            weights_table: weights_table,
-            num_assigners: num_assigners,
-            num_samplers: num_samplers,
-            assigners: assigners,
-            samplers: samplers,
+            // num_examples: num_examples,
+            // feature_size: feature_size,
+            // num_examples_per_block: num_examples_per_block,
+            // disk_buffer_filename: String::from(disk_buffer_filename),
+            // counts_table: counts_table,
+            // weights_table: weights_table,
+            // num_assigners: num_assigners,
+            // num_samplers: num_samplers,
+            // assigners: assigners,
+            // samplers: samplers,
+            // updated_examples_r: updated_examples_r,
             updated_examples_s: updated_examples_s,
-            updated_examples_r: updated_examples_r,
         }
     }
 
@@ -161,9 +161,7 @@ impl StratifiedStorage {
 mod tests {
     use std::fs::remove_file;
     use std::sync::mpsc;
-    use std::thread::sleep;
     use std::collections::HashMap;
-    use std::time::Duration;
 
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
@@ -173,7 +171,7 @@ mod tests {
     fn test_stratified_one_by_one_1_thread() {
         let filename = "unittest-stratified1.bin";
         let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
-        let (models_send, models_recv) = mpsc::channel();
+        let (_, models_recv) = mpsc::channel();
         let stratified_storage = StratifiedStorage::new(
             1000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv
         );
@@ -185,10 +183,10 @@ mod tests {
         let mut freq = HashMap::new();
         for _ in 0..100 {
             let recv = sampled_examples_recv.recv().unwrap();
-            let c = freq.entry((recv.0).features[2]).or_insert(0u8);
+            let c = freq.entry((recv.0).feature[2]).or_insert(0u8);
             *c += 1;
         }
-        for (k, v) in freq.iter() {
+        for (_, v) in freq.iter() {
             assert_eq!(*v, 20);
         }
         remove_file(filename).unwrap();
@@ -198,7 +196,7 @@ mod tests {
     fn test_stratified_one_by_one_10_threads() {
         let filename = "unittest-stratified2.bin";
         let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
-        let (models_send, models_recv) = mpsc::channel();
+        let (_, models_recv) = mpsc::channel();
         let stratified_storage = StratifiedStorage::new(
             1000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv
         );
@@ -210,18 +208,18 @@ mod tests {
         let mut freq = HashMap::new();
         for _ in 0..100 {
             let recv = sampled_examples_recv.recv().unwrap();
-            let c = freq.entry((recv.0).features[2]).or_insert(0u8);
+            let c = freq.entry((recv.0).feature[2]).or_insert(0u8);
             *c += 1;
         }
-        for (k, v) in freq.iter() {
+        for (_, v) in freq.iter() {
             assert_eq!(*v, 20);
         }
         remove_file(filename).unwrap();
     }
 
-    fn get_example(features: Vec<u8>, weight: f32) -> ExampleWithScore {
+    fn get_example(feature: Vec<u8>, weight: f32) -> ExampleWithScore {
         let label: u8 = 0;
-        let example = LabeledData::new(features, label);
+        let example = LabeledData::new(feature, label);
         let score = weight.ln();
         (example, (score, 0))
     }

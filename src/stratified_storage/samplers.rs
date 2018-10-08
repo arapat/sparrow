@@ -3,7 +3,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
 use chan::Sender;
-use chan::Receiver;
 
 use std::sync::mpsc;
 use std::thread::sleep;
@@ -140,7 +139,7 @@ fn sampler(
         // STEP 3: Sample one example using minimum variance sampling
         // meanwhile update the weights of all accessed examples
         let grid_size = 2f32.powi((index + 1) as i32);  // grid size can be set more conservatively
-        let mut grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
+        let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut removed_weights = 0.0;
         let mut removed_counts = 0;
         let mut sampled_example = None;
@@ -178,6 +177,7 @@ fn sampler(
         let sampled_example = sampled_example.unwrap();
         while *grid >= grid_size {
             if let Err(e) = sampled_examples.send(sampled_example.clone()) {
+                error!("Sampler is killed because the sampled examples channel is closed: {}", e);
                 killed = true;
                 break;
             }
@@ -186,7 +186,6 @@ fn sampler(
         }
         pm.write_log("selector");
     }
-    error!("Sampler is killed because the sampled examples channel is closed");
 }
 
 

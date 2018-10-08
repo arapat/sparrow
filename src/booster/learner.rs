@@ -23,8 +23,6 @@ Each split corresponds to 4 types of predictions,
     4. Left -1, Right -1.
 */
 type ScoreBoard = Vec<Vec<[f32; 4]>>;
-type FloatTuple4 = (f32, f32, f32, f32);
-type TupleTuple3 = (FloatTuple4, FloatTuple4, FloatTuple4);
 
 const LEFT_NODE:  [f32; 4] = [1.0, 1.0, -1.0, -1.0];
 const RIGHT_NODE: [f32; 4] = [1.0, -1.0, 1.0, -1.0];
@@ -77,7 +75,6 @@ impl WeakRule {
 pub struct Learner {
     bins: Vec<Bins>,
     range_start: usize,
-    default_rho_gamma: f32,
     cur_rho_gamma: f32,
     num_examples_before_shrink: usize,
 
@@ -103,7 +100,6 @@ impl Learner {
         let b = [0.0; 4];
         Learner {
             range_start: range.start,
-            default_rho_gamma: default_gamma,
             cur_rho_gamma: default_gamma,
             num_examples_before_shrink: num_examples_before_shrink as usize,
 
@@ -234,6 +230,6 @@ impl Learner {
                 }
             }
             valid_weak_rule
-        }).find(|t| t.is_some()).unwrap_or(None)
+        }).find_first(|t| t.is_some()).unwrap_or(None)
     }
 }

@@ -21,8 +21,6 @@ use self::learner::Learner;
 
 use self::bins::create_bins;
 use commons::get_relative_weights;
-use commons::get_symmetric_label;
-use commons::is_positive;
 use commons::io::create_bufwriter;
 use commons::io::write_to_text_file;
 
@@ -31,8 +29,8 @@ use commons::io::write_to_text_file;
 /// the network communication, the other for starting the training procedure.
 pub struct Boosting {
     num_iterations: usize,
-    max_trials_before_shrink: u32,
     training_loader: BufferLoader,
+    // max_trials_before_shrink: u32,
 
     learner: Learner,
     model: Model,
@@ -82,8 +80,8 @@ impl Boosting {
 
         Boosting {
             num_iterations: num_iterations,
-            max_trials_before_shrink: max_trials_before_shrink,
             training_loader: training_loader,
+            // max_trials_before_shrink: max_trials_before_shrink,
 
             learner: learner,
             model: model,
@@ -115,7 +113,6 @@ impl Boosting {
     /// Start training the boosting algorithm.
     pub fn training(&mut self) {
         info!("Start training.");
-        let timeout = self.max_trials_before_shrink as usize;
 
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
