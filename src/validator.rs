@@ -62,12 +62,8 @@ fn validate (
     let mut scores_labels: Vec<(f32, f32)> = (0..num_batches).flat_map(|_| {
         let examples = data_loader.read(batch_size);
         data_loader.update_scores(&examples, trees);
-        data_loader.get_scores()
-                   .into_iter()
-                   .zip(
-                        examples.into_iter()
-                                .map(|data| get_symmetric_label(&data))
-                   )
+        data_loader.get_scores().into_iter().zip(
+            examples.into_iter().map(|data| get_symmetric_label(&data)))
     }).collect();
     scores_labels.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().reverse());
     let sorted_scores_labels = scores_labels;
@@ -80,8 +76,7 @@ fn validate (
                           EvalFunc::AUPRC        => get_auprc(&sorted_scores_labels),
                           EvalFunc::AUROC        => get_auroc(&sorted_scores_labels),
                       }
-                  })
-                  .collect();
+                  }).collect();
     let output: Vec<String> = scores.into_iter().map(|x| x.to_string()).collect();
     debug!("validation-results, {}, {}", trees.len(), output.join(", "));
     output
@@ -181,9 +176,5 @@ fn get_fps_tps(sorted_scores_labels: &Vec<(f32, f32)>) -> (Vec<usize>, Vec<usize
     fps.push(fp);
     tps.push(tp);
     thresholds.push(last_score);
-
-    fps.shrink_to_fit();
-    tps.shrink_to_fit();
-    thresholds.shrink_to_fit();
     (fps, tps, thresholds)
 }
