@@ -1,18 +1,15 @@
 use std::sync::mpsc;
+use std::thread::sleep;
 use std::thread::spawn;
 use bincode::serialize;
 use bincode::deserialize;
 use chan;
 
-
 use std::collections::vec_deque::VecDeque;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::mpsc::Receiver;
-use std::sync::mpsc::Sender;
 use std::time::Duration;
 
-use commons::ExampleWithScore;
 use super::Block;
 use super::InQueueSender;
 use super::OutQueueReceiver;
@@ -27,45 +24,73 @@ pub struct Stratum {
 }
 
 
-macro_rules! unlock_write {
-    ($lock:expr) => ($lock.write().unwrap());
-}
-
-
 impl Stratum {
     pub fn new(num_examples_per_block: usize, disk_buffer: Arc<RwLock<DiskBuffer>>) -> Stratum {
         // memory buffer for incoming examples
         let (in_queue_s, in_queue_r) = mpsc::sync_channel(num_examples_per_block * 2);
         // disk slot for storing most examples
+        // maintained in a channel to support managing the strata with multiple threads (TODO)
         let (slot_s, slot_r) = mpsc::channel();
         // memory buffer for outgoing examples
         let (out_queue_s, out_queue_r) = chan::sync(num_examples_per_block * 2);
-        // write in examples
+
+        let in_block = Arc::new(RwLock::new(VecDeque::with_capacity(num_examples_per_block)));
+        // Pushing in data from outside
         {
-            let num_examples_per_block = num_examples_per_block.clone();
-            let disk_buffer = disk_buffer.clone();
-            let out_queue_s = out_queue_s.clone();
-            spawn(move || {
-                clear_in_queues(
-                    num_examples_per_block,
-                    in_queue_r,
-                    slot_s,
-                    out_queue_s,
-                    disk_buffer,
-                )
-            });
-        }
-        // read out examples
-        {
+            let in_block = in_block.clone();
             let disk_buffer = disk_buffer.clone();
             spawn(move || {
-                fill_out_queues(
-                    slot_r,
-                    out_queue_s,
-                    disk_buffer,
-                )
+                while let Ok(example) = in_queue_r.recv() {
+                    let mut in_block = in_block.write().unwrap();
+                    in_block.push_back(example);
+                    if in_block.len() >= num_examples_per_block {
+                        let serialized_block = serialize(&(*in_block)).unwrap();
+                        let mut disk = disk_buffer.write().unwrap();
+                        let slot_index = disk.write(&serialized_block);
+                        drop(disk);
+
+                        slot_s.send(slot_index).unwrap();
+                        in_block.clear();
+                    }
+                    drop(in_block);
+                }
             });
         }
+
+        // Reading out data to outside
+        spawn(move || {
+            let mut out_block_ptr = (vec![]).into_iter();
+            loop {
+                let mut example = out_block_ptr.next();
+                if example.is_none() {
+                    if let Ok(block_index) = slot_r.try_recv() {
+                        let out_block: Block = {
+                            let mut disk = disk_buffer.write().unwrap();
+                            let block_data: Vec<u8> = disk.read(block_index);
+                            drop(disk);
+                            deserialize(&block_data).expect(
+                                "Cannot deserialize block."
+                            )
+                        };
+                        out_block_ptr = out_block.into_iter();
+                        example = out_block_ptr.next();
+                    } else {
+                        // if the number of examples is less than what requires to form a block,
+                        // they would stay in `in_block` forever and never write to disk.
+                        // We read from `in_block` directly in this case.
+                        let mut in_block = in_block.write().unwrap();
+                        example = in_block.pop_front();
+                        drop(in_block);
+                    }
+                }
+                if example.is_some() {
+                    out_queue_s.send(example.unwrap());
+                } else {
+                    sleep(Duration::from_millis(1000));
+                }
+            }
+        });
+
         Stratum {
             // num_examples_per_block: num_examples_per_block,
             // disk_buffer: disk_buffer,
@@ -73,61 +98,6 @@ impl Stratum {
             out_queue_r: out_queue_r,
         }
     }
-}
-
-
-fn clear_in_queues(num_examples_per_block: usize,
-                   in_queue_out: Receiver<ExampleWithScore>,
-                   slot_in: Sender<usize>,
-                   out_queue: chan::Sender<ExampleWithScore>,
-                   disk_buffer: Arc<RwLock<DiskBuffer>>) {
-    let mut in_block = VecDeque::with_capacity(num_examples_per_block);
-    loop {
-        if let Ok(example) = in_queue_out.recv_timeout(Duration::from_millis(500)) {
-            in_block.push_back(example);
-            if in_block.len() >= num_examples_per_block {
-                let serialized_block = serialize(&in_block).unwrap();
-                let block_idx = unlock_write!(disk_buffer).write(&serialized_block);
-                slot_in.send(block_idx).unwrap();
-                in_block.clear();
-            }
-        } else {
-            // if the number of examples is less than what requires to form a block,
-            // they would stay in `in_block` forever and never write to disk.
-            // In that case, `out_queue` might stuck if it is asked for examples
-            // since it only has direct access to the examples on disk.
-            // To address this issue, we send the examples to `out_queue` from time
-            // to time here if `out_queue` is not full.
-            while let Some(example) = in_block.pop_front() {
-                let example_clone = example.clone();
-                chan_select! {
-                    default => {
-                        in_block.push_front(example);
-                        break;
-                    },
-                    out_queue.send(example_clone) => {},
-                }
-            }
-        }
-    }
-}
-
-
-fn fill_out_queues(slot_out: Receiver<usize>,
-                   out_queue: chan::Sender<ExampleWithScore>,
-                   disk_buffer: Arc<RwLock<DiskBuffer>>) {
-    while let Ok(block_index) = slot_out.recv() {
-        let out_block: Block = {
-            let block_data: Vec<u8> = unlock_write!(disk_buffer).read(block_index);
-            deserialize(&block_data).expect(
-                "Cannot deserialize block."
-            )
-        };
-        for example in out_block {
-            out_queue.send(example);
-        }
-    }
-    error!("Slot Queue in stratum was closed.");
 }
 
 

@@ -98,13 +98,6 @@ impl BufferLoader {
         self.num_batch
     }
 
-    /// Get current batch of examples.
-    pub fn get_curr_batch(&self) -> &[ExampleInSampleSet] {
-        assert!(!self.examples.is_empty());
-        let tail = min(self.curr_example + self.batch_size, self.size);
-        &self.examples[self.curr_example..tail]
-    }
-
     /// Read next batch of examples.
     ///
     /// `allow_switch`: If set to true, the alternate buffer would be checked if it
@@ -119,7 +112,10 @@ impl BufferLoader {
             self.update_ess();
             self.curr_example = 0;
         }
-        self.get_curr_batch()
+
+        assert!(!self.examples.is_empty());
+        let tail = min(self.curr_example + self.batch_size, self.size);
+        &self.examples[self.curr_example..tail]
     }
 
     /// Update the scores of the examples in the current batch using `model`.

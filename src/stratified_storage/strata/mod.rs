@@ -138,7 +138,6 @@ mod tests {
     fn test_strata() {
         let filename = "unittest-strata.bin";
         let mut strata = Strata::new(1000, 3, 10, filename);
-        let mut examples = vec![];
         for i in 0..100 {
             for k in 0..10 {
                 let t = get_example(vec![0, i, k]);
@@ -151,14 +150,12 @@ mod tests {
                     }
                 };
                 sender.send(t.clone()).unwrap();
-                examples.push(t);
             }
         }
-        let mut answer = examples.iter();
         for _ in 0..100 {
             for k in 0..10 {
                 let retrieve = strata.get_out_queue(k as i8).unwrap().recv().unwrap();
-                assert_eq!(*answer.next().unwrap(), retrieve);
+                assert_eq!(k, retrieve.0.feature[2]);
             }
         }
         remove_file(filename).unwrap();
