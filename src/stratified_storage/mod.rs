@@ -159,6 +159,7 @@ impl StratifiedStorage {
 
 #[cfg(test)]
 mod tests {
+    extern crate env_logger;
     use std::fs::remove_file;
     use std::sync::mpsc;
     use std::thread::sleep;
@@ -167,6 +168,7 @@ mod tests {
 
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
+    use commons::performance_monitor::PerformanceMonitor;
     use super::StratifiedStorage;
 
     #[test]
@@ -221,15 +223,18 @@ mod tests {
 
     #[test]
     fn test_mean() {
+        let _ = env_logger::try_init();
         let filename = "unittest-stratified3.bin";
-        let batch = 1000;
-        let num_read = 100000;
+        let batch = 1000000;
+        let num_read = 500000;
         let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
         let (_, models_recv) = mpsc::channel();
         let stratified_storage = StratifiedStorage::new(
-            batch * 10, 1, 10, filename, 6, 2, sampled_examples_send, models_recv
+            batch * 10, 1, 10, filename, 4, 4, sampled_examples_send, models_recv
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
+        let mut pm_load = PerformanceMonitor::new();
+        pm_load.start();
         for _ in 0..batch {
             for i in 1..11 {
                 let t = get_example(vec![i], i as f32);
@@ -240,17 +245,23 @@ mod tests {
             let counts = stratified_storage.counts_table.read().unwrap();
             let total = counts.values().sum::<u32>() as usize;
             drop(counts);
-            if total >= batch * 10 / 2 {
+            if total >= batch {
+                pm_load.update(total);
                 break;
             }
             sleep(Duration::from_millis(1000));
         }
+        pm_load.write_log("stratified-loading");
 
+        let mut pm_sample = PerformanceMonitor::new();
+        pm_sample.start();
         let mut average = 0.0;
         for _ in 0..num_read {
             let recv = sampled_examples_recv.recv().unwrap();
             average += ((recv.0).feature[0] as f32) / (num_read as f32);
+            pm_sample.update(1);
         }
+        pm_load.write_log("stratified-sampling");
         let answer =
             (1..11).map(|a| a as f32).map(|a| a * a).sum::<f32>() / ((1..11).sum::<i32>() as f32);
         assert!((average - answer) <= 0.05);

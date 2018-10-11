@@ -103,8 +103,10 @@ fn sampler(
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
 ) {
-    let mut pm = PerformanceMonitor::new();
-    pm.start();
+    let mut pm_update = PerformanceMonitor::new();
+    let mut pm_sample = PerformanceMonitor::new();
+    pm_update.start();
+    pm_sample.start();
 
     let mut grids: HashMap<i8, f32> = HashMap::new();
     let mut killed = false;
@@ -164,6 +166,7 @@ fn sampler(
                 sampled_example = Some((example.clone(), (updated_score, model_size)));
             }
             updated_examples.send((example, (updated_score, model_size)));
+            pm_update.update(1);
         }
         // STEP 4: Correct the weights of this strata
         {
@@ -184,9 +187,10 @@ fn sampler(
                 break;
             }
             *grid -= grid_size;
-            pm.update(1);
+            pm_sample.update(1);
         }
-        pm.write_log("selector");
+        pm_update.write_log("sampler-update");
+        pm_sample.write_log("sampler-sample");
     }
 }
 
