@@ -5,6 +5,7 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 
+use std::fs::remove_file;
 use super::bitmap::BitMap;
 
 // TODO: implement in-memory I/O buffer for both reading and writing
@@ -15,7 +16,8 @@ pub struct DiskBuffer {
     block_size: usize,
     capacity: usize,
     size: usize,
-    file: File
+    file: File,
+    filename: String,
 }
 
 
@@ -33,6 +35,7 @@ impl DiskBuffer {
             capacity: capacity,
             size: 0,
             file: file,
+            filename: String::from(filename),
         }
     }
 
@@ -73,10 +76,15 @@ impl DiskBuffer {
     }
 }
 
+impl Drop for DiskBuffer {
+    fn drop(&mut self) {
+        remove_file(&self.filename).unwrap();
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
-    use std::fs::remove_file;
     use bincode::serialize;
     use bincode::deserialize;
 
@@ -94,7 +102,6 @@ mod tests {
         for _ in 0..5 {
             disk_buffer.write(&data);
         }
-        remove_file(filename).unwrap();
     }
 
     #[test]
@@ -109,7 +116,6 @@ mod tests {
         assert_eq!(data, retrieve);
         let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
         assert_eq!(examples, examples_des);
-        remove_file(filename).unwrap();
     }
 
     #[test]
@@ -127,7 +133,6 @@ mod tests {
             let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
             assert_eq!(examples, examples_des);
         }
-        remove_file(filename).unwrap();
     }
 
     #[test]
@@ -149,7 +154,6 @@ mod tests {
             let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
             assert_eq!(inputs[i].1, examples_des);
         }
-        remove_file(filename).unwrap();
     }
 
     #[test]
