@@ -2,13 +2,14 @@ mod bitmap;
 mod disk_buffer;
 mod stratum;
 
+use crossbeam_channel as channel;
+use bincode::serialize;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::mpsc::SyncSender;
-use chan::Receiver;
-
-use bincode::serialize;
+use self::channel::Receiver;
 
 use commons::ExampleWithScore;
 use super::Example;

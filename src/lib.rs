@@ -13,7 +13,7 @@ The components communicates via channels, which can be seens as shared FIFO queu
 #[macro_use] extern crate log;
 extern crate bincode;
 extern crate bufstream;
-extern crate chan;
+extern crate crossbeam_channel;
 extern crate ordered_float;
 extern crate rand;
 extern crate rayon;

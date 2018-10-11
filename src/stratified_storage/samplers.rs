@@ -1,14 +1,15 @@
+use std::sync::mpsc;
+use std::thread::sleep;
+use std::thread::spawn;
+use crossbeam_channel as channel;
+use rayon::prelude::*;
+use rand;
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
-use chan::Sender;
-
-use std::sync::mpsc;
-use std::thread::sleep;
-use std::thread::spawn;
-use rayon::prelude::*;
-use rand;
+use self::channel::Sender;
 
 use commons::ExampleWithScore;
 use commons::Model;

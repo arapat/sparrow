@@ -3,7 +3,7 @@ use std::thread::sleep;
 use std::thread::spawn;
 use bincode::serialize;
 use bincode::deserialize;
-use chan;
+use crossbeam_channel as channel;
 
 use std::collections::vec_deque::VecDeque;
 use std::sync::Arc;
@@ -32,7 +32,7 @@ impl Stratum {
         // maintained in a channel to support managing the strata with multiple threads (TODO)
         let (slot_s, slot_r) = mpsc::channel();
         // memory buffer for outgoing examples
-        let (out_queue_s, out_queue_r) = chan::sync(num_examples_per_block * 2);
+        let (out_queue_s, out_queue_r) = channel::bounded(num_examples_per_block * 2);
 
         let in_block = Arc::new(RwLock::new(VecDeque::with_capacity(num_examples_per_block)));
         // Pushing in data from outside

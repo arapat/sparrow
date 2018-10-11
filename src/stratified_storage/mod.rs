@@ -3,7 +3,7 @@ mod assigners;
 mod samplers;
 pub mod serial_storage;
 
-use chan;
+use crossbeam_channel as channel;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -36,8 +36,8 @@ pub struct StratifiedStorage {
     // num_samplers: usize,
     // assigners: Assigners,
     // samplers: Samplers,
-    // updated_examples_r: chan::Receiver<ExampleWithScore>,
-    updated_examples_s: chan::Sender<ExampleWithScore>,
+    // updated_examples_r: channel::Receiver<ExampleWithScore>,
+    updated_examples_s: channel::Sender<ExampleWithScore>,
 }
 
 
@@ -100,7 +100,7 @@ impl StratifiedStorage {
         let counts_table = Arc::new(RwLock::new(HashMap::new()));
         let weights_table = Arc::new(RwLock::new(HashMap::new()));
 
-        let (updated_examples_s, updated_examples_r) = chan::async();
+        let (updated_examples_s, updated_examples_r) = channel::unbounded();
 
         let mut assigners = Assigners::new(
             counts_table.clone(), weights_table.clone(), updated_examples_r.clone(),

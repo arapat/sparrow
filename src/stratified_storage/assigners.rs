@@ -1,7 +1,6 @@
-
 use std::sync::Arc;
 use std::sync::RwLock;
-use chan::Receiver;
+use crossbeam_channel as channel;
 
 use std::thread::spawn;
 
@@ -17,7 +16,7 @@ use commons::get_weight;
 pub struct Assigners {
     counts_table: SharedCountsTable,
     weights_table: SharedWeightsTable,
-    updated_examples_out: Receiver<ExampleWithScore>,
+    updated_examples_out: channel::Receiver<ExampleWithScore>,
     strata: Arc<RwLock<Strata>>
 }
 
@@ -26,7 +25,7 @@ impl Assigners {
     pub fn new(
         counts_table: SharedCountsTable,
         weights_table: SharedWeightsTable,
-        updated_examples_out: Receiver<ExampleWithScore>,
+        updated_examples_out: channel::Receiver<ExampleWithScore>,
         strata: Arc<RwLock<Strata>>,
     ) -> Assigners {
         Assigners {
@@ -80,15 +79,15 @@ impl Assigners {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::remove_file;
+    use std::thread::sleep;
+    use crossbeam_channel as channel;
+
     use std::collections::HashMap;
     use std::sync::Arc;
     use std::sync::RwLock;
     use std::time::Duration;
-    use chan::Sender;
-
-    use std::fs::remove_file;
-    use std::thread::sleep;
-    use chan;
+    use self::channel::Sender;
 
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
@@ -137,7 +136,7 @@ mod tests {
                 Strata::new(100, 3, 10, filename)));
         let counts_table = Arc::new(RwLock::new(HashMap::new()));
         let weights_table = Arc::new(RwLock::new(HashMap::new()));
-        let (updated_examples_send, updated_examples_recv) = chan::sync(10);
+        let (updated_examples_send, updated_examples_recv) = channel::bounded(10);
         (counts_table.clone(),
          updated_examples_send,
          Assigners::new(counts_table, weights_table, updated_examples_recv, strata))
