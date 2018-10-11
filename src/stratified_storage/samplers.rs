@@ -132,7 +132,9 @@ fn sampler(
             if let Some(receiver) = existing_receiver {
                 receiver
             } else {
-                let (_, receiver) = strata.write().unwrap().create(index);
+                let mut strata = strata.write().unwrap();
+                let (_, receiver) = strata.create(index);
+                drop(strata);
                 receiver
             }
         };

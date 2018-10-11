@@ -59,7 +59,7 @@ impl Strata {
             disk_buffer_name, feature_size, num_examples, num_examples_per_block);
         Strata {
             num_examples_per_block: num_examples_per_block,
-            disk_buffer: get_locked(disk_buffer),
+            disk_buffer: Arc::new(RwLock::new(disk_buffer)),
             in_queues: Arc::new(RwLock::new(HashMap::new())),
             out_queues: Arc::new(RwLock::new(HashMap::new()))
         }
@@ -118,11 +118,6 @@ fn get_block_size(feature_size: usize, num_examples_per_block: usize) -> usize {
     let block: Block = vec![example_with_score; num_examples_per_block];
     let serialized_block: Vec<u8> = serialize(&block).unwrap();
     serialized_block.len()
-}
-
-
-fn get_locked<T>(t: T) -> Arc<RwLock<T>> {
-    Arc::new(RwLock::new(t))
 }
 
 

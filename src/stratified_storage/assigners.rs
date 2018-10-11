@@ -44,50 +44,37 @@ impl Assigners {
             let updated_examples_out = self.updated_examples_out.clone();
             let strata = self.strata.clone();
             spawn(move|| {
-                clear_updated_examples(counts_table, weights_table, updated_examples_out, strata);
+                let mut pm = PerformanceMonitor::new();
+                pm.start();
+                while let Some(ret) = updated_examples_out.recv() {
+                    let (example, (score, version)) = ret;
+                    let weight = get_weight(&example, score);
+                    let index = weight.log2() as i8;
+                    let read_strata = strata.read().unwrap();
+                    let mut sender = read_strata.get_in_queue(index);
+                    drop(read_strata);
+                    if sender.is_none() {
+                        let mut strata = strata.write().unwrap();
+                        sender = Some(strata.create(index).0);
+                        drop(strata);
+                    }
+                    sender.unwrap().send((example, (score, version))).unwrap();
+                    {
+                        let mut weights = weights_table.write().unwrap();
+                        let prev_weight = weights.entry(index).or_insert(0.0);
+                        *prev_weight += weight as f64;
+
+                        let mut counts = counts_table.write().unwrap();
+                        let prev_count = counts.entry(index).or_insert(0);
+                        *prev_count += 1;
+                    }
+                    pm.update(1);
+                    pm.write_log("selector");
+                }
+                error!("Updated examples queue was closed.");
             });
         }
     }
-}
-
-
-fn clear_updated_examples(
-    counts_table: SharedCountsTable,
-    weights_table: SharedWeightsTable,
-    updated_examples_out: Receiver<ExampleWithScore>,
-    strata: Arc<RwLock<Strata>>,
-) {
-    let mut pm = PerformanceMonitor::new();
-    pm.start();
-    while let Some(ret) = updated_examples_out.recv() {
-        let (example, (score, version)) = ret;
-        let weight = get_weight(&example, score);
-        let index = get_strata_idx(weight);
-        let read_strata = strata.read().unwrap();
-        let mut sender = read_strata.get_in_queue(index);
-        drop(read_strata);
-        if sender.is_none() {
-            sender = Some(strata.write().unwrap().create(index).0);
-        }
-        sender.unwrap().send((example, (score, version))).unwrap();
-        {
-            let mut weights = weights_table.write().unwrap();
-            let prev_weight = weights.entry(index).or_insert(0.0);
-            *prev_weight += weight as f64;
-
-            let mut counts = counts_table.write().unwrap();
-            let prev_count = counts.entry(index).or_insert(0);
-            *prev_count += 1;
-        }
-        pm.update(1);
-        pm.write_log("selector");
-    }
-    error!("Updated examples queue was closed.");
-}
-
-
-fn get_strata_idx(weight: f32) -> i8 {
-    weight.log2() as i8
 }
 
 
