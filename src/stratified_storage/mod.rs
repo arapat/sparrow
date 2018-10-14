@@ -3,9 +3,13 @@ mod assigners;
 mod samplers;
 pub mod serial_storage;
 
+use std::thread::spawn;
+use std::sync::mpsc;
 use crossbeam_channel as channel;
+use evmap;
+use rand;
+use commons::get_sign;
 
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::mpsc::Sender;
@@ -21,17 +25,26 @@ use self::serial_storage::SerialStorage;
 use self::strata::Strata;
 
 
-type SharedCountsTable = Arc<RwLock<HashMap<i8, u32>>>;
-type SharedWeightsTable = Arc<RwLock<HashMap<i8, f64>>>;
+pub struct F64 {
+    pub val: f64
+}
 
+impl PartialEq for F64 {
+    fn eq(&self, other: &F64) -> bool {
+        get_sign(self.val - other.val) == 0
+    }
+}
+impl Eq for F64 {}
+
+type WeightTableRead = evmap::ReadHandle<i8, Box<F64>>;
 
 pub struct StratifiedStorage {
     // num_examples: usize,
     // feature_size: usize,
     // num_examples_per_block: usize,
     // disk_buffer_filename: String,
-    #[allow(dead_code)] counts_table: SharedCountsTable,
-    #[allow(dead_code)] weights_table: SharedWeightsTable,
+    #[allow(dead_code)] counts_table_r: evmap::ReadHandle<i8, i32>,
+    #[allow(dead_code)] weights_table_r: WeightTableRead,
     // num_assigners: usize,
     // num_samplers: usize,
     // assigners: Assigners,
@@ -97,17 +110,31 @@ impl StratifiedStorage {
                                  disk_buffer_filename);
         let strata = Arc::new(RwLock::new(strata));
 
-        let counts_table = Arc::new(RwLock::new(HashMap::new()));
-        let weights_table = Arc::new(RwLock::new(HashMap::new()));
-
+        let (counts_table_r, mut counts_table_w) = evmap::new();
+        let (weights_table_r, mut weights_table_w) = evmap::new();
         let (updated_examples_s, updated_examples_r) = channel::unbounded();
+        let (stats_update_s, stats_update_r) = mpsc::channel();
+        {
+            let counts_table_r = counts_table_r.clone();
+            let weights_table_r = weights_table_r.clone();
+            spawn(move || {
+                while let Ok((index, (count, weight))) = stats_update_r.recv() {
+                    let val = counts_table_r.get_and(&index, |vs| vs[0]);
+                    counts_table_w.update(index, val.unwrap_or(0) + count);
+                    counts_table_w.refresh();
+                    let cur = weights_table_r.get_and(&index, |vs: &[Box<F64>]| vs[0].val)
+                                             .unwrap_or(0.0);
+                    weights_table_w.update(index, Box::new(F64 { val: cur + weight }));
+                    weights_table_w.refresh();
+                }
+            });
+        }
 
         let mut assigners = Assigners::new(
-            counts_table.clone(), weights_table.clone(), updated_examples_r.clone(),
-            strata.clone());
+            updated_examples_r.clone(), strata.clone(), stats_update_s.clone());
         let mut samplers = Samplers::new(
-            counts_table.clone(), weights_table.clone(), strata.clone(),
-            sampled_examples, updated_examples_s.clone(), models);
+            strata.clone(), sampled_examples, updated_examples_s.clone(), models,
+            stats_update_s.clone(), weights_table_r.clone());
         assigners.run(num_assigners);
         samplers.run(num_samplers);
 
@@ -116,8 +143,8 @@ impl StratifiedStorage {
             // feature_size: feature_size,
             // num_examples_per_block: num_examples_per_block,
             // disk_buffer_filename: String::from(disk_buffer_filename),
-            counts_table: counts_table,
-            weights_table: weights_table,
+            counts_table_r: counts_table_r,
+            weights_table_r: weights_table_r,
             // num_assigners: num_assigners,
             // num_samplers: num_samplers,
             // assigners: assigners,
@@ -126,7 +153,6 @@ impl StratifiedStorage {
             updated_examples_s: updated_examples_s,
         }
     }
-
 
     pub fn init_stratified_from_file(
         self,
@@ -157,14 +183,30 @@ impl StratifiedStorage {
 }
 
 
+fn sample_weights_table(weights_table_r: &WeightTableRead) -> Option<i8> {
+    let p: Vec<(i8, f64)> = weights_table_r.map_into(|a, b| (a.clone(), b[0].val));
+    let sum_of_weights: f64 = p.iter().map(|t| t.1).sum();
+    if get_sign(sum_of_weights) == 0 {
+        None
+    } else {
+        let mut frac = rand::random::<f64>() * sum_of_weights;
+        let mut iter = p.iter();
+        let mut key_val = &(0, 0.0);
+        while get_sign(frac) >= 0 {
+            key_val = iter.next().expect("get_sample_from: input p is empty");
+            frac -= key_val.1;
+        }
+        Some(key_val.0)
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
     extern crate env_logger;
     use std::fs::remove_file;
     use std::sync::mpsc;
-    use std::thread::sleep;
     use std::collections::HashMap;
-    use std::time::Duration;
 
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
@@ -177,12 +219,11 @@ mod tests {
         let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
         let (_, models_recv) = mpsc::channel();
         let stratified_storage = StratifiedStorage::new(
-            1000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv
+            10000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
-        for i in 0..10 {
-            let t = get_example(vec![0, 0, i], 1.0);
-            updated_examples_send.send(t.clone());
+        for i in 0..100 {
+            updated_examples_send.send(get_example(vec![0, 0, i], 1.0));
         }
         let mut freq = HashMap::new();
         for _ in 0..100 {
@@ -191,32 +232,7 @@ mod tests {
             *c += 1;
         }
         for (_, v) in freq.iter() {
-            assert_eq!(*v, 20);
-        }
-        remove_file(filename).unwrap();
-    }
-
-    #[test]
-    fn test_stratified_one_by_one_10_threads() {
-        let filename = "unittest-stratified2.bin";
-        let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
-        let (_, models_recv) = mpsc::channel();
-        let stratified_storage = StratifiedStorage::new(
-            1000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv
-        );
-        let updated_examples_send = stratified_storage.updated_examples_s.clone();
-        for i in 0..10 {
-            let t = get_example(vec![0, 0, i], 1.0);
-            updated_examples_send.send(t.clone());
-        }
-        let mut freq = HashMap::new();
-        for _ in 0..100 {
-            let recv = sampled_examples_recv.recv().unwrap();
-            let c = freq.entry((recv.0).feature[2]).or_insert(0u8);
-            *c += 1;
-        }
-        for (_, v) in freq.iter() {
-            assert_eq!(*v, 20);
+            assert_eq!(*v, 2);
         }
         remove_file(filename).unwrap();
     }
@@ -226,11 +242,11 @@ mod tests {
         let _ = env_logger::try_init();
         let filename = "unittest-stratified3.bin";
         let batch = 1000000;
-        let num_read = 500000;
+        let num_read = 1000000;
         let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
         let (_, models_recv) = mpsc::channel();
         let stratified_storage = StratifiedStorage::new(
-            batch * 10, 1, 10, filename, 4, 4, sampled_examples_send, models_recv
+            batch * 10, 1, 10000, filename, 4, 4, sampled_examples_send, models_recv
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
         let mut pm_load = PerformanceMonitor::new();
@@ -240,16 +256,6 @@ mod tests {
                 let t = get_example(vec![i], i as f32);
                 updated_examples_send.send(t.clone());
             }
-        }
-        loop {
-            let counts = stratified_storage.counts_table.read().unwrap();
-            let total = counts.values().sum::<u32>() as usize;
-            drop(counts);
-            if total >= batch {
-                pm_load.update(total);
-                break;
-            }
-            sleep(Duration::from_millis(1000));
         }
         pm_load.write_log("stratified-loading");
 
@@ -261,7 +267,7 @@ mod tests {
             average += ((recv.0).feature[0] as f32) / (num_read as f32);
             pm_sample.update(1);
         }
-        pm_load.write_log("stratified-sampling");
+        println!("Sampling speed: {}", num_read as f32 / pm_sample.get_duration());
         let answer =
             (1..11).map(|a| a as f32).map(|a| a * a).sum::<f32>() / ((1..11).sum::<i32>() as f32);
         assert!((average - answer) <= 0.05);

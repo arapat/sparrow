@@ -159,7 +159,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_disk_buffer_read_panic() {
-        let filename = "unittest-diskbuffer.bin";
+        let filename = "unittest-diskbuffer5.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 10, 10);
         disk_buffer.read(0);
     }
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_disk_buffer_write_disk_full_panic() {
-        let filename = "unittest-diskbuffer.bin";
+        let filename = "unittest-diskbuffer6.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![1, 2, 3]);
         let data = serialize(&vec![example; 10]).unwrap();
@@ -179,7 +179,7 @@ mod tests {
     #[test]
     #[should_panic]
     fn test_disk_buffer_write_feature_size_mismatch_panic() {
-        let filename = "unittest-diskbuffer.bin";
+        let filename = "unittest-diskbuffer7.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let example = get_example(vec![1, 2, 3, 4]);
         let data = serialize(&vec![example; 10]).unwrap();

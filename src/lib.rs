@@ -14,6 +14,7 @@ The components communicates via channels, which can be seens as shared FIFO queu
 extern crate bincode;
 extern crate bufstream;
 extern crate crossbeam_channel;
+extern crate evmap;
 extern crate ordered_float;
 extern crate rand;
 extern crate rayon;
