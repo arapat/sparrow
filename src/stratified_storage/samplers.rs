@@ -60,8 +60,10 @@ impl Samplers {
             spawn(move || {
                 for new_model in next_model.iter() {
                     let model_len = new_model.len();
-                    let model = model.write();
-                    *(model.unwrap()) = new_model;
+                    {
+                        let mut model = model.write().unwrap();
+                        *model = new_model;
+                    }
                     info!("sampler model update, {}", model_len);
                 }
             });
@@ -129,7 +131,6 @@ fn sampler(
             } else {
                 let mut strata = strata.write().unwrap();
                 let (_, receiver) = strata.create(index);
-                drop(strata);
                 receiver
             }
         };

@@ -50,7 +50,6 @@ impl Assigners {
                     if sender.is_none() {
                         let mut strata = strata.write().unwrap();
                         sender = Some(strata.create(index).0);
-                        drop(strata);
                     }
                     sender.unwrap().send((example, (score, version))).unwrap();
                     stats_update_s.send((index, (1, weight as f64))).unwrap();

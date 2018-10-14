@@ -39,16 +39,6 @@ pub struct Strata {
 }
 
 
-macro_rules! unlock_read {
-    ($lock:expr) => ($lock.read().unwrap());
-}
-
-
-macro_rules! unlock_write {
-    ($lock:expr) => ($lock.write().unwrap());
-}
-
-
 impl Strata {
     pub fn new(
         num_examples: usize,
@@ -67,7 +57,7 @@ impl Strata {
     }
 
     pub fn get_in_queue(&self, index: i8) -> Option<InQueueSender> {
-        if let Some(t) = unlock_read!(self.in_queues).get(&index) {
+        if let Some(t) = self.in_queues.read().unwrap().get(&index) {
             Some(t.clone())
         } else {
             None
@@ -75,7 +65,7 @@ impl Strata {
     }
 
     pub fn get_out_queue(&self, index: i8) -> Option<OutQueueReceiver> {
-        if let Some(t) = unlock_read!(self.out_queues).get(&index) {
+        if let Some(t) = self.out_queues.read().unwrap().get(&index) {
             Some(t.clone())
         } else {
             None
@@ -84,7 +74,7 @@ impl Strata {
 
     pub fn create(&mut self, index: i8) -> (InQueueSender, OutQueueReceiver) {
         let (mut in_queues, mut out_queues) =
-            (unlock_write!(self.in_queues), unlock_write!(self.out_queues));
+            (self.in_queues.write().unwrap(), self.out_queues.write().unwrap());
         if in_queues.contains_key(&index) {
             // Other process have created the stratum before this process secures the writing lock
             (in_queues[&index].clone(), out_queues[&index].clone())

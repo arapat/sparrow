@@ -132,12 +132,13 @@ impl BufferLoader {
     }
 
     fn try_switch(&mut self) -> bool {
-        let new_examples =
+        let new_examples = {
             if let Ok(mut new_examples) = self.new_examples.try_write() {
                 new_examples.take()
             } else {
                 None
-            };
+            }
+        };
         if new_examples.is_some() {
             self.examples = new_examples.unwrap()
                                         .into_iter()
