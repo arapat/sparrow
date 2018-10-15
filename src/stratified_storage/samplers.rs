@@ -16,6 +16,7 @@ use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use super::Strata;
 use super::WeightTableRead;
+use super::SPEED_TEST;
 
 use commons::get_weight;
 
@@ -136,7 +137,15 @@ fn sampler(
         };
         // STEP 3: Sample one example using minimum variance sampling
         // meanwhile update the weights of all accessed examples
-        let grid_size = 2f32.powi((index + 1) as i32);  // grid size can be set more conservatively
+        let grid_size = {
+            if SPEED_TEST {
+                // assume sampling 1% of the weight sequence 1, 2, ..., 10
+                55.0 * 10.0
+            } else {
+                // grid size can be set more conservatively
+                2f32.powi((index + 1) as i32)
+            }
+        };
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
         while *grid < grid_size {

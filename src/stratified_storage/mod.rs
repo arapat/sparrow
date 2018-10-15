@@ -25,6 +25,8 @@ use self::serial_storage::SerialStorage;
 use self::strata::Strata;
 
 
+pub const SPEED_TEST: bool = false;
+
 pub struct F64 {
     pub val: f64
 }
@@ -242,11 +244,11 @@ mod tests {
         let _ = env_logger::try_init();
         let filename = "unittest-stratified3.bin";
         let batch = 1000000;
-        let num_read = 1000000;
+        let num_read = 100000;
         let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
         let (_, models_recv) = mpsc::channel();
         let stratified_storage = StratifiedStorage::new(
-            batch * 10, 1, 10000, filename, 4, 4, sampled_examples_send, models_recv
+            batch * 10, 1, 1000, filename, 4, 4, sampled_examples_send, models_recv
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
         let mut pm_load = PerformanceMonitor::new();

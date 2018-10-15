@@ -8,6 +8,7 @@ use std::thread::spawn;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 use super::Strata;
+use super::SPEED_TEST;
 
 use commons::get_weight;
 
@@ -38,12 +39,20 @@ impl Assigners {
             let strata = self.strata.clone();
             let stats_update_s = self.stats_update_s.clone();
             spawn(move|| {
+                let mut rotate = 0;
                 let mut pm = PerformanceMonitor::new();
                 pm.start();
                 while let Some(ret) = updated_examples_r.recv() {
                     let (example, (score, version)) = ret;
                     let weight = get_weight(&example, score);
-                    let index = weight.log2() as i8;
+                    let index = {
+                        if SPEED_TEST {
+                            rotate = (rotate + 1) % 10;
+                            rotate + 1
+                        } else {
+                            weight.log2() as i8
+                        }
+                    };
                     let read_strata = strata.read().unwrap();
                     let mut sender = read_strata.get_in_queue(index);
                     drop(read_strata);
