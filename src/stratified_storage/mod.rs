@@ -175,13 +175,15 @@ impl StratifiedStorage {
             true,
         );
 
-        let mut index = 0;
-        while index < size {
-            reader.read(batch_size).into_iter().for_each(|data| {
-                self.updated_examples_s.send((data, (0.0, 0)));
-            });
-            index += batch_size;
-        }
+        spawn(move || {
+            let mut index = 0;
+            while index < size {
+                reader.read(batch_size).into_iter().for_each(|data| {
+                    self.updated_examples_s.send((data, (0.0, 0)));
+                });
+                index += batch_size;
+            }
+        });
     }
 }
 

@@ -132,6 +132,7 @@ impl Boosting {
                 let weights = get_relative_weights(data);
                 (self.learner.update(data, &weights), data.len())
             };
+            learner_timer.update(batch_size);
             learner_timer.pause();
 
             if new_rule.is_some() {
@@ -153,7 +154,6 @@ impl Boosting {
 
             global_timer.update(batch_size);
             global_timer.write_log("boosting-overall");
-            learner_timer.update(batch_size);
             learner_timer.write_log("boosting-learning");
         }
         self.handle_persistent(iteration);
