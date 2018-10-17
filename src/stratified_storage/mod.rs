@@ -213,6 +213,7 @@ mod tests {
     use std::sync::mpsc;
     use std::collections::HashMap;
 
+    use std::thread::spawn;
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use commons::performance_monitor::PerformanceMonitor;
@@ -224,7 +225,7 @@ mod tests {
         let (sampled_examples_send, sampled_examples_recv) = mpsc::sync_channel(10);
         let (_, models_recv) = mpsc::sync_channel(10);
         let stratified_storage = StratifiedStorage::new(
-            10000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv
+            10000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv, 1000
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
         for i in 0..100 {
@@ -251,18 +252,20 @@ mod tests {
         let (sampled_examples_send, sampled_examples_recv) = mpsc::sync_channel(10);
         let (_, models_recv) = mpsc::sync_channel(10);
         let stratified_storage = StratifiedStorage::new(
-            batch * 10, 1, 1000, filename, 4, 4, sampled_examples_send, models_recv
+            batch * 10, 1, 1000, filename, 4, 4, sampled_examples_send, models_recv, 10
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
         let mut pm_load = PerformanceMonitor::new();
         pm_load.start();
-        for _ in 0..batch {
-            for i in 1..11 {
-                let t = get_example(vec![i], i as f32);
-                updated_examples_send.send(t.clone());
+        spawn(move || {
+            for _ in 0..batch {
+                for i in 1..11 {
+                    let t = get_example(vec![i], i as f32);
+                    updated_examples_send.send(t.clone());
+                }
             }
-        }
-        pm_load.write_log("stratified-loading");
+            pm_load.write_log("stratified-loading");
+        });
 
         let mut pm_sample = PerformanceMonitor::new();
         pm_sample.start();

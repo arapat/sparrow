@@ -129,7 +129,7 @@ mod tests {
     ) -> (mpsc::Receiver<(i8, (i32, f64))>, Sender<ExampleWithScore>, Assigners) {
         let strata = Arc::new(RwLock::new(Strata::new(100, 3, 10, filename)));
         let (updated_examples_send, updated_examples_recv) = channel::bounded(10);
-        let (stats_update_s, stats_update_r) = mpsc::sync_channel(10);
+        let (stats_update_s, stats_update_r) = mpsc::sync_channel(100);
         (
             stats_update_r,
             updated_examples_send,
