@@ -38,10 +38,10 @@ use commons::get_weight;
 
 pub struct Samplers {
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: mpsc::Sender<ExampleWithScore>,
+    sampled_examples: mpsc::SyncSender<ExampleWithScore>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
-    stats_update_s: mpsc::Sender<(i8, (i32, f64))>,
+    stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
 }
 
@@ -49,10 +49,10 @@ pub struct Samplers {
 impl Samplers {
     pub fn new(
         strata: Arc<RwLock<Strata>>,
-        sampled_examples: mpsc::Sender<ExampleWithScore>,
+        sampled_examples: mpsc::SyncSender<ExampleWithScore>,
         updated_examples: Sender<ExampleWithScore>,
         next_model: mpsc::Receiver<Model>,
-        stats_update_s: mpsc::Sender<(i8, (i32, f64))>,
+        stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
     ) -> Samplers {
         let model = Arc::new(RwLock::new(vec![]));
@@ -99,10 +99,10 @@ impl Samplers {
 
 fn sampler(
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: mpsc::Sender<ExampleWithScore>,
+    sampled_examples: mpsc::SyncSender<ExampleWithScore>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
-    stats_update_s: mpsc::Sender<(i8, (i32, f64))>,
+    stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
 ) {
     let mut pm_update = PerformanceMonitor::new();

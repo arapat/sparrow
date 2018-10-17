@@ -16,7 +16,7 @@ use commons::get_weight;
 pub struct Assigners {
     updated_examples_r: channel::Receiver<ExampleWithScore>,
     strata: Arc<RwLock<Strata>>,
-    stats_update_s: mpsc::Sender<(i8, (i32, f64))>,
+    stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
 }
 
 
@@ -24,7 +24,7 @@ impl Assigners {
     pub fn new(
         updated_examples_r: channel::Receiver<ExampleWithScore>,
         strata: Arc<RwLock<Strata>>,
-        stats_update_s: mpsc::Sender<(i8, (i32, f64))>,
+        stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
     ) -> Assigners {
         Assigners {
             updated_examples_r: updated_examples_r,
@@ -129,7 +129,7 @@ mod tests {
     ) -> (mpsc::Receiver<(i8, (i32, f64))>, Sender<ExampleWithScore>, Assigners) {
         let strata = Arc::new(RwLock::new(Strata::new(100, 3, 10, filename)));
         let (updated_examples_send, updated_examples_recv) = channel::bounded(10);
-        let (stats_update_s, stats_update_r) = mpsc::channel();
+        let (stats_update_s, stats_update_r) = mpsc::sync_channel(10);
         (
             stats_update_r,
             updated_examples_send,

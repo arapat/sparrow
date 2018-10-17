@@ -172,7 +172,7 @@ impl BufferLoader {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc::channel;
+    use std::sync::mpsc::sync_channel;
     use std::thread::sleep;
 
     use std::time::Duration;
@@ -184,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_buffer_loader() {
-        let (sender, receiver) = channel();
+        let (sender, receiver) = sync_channel(10);
         let mut buffer_loader = BufferLoader::new(100, 10, Some(receiver), false);
         (0..100).for_each(|_| sender.send(get_example(vec![0, 1, 2], 1.0)).unwrap());
         sleep(Duration::from_millis(1000));

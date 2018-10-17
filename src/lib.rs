@@ -43,7 +43,7 @@ mod labeled_data;
 /// Validating models
 mod validator;
 
-use std::sync::mpsc::channel;
+use std::sync::mpsc::sync_channel;
 
 use booster::Boosting;
 use buffer_loader::BufferLoader;
@@ -105,11 +105,11 @@ pub fn run_rust_boost(config_file: String) {
     ).unwrap();
 
     // Strata -> BufferLoader
-    let (sampled_examples_s, sampled_examples_r) = channel();
+    let (sampled_examples_s, sampled_examples_r) = sync_channel(config.channel_size);
     // Booster -> Strata
-    let (next_model_s, next_model_r) = channel();
+    let (next_model_s, next_model_r) = sync_channel(config.channel_size);
     // Booster -> Validator
-    let (model_validate_s, model_validate_r) = channel();
+    let (model_validate_s, model_validate_r) = sync_channel(config.channel_size);
 
     info!("Starting the stratified structure.");
     let stratified_structure = StratifiedStorage::new(
@@ -121,6 +121,7 @@ pub fn run_rust_boost(config_file: String) {
         config.num_samplers,
         sampled_examples_s,
         next_model_r,
+        config.channel_size,
     );
     info!("Initializing the stratified structure.");
     stratified_structure.init_stratified_from_file(

@@ -12,7 +12,7 @@ use commons::get_sign;
 
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 use std::sync::mpsc::Receiver;
 
 use commons::ExampleWithScore;
@@ -105,8 +105,9 @@ impl StratifiedStorage {
         disk_buffer_filename: &str,
         num_assigners: usize,
         num_samplers: usize,
-        sampled_examples: Sender<ExampleWithScore>,
+        sampled_examples: SyncSender<ExampleWithScore>,
         models: Receiver<Model>,
+        channel_size: usize,
     ) -> StratifiedStorage {
         let strata = Strata::new(num_examples, feature_size, num_examples_per_block,
                                  disk_buffer_filename);
@@ -114,8 +115,8 @@ impl StratifiedStorage {
 
         let (counts_table_r, mut counts_table_w) = evmap::new();
         let (weights_table_r, mut weights_table_w) = evmap::new();
-        let (updated_examples_s, updated_examples_r) = channel::unbounded();
-        let (stats_update_s, stats_update_r) = mpsc::channel();
+        let (updated_examples_s, updated_examples_r) = channel::bounded(channel_size);
+        let (stats_update_s, stats_update_r) = mpsc::sync_channel(channel_size);
         {
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
@@ -218,8 +219,8 @@ mod tests {
     #[test]
     fn test_stratified_one_by_one_1_thread() {
         let filename = "unittest-stratified1.bin";
-        let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
-        let (_, models_recv) = mpsc::channel();
+        let (sampled_examples_send, sampled_examples_recv) = mpsc::sync_channel(10);
+        let (_, models_recv) = mpsc::sync_channel(10);
         let stratified_storage = StratifiedStorage::new(
             10000, 3, 10, filename, 1, 1, sampled_examples_send, models_recv
         );
@@ -245,8 +246,8 @@ mod tests {
         let filename = "unittest-stratified3.bin";
         let batch = 1000000;
         let num_read = 100000;
-        let (sampled_examples_send, sampled_examples_recv) = mpsc::channel();
-        let (_, models_recv) = mpsc::channel();
+        let (sampled_examples_send, sampled_examples_recv) = mpsc::sync_channel(10);
+        let (_, models_recv) = mpsc::sync_channel(10);
         let stratified_storage = StratifiedStorage::new(
             batch * 10, 1, 1000, filename, 4, 4, sampled_examples_send, models_recv
         );

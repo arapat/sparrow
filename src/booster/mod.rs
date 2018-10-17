@@ -8,6 +8,7 @@ use rayon::prelude::*;
 use std::ops::Range;
 use std::sync::mpsc;
 use std::sync::mpsc::Sender;
+use std::sync::mpsc::SyncSender;
 use std::sync::mpsc::Receiver;
 
 use tmsn::network::start_network;
@@ -40,8 +41,8 @@ pub struct Boosting {
     sum_gamma: f32,
     remote_sum_gamma: f32,
 
-    sampler_channel_s: Sender<Model>,
-    validator_channel_s: Sender<Model>,
+    sampler_channel_s: SyncSender<Model>,
+    validator_channel_s: SyncSender<Model>,
     persist_id: u32,
 }
 
@@ -66,8 +67,8 @@ impl Boosting {
         max_sample_size: usize,
         max_bin_size: usize,
         default_gamma: f32,
-        sampler_channel_s: Sender<Model>,
-        validator_channel_s: Sender<Model>,
+        sampler_channel_s: SyncSender<Model>,
+        validator_channel_s: SyncSender<Model>,
     ) -> Boosting {
         let mut training_loader = training_loader;
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
@@ -101,7 +102,12 @@ impl Boosting {
     /// Enable network communication. `name` is the name of this worker, which can be arbitrary
     /// and is only used for debugging purpose. `remote_ips` is the vector of IPs of neighbor workers.
     /// `port` is the port number that used for network communication.
-    pub fn enable_network(&mut self, name: String, remote_ips: &Vec<String>, port: u16) {
+    pub fn enable_network(
+        &mut self,
+        name: String,
+        remote_ips: &Vec<String>,
+        port: u16,
+    ) {
         let (local_s, local_r): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
         let (remote_s, remote_r): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
         self.network_sender = Some(local_s);

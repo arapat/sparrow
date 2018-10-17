@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn test_sampler() {
-        let (gather_sender, gather_receiver) = mpsc::channel();
+        let (gather_sender, gather_receiver) = mpsc::sync_channel(10);
         let mem_buffer = Arc::new(RwLock::new(None));
         run_gatherer(gather_receiver, mem_buffer.clone(), 100);
 
