@@ -114,24 +114,21 @@ impl StratifiedStorage {
         let (counts_table_r, mut counts_table_w) = evmap::new();
         let (weights_table_r, mut weights_table_w) = evmap::new();
         let (updated_examples_s, updated_examples_r) = channel::bounded(channel_size);
-        let (stats_update_s, stats_update_r) = channel::bounded(channel_size);
+        // The messages in the stats channel are very small, so its capacity can be larger.
+        let (stats_update_s, stats_update_r) = channel::bounded(5000000);
         {
-            let num_examples = num_examples.clone();
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
             spawn(move || {
-                let mut t = num_examples / 5;
                 while let Some((index, (count, weight))) = stats_update_r.recv() {
                     let val = counts_table_r.get_and(&index, |vs| vs[0]);
                     counts_table_w.update(index, val.unwrap_or(0) + count);
                     let cur = weights_table_r.get_and(&index, |vs: &[Box<F64>]| vs[0].val)
                                              .unwrap_or(0.0);
                     weights_table_w.update(index, Box::new(F64 { val: cur + weight }));
-                    t -= 1;
-                    if t <= 0 {
+                    {
                         counts_table_w.refresh();
                         weights_table_w.refresh();
-                        t = num_examples / 5;
                     }
                 }
             });
@@ -227,8 +224,8 @@ mod tests {
     fn test_mean() {
         let _ = env_logger::try_init();
         let filename = "unittest-stratified3.bin";
-        let batch = 100000;
-        let num_read = 100000;
+        let batch = 1000000;
+        let num_read = 1000000;
         let (sampled_examples_send, sampled_examples_recv) = channel::bounded(1000);
         let (_, models_recv) = channel::bounded(10);
         let stratified_storage = StratifiedStorage::new(
@@ -260,8 +257,13 @@ mod tests {
         });
         let answer =
             (1..11).map(|a| a as f32).map(|a| a * a).sum::<f32>() / ((1..11).sum::<i32>() as f32);
-        assert!((average - answer) <= 0.05);
         loading.join().unwrap();
+        if (average - answer).abs() > 0.05 {
+            spawn(move || {
+                println!("Average: {}. Expect: {}.", average, answer);
+            }).join().unwrap();
+            assert!(false);
+        }
         remove_file(filename).unwrap();
     }
 
