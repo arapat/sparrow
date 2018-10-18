@@ -4,12 +4,11 @@ mod learner;
 extern crate serde_json;
 
 use rayon::prelude::*;
+use crossbeam_channel as channel;
+use std::sync::mpsc;
 
 use std::ops::Range;
-use std::sync::mpsc;
-use std::sync::mpsc::Sender;
-use std::sync::mpsc::SyncSender;
-use std::sync::mpsc::Receiver;
+use self::channel::Sender;
 
 use tmsn::network::start_network;
 
@@ -36,13 +35,13 @@ pub struct Boosting {
     learner: Learner,
     model: Model,
 
-    network_sender: Option<Sender<ModelScore>>,
-    network_receiver: Option<Receiver<ModelScore>>,
+    network_sender: Option<mpsc::Sender<ModelScore>>,
+    network_receiver: Option<mpsc::Receiver<ModelScore>>,
     sum_gamma: f32,
     remote_sum_gamma: f32,
 
-    sampler_channel_s: SyncSender<Model>,
-    validator_channel_s: SyncSender<Model>,
+    sampler_channel_s: Sender<Model>,
+    validator_channel_s: Sender<Model>,
     persist_id: u32,
 }
 
@@ -67,8 +66,8 @@ impl Boosting {
         max_sample_size: usize,
         max_bin_size: usize,
         default_gamma: f32,
-        sampler_channel_s: SyncSender<Model>,
-        validator_channel_s: SyncSender<Model>,
+        sampler_channel_s: Sender<Model>,
+        validator_channel_s: Sender<Model>,
     ) -> Boosting {
         let mut training_loader = training_loader;
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
@@ -108,8 +107,10 @@ impl Boosting {
         remote_ips: &Vec<String>,
         port: u16,
     ) {
-        let (local_s, local_r): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
-        let (remote_s, remote_r): (Sender<ModelScore>, Receiver<ModelScore>) = mpsc::channel();
+        let (local_s, local_r): (mpsc::Sender<ModelScore>, mpsc::Receiver<ModelScore>) =
+            mpsc::channel();
+        let (remote_s, remote_r): (mpsc::Sender<ModelScore>, mpsc::Receiver<ModelScore>) =
+            mpsc::channel();
         self.network_sender = Some(local_s);
         self.network_receiver = Some(remote_r);
         start_network(name.as_ref(), remote_ips, port, true, remote_s, local_r);
@@ -193,8 +194,8 @@ impl Boosting {
             let send_result = self.network_sender.as_ref().unwrap()
                                     .send((self.model.clone(), self.sum_gamma));
             if let Err(err) = send_result {
-                error!("Attempt to send the local model
-                        to the network module but failed. Error: {}", err);
+                error!("Attempt to send the local model to the network module but failed.
+                        Error: {}", err);
             } else {
                 info!("Sent the local model to the network module, {}, {}",
                         self.remote_sum_gamma, self.sum_gamma);
@@ -217,8 +218,8 @@ impl Boosting {
         if let Some(ref mut network_sender) = self.network_sender {
             network_sender.send((self.model.clone(), self.sum_gamma)).unwrap();
         }
-        self.sampler_channel_s.send(self.model.clone()).unwrap();
-        self.validator_channel_s.send(self.model.clone()).unwrap();
+        self.sampler_channel_s.send(self.model.clone());
+        self.validator_channel_s.send(self.model.clone());
     }
 }
 

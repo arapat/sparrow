@@ -1,4 +1,3 @@
-use std::sync::mpsc;
 use std::thread::sleep;
 use std::thread::spawn;
 use bincode::serialize;
@@ -27,10 +26,10 @@ pub struct Stratum {
 impl Stratum {
     pub fn new(num_examples_per_block: usize, disk_buffer: Arc<RwLock<DiskBuffer>>) -> Stratum {
         // memory buffer for incoming examples
-        let (in_queue_s, in_queue_r) = mpsc::sync_channel(num_examples_per_block * 2);
+        let (in_queue_s, in_queue_r) = channel::bounded(num_examples_per_block * 2);
         // disk slot for storing most examples
         // maintained in a channel to support managing the strata with multiple threads (TODO)
-        let (slot_s, slot_r) = mpsc::channel();
+        let (slot_s, slot_r) = channel::unbounded();
         // memory buffer for outgoing examples
         let (out_queue_s, out_queue_r) = channel::bounded(num_examples_per_block * 2);
 
@@ -40,7 +39,7 @@ impl Stratum {
             let in_block = in_block.clone();
             let disk_buffer = disk_buffer.clone();
             spawn(move || {
-                while let Ok(example) = in_queue_r.recv() {
+                while let Some(example) = in_queue_r.recv() {
                     let mut in_block = in_block.write().unwrap();
                     in_block.push_back(example);
                     if in_block.len() >= num_examples_per_block {
@@ -49,7 +48,7 @@ impl Stratum {
                         let slot_index = disk.write(&serialized_block);
                         drop(disk);
 
-                        slot_s.send(slot_index).unwrap();
+                        slot_s.send(slot_index);
                         in_block.clear();
                     }
                     drop(in_block);
@@ -63,7 +62,7 @@ impl Stratum {
             loop {
                 let mut example = out_block_ptr.next();
                 if example.is_none() {
-                    if let Ok(block_index) = slot_r.try_recv() {
+                    if let Some(block_index) = slot_r.try_recv() {
                         let out_block: Block = {
                             let mut disk = disk_buffer.write().unwrap();
                             let block_data: Vec<u8> = disk.read(block_index);
@@ -121,7 +120,7 @@ mod tests {
 
         for i in 0..2 {
             let t = get_example(vec![i, 2, 3]);
-            in_queue.send(t.clone()).unwrap();
+            in_queue.send(t.clone());
             let retrieve = out_queue.recv().unwrap();
             assert_eq!(retrieve, t);
         }
@@ -135,7 +134,7 @@ mod tests {
         let mut examples = vec![];
         for i in 0..100 {
             let t = get_example(vec![i, 2, 3]);
-            in_queue.send(t.clone()).unwrap();
+            in_queue.send(t.clone());
             examples.push(t);
         }
         let mut output = vec![];

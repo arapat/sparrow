@@ -8,7 +8,7 @@ use bincode::serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::mpsc::SyncSender;
+use self::channel::Sender;
 use self::channel::Receiver;
 
 use commons::ExampleWithScore;
@@ -23,7 +23,7 @@ use self::stratum::Stratum;
 
 
 type Block = Vec<ExampleWithScore>;
-type InQueueSender = SyncSender<ExampleWithScore>;
+type InQueueSender = Sender<ExampleWithScore>;
 type OutQueueReceiver = Receiver<ExampleWithScore>;
 
 type HashMapSenders = HashMap<i8, InQueueSender>;
@@ -135,7 +135,7 @@ mod tests {
                         sender
                     }
                 };
-                sender.send(t.clone()).unwrap();
+                sender.send(t.clone());
             }
         }
         for _ in 0..100 {

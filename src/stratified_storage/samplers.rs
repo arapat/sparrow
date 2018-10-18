@@ -1,4 +1,3 @@
-use std::sync::mpsc;
 use std::thread::sleep;
 use std::thread::spawn;
 use crossbeam_channel as channel;
@@ -38,10 +37,10 @@ use commons::get_weight;
 
 pub struct Samplers {
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: mpsc::SyncSender<ExampleWithScore>,
+    sampled_examples: Sender<(ExampleWithScore, u32)>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
-    stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
+    stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
 }
 
@@ -49,17 +48,17 @@ pub struct Samplers {
 impl Samplers {
     pub fn new(
         strata: Arc<RwLock<Strata>>,
-        sampled_examples: mpsc::SyncSender<ExampleWithScore>,
+        sampled_examples: Sender<(ExampleWithScore, u32)>,
         updated_examples: Sender<ExampleWithScore>,
-        next_model: mpsc::Receiver<Model>,
-        stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
+        next_model: channel::Receiver<Model>,
+        stats_update_s: Sender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
     ) -> Samplers {
         let model = Arc::new(RwLock::new(vec![]));
         {
             let model = model.clone();
             spawn(move || {
-                for new_model in next_model.iter() {
+                while let Some(new_model) = next_model.recv() {
                     let model_len = new_model.len();
                     {
                         let mut model = model.write().unwrap();
@@ -99,10 +98,10 @@ impl Samplers {
 
 fn sampler(
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: mpsc::SyncSender<ExampleWithScore>,
+    sampled_examples: Sender<(ExampleWithScore, u32)>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
-    stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
+    stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
 ) {
     let mut pm_update = PerformanceMonitor::new();
@@ -111,8 +110,8 @@ fn sampler(
     pm_sample.start();
 
     let mut grids: HashMap<i8, f32> = HashMap::new();
-    let mut killed = false;
-    while !killed {
+
+    loop {
         // STEP 1: Sample which strata to get next sample
         let index = super::sample_weights_table(&weights_table);
         if index.is_none() {
@@ -148,7 +147,7 @@ fn sampler(
         };
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
-        while *grid < grid_size {
+        while sampled_example.is_none() {
             let (example, (score, version)) = receiver.recv().unwrap();
             let (updated_score, model_size) = {
                 let trees = model.read().unwrap();
@@ -164,19 +163,17 @@ fn sampler(
             if *grid >= grid_size {
                 sampled_example = Some((example.clone(), (updated_score, model_size)));
             }
-            stats_update_s.send((index, (-1, -get_weight(&example, score) as f64))).unwrap();
+            stats_update_s.send((index, (-1, -get_weight(&example, score) as f64)));
             updated_examples.send((example, (updated_score, model_size)));
             pm_update.update(1);
         }
         // STEP 4: Send the sampled example to the buffer loader
         let sampled_example = sampled_example.unwrap();
-        while *grid >= grid_size {
-            if let Err(_) = sampled_examples.send(sampled_example.clone()) {
-                killed = true;
-                break;
-            }
-            *grid -= grid_size;
-            pm_sample.update(1);
+        let sample_count = (*grid / grid_size) as u32;
+        if sample_count > 0 {
+            sampled_examples.send((sampled_example, sample_count));
+            *grid -= grid_size * (sample_count as f32);
+            pm_sample.update(sample_count as usize);
         }
         pm_update.write_log("sampler-update");
         pm_sample.write_log("sampler-sample");

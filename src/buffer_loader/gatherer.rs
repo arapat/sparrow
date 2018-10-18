@@ -1,7 +1,9 @@
+use crossbeam_channel as channel;
+
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::mpsc::Receiver;
 use rand::Rng;
+use self::channel::Receiver;
 
 use std::thread::spawn;
 use rand::thread_rng;
@@ -18,7 +20,7 @@ use commons::performance_monitor::PerformanceMonitor;
 /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
 /// * `new_sample_capacity`: the size of the memory buffer of the buffer loader
 pub fn run_gatherer(
-    gather_new_sample: Receiver<ExampleWithScore>,
+    gather_new_sample: Receiver<(ExampleWithScore, u32)>,
     new_sample_buffer: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
     new_sample_capacity: usize,
 ) {
@@ -30,8 +32,11 @@ pub fn run_gatherer(
 
             let mut new_sample = Vec::with_capacity(new_sample_capacity);
             while new_sample.len() < new_sample_capacity {
-                if let Ok(t) = gather_new_sample.recv() {
-                    new_sample.push(t);
+                if let Some((example, mut c)) = gather_new_sample.recv() {
+                    while new_sample.len() < new_sample_capacity && c > 0 {
+                        new_sample.push(example.clone());
+                        c -= 1;
+                    }
                 }
             }
             thread_rng().shuffle(&mut new_sample);
@@ -47,7 +52,7 @@ pub fn run_gatherer(
 
 #[cfg(test)]
 mod tests {
-    use std::sync::mpsc;
+    use crossbeam_channel as channel;
     use std::thread::sleep;
 
     use std::sync::Arc;
@@ -60,14 +65,14 @@ mod tests {
 
     #[test]
     fn test_sampler() {
-        let (gather_sender, gather_receiver) = mpsc::sync_channel(10);
+        let (gather_sender, gather_receiver) = channel::bounded(10);
         let mem_buffer = Arc::new(RwLock::new(None));
         run_gatherer(gather_receiver, mem_buffer.clone(), 100);
 
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
             let t = get_example(vec![i, 1, 2], 0.0);
-            gather_sender.send(t.clone()).unwrap();
+            gather_sender.send((t.clone(), 1));
             examples.push(t);
         }
         sleep(Duration::from_millis(1000));  // wait for the gatherer releasing the new sample

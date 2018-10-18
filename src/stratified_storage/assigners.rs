@@ -1,8 +1,8 @@
 use std::sync::Arc;
 use std::sync::RwLock;
 use crossbeam_channel as channel;
+use self::channel::Sender;
 
-use std::sync::mpsc;
 use std::thread::spawn;
 
 use commons::ExampleWithScore;
@@ -16,7 +16,7 @@ use commons::get_weight;
 pub struct Assigners {
     updated_examples_r: channel::Receiver<ExampleWithScore>,
     strata: Arc<RwLock<Strata>>,
-    stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
+    stats_update_s: Sender<(i8, (i32, f64))>,
 }
 
 
@@ -24,7 +24,7 @@ impl Assigners {
     pub fn new(
         updated_examples_r: channel::Receiver<ExampleWithScore>,
         strata: Arc<RwLock<Strata>>,
-        stats_update_s: mpsc::SyncSender<(i8, (i32, f64))>,
+        stats_update_s: Sender<(i8, (i32, f64))>,
     ) -> Assigners {
         Assigners {
             updated_examples_r: updated_examples_r,
@@ -60,8 +60,8 @@ impl Assigners {
                         let mut strata = strata.write().unwrap();
                         sender = Some(strata.create(index).0);
                     }
-                    sender.unwrap().send((example, (score, version))).unwrap();
-                    stats_update_s.send((index, (1, weight as f64))).unwrap();
+                    sender.unwrap().send((example, (score, version)));
+                    stats_update_s.send((index, (1, weight as f64)));
                     pm.update(1);
                     pm.write_log("selector");
                 }
@@ -74,13 +74,13 @@ impl Assigners {
 #[cfg(test)]
 mod tests {
     use std::fs::remove_file;
-    use std::sync::mpsc;
     use std::thread::sleep;
     use crossbeam_channel as channel;
 
     use std::sync::Arc;
     use std::sync::RwLock;
     use std::time::Duration;
+    use self::channel::Receiver;
     use self::channel::Sender;
 
     use labeled_data::LabeledData;
@@ -101,7 +101,10 @@ mod tests {
         }
 
         sleep(Duration::from_millis(500));
-        let num_examples: i32 = stats_update_r.try_iter().map(|t| (t.1).0).sum();
+        let mut num_examples = 0;
+        while let Some(t) = stats_update_r.try_recv() {
+            num_examples += (t.1).0;
+        }
         assert_eq!(num_examples, 3);
         remove_file(filename).unwrap();
     }
@@ -119,17 +122,20 @@ mod tests {
         }
 
         sleep(Duration::from_millis(500));
-        let num_examples: i32 = stats_update_r.try_iter().map(|t| (t.1).0).sum();
+        let mut num_examples = 0;
+        while let Some(t) = stats_update_r.try_recv() {
+            num_examples += (t.1).0;
+        }
         assert_eq!(num_examples, 30);
         remove_file(filename).unwrap();
     }
 
     fn get_assigner(
         filename: &str
-    ) -> (mpsc::Receiver<(i8, (i32, f64))>, Sender<ExampleWithScore>, Assigners) {
+    ) -> (Receiver<(i8, (i32, f64))>, Sender<ExampleWithScore>, Assigners) {
         let strata = Arc::new(RwLock::new(Strata::new(100, 3, 10, filename)));
         let (updated_examples_send, updated_examples_recv) = channel::bounded(10);
-        let (stats_update_s, stats_update_r) = mpsc::sync_channel(100);
+        let (stats_update_s, stats_update_r) = channel::bounded(100);
         (
             stats_update_r,
             updated_examples_send,

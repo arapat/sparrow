@@ -1,9 +1,10 @@
 use rayon::prelude::*;
 
-use std::sync::mpsc::Receiver;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time;
+use crossbeam_channel as channel;
+use self::channel::Receiver;
 
 use super::stratified_storage::serial_storage::SerialStorage;
 use commons::Model;
@@ -39,7 +40,7 @@ pub fn run_validate(
     );
     spawn(move || {
         let mut model: Option<Model> = None;
-        while let Ok(rmodel) = receive_model.try_recv() {
+        while let Some(rmodel) = receive_model.try_recv() {
             model = Some(rmodel);
         }
         if model.is_some() {
