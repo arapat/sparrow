@@ -148,6 +148,7 @@ impl BufferLoader {
                                             (a, s, s.clone())
                                         }).collect();
             self.curr_example = 0;
+            debug!("switched-buffer, {}", self.examples.len());
             true
         } else {
             false
