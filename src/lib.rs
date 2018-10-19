@@ -120,13 +120,15 @@ pub fn run_rust_boost(config_file: String) {
         let next_model_s = next_model_s.clone();
         let model_validate_s = model_validate_s.clone();
         spawn(move || {
-            debug!("channel status, sampled examples, {}, {}",
-                   sampled_examples_s.len(), sampled_examples_s.capacity().unwrap());
-            debug!("channel status, next model, {}, {}",
-                   next_model_s.len(), next_model_s.capacity().unwrap());
-            debug!("channel status, model validate, {}, {}",
-                   model_validate_s.len(), model_validate_s.capacity().unwrap());
-            sleep(Duration::from_millis(5000));
+            loop {
+                debug!("channel status, sampled examples, {}, {}",
+                       sampled_examples_s.len(), sampled_examples_s.capacity().unwrap());
+                debug!("channel status, next model, {}, {}",
+                       next_model_s.len(), next_model_s.capacity().unwrap());
+                debug!("channel status, model validate, {}, {}",
+                       model_validate_s.len(), model_validate_s.capacity().unwrap());
+                sleep(Duration::from_millis(5000));
+            }
         });
     }
 

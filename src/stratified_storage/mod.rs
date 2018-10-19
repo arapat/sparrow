@@ -123,11 +123,13 @@ impl StratifiedStorage {
             let updated_examples_s = updated_examples_s.clone();
             let stats_update_s = stats_update_s.clone();
             spawn(move || {
-                debug!("channel status, sampled examples, {}, {}",
-                       updated_examples_s.len(), updated_examples_s.capacity().unwrap());
-                debug!("channel status, next model, {}, {}",
-                       stats_update_s.len(), stats_update_s.capacity().unwrap());
-                sleep(Duration::from_millis(5000));
+                loop {
+                    debug!("channel status, updated examples, {}, {}",
+                           updated_examples_s.len(), updated_examples_s.capacity().unwrap());
+                    debug!("channel status, stats update, {}, {}",
+                           stats_update_s.len(), stats_update_s.capacity().unwrap());
+                    sleep(Duration::from_millis(5000));
+                }
             });
         }
         {
