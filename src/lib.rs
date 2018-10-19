@@ -43,7 +43,10 @@ mod labeled_data;
 /// Validating models
 mod validator;
 
+use std::thread::spawn;
+use std::thread::sleep;
 use crossbeam_channel as channel;
+use std::time::Duration;
 
 use booster::Boosting;
 use buffer_loader::BufferLoader;
@@ -110,6 +113,22 @@ pub fn run_rust_boost(config_file: String) {
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size);
     // Booster -> Validator
     let (model_validate_s, model_validate_r) = channel::bounded(config.channel_size);
+
+    // monitor the business of each channel
+    {
+        let sampled_examples_s = sampled_examples_s.clone();
+        let next_model_s = next_model_s.clone();
+        let model_validate_s = model_validate_s.clone();
+        spawn(move || {
+            debug!("channel status, sampled examples, {}, {}",
+                   sampled_examples_s.len(), sampled_examples_s.capacity().unwrap());
+            debug!("channel status, next model, {}, {}",
+                   next_model_s.len(), next_model_s.capacity().unwrap());
+            debug!("channel status, model validate, {}, {}",
+                   model_validate_s.len(), model_validate_s.capacity().unwrap());
+            sleep(Duration::from_millis(5000));
+        });
+    }
 
     info!("Starting the stratified structure.");
     let stratified_structure = StratifiedStorage::new(

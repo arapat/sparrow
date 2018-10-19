@@ -4,6 +4,7 @@ mod samplers;
 pub mod serial_storage;
 
 use std::thread::spawn;
+use std::thread::sleep;
 use crossbeam_channel as channel;
 use evmap;
 use rand;
@@ -11,6 +12,7 @@ use commons::get_sign;
 
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::time::Duration;
 use self::channel::Receiver;
 
 use commons::ExampleWithScore;
@@ -116,6 +118,18 @@ impl StratifiedStorage {
         let (updated_examples_s, updated_examples_r) = channel::bounded(channel_size);
         // The messages in the stats channel are very small, so its capacity can be larger.
         let (stats_update_s, stats_update_r) = channel::bounded(5000000);
+        // monitor the status of channels
+        {
+            let updated_examples_s = updated_examples_s.clone();
+            let stats_update_s = stats_update_s.clone();
+            spawn(move || {
+                debug!("channel status, sampled examples, {}, {}",
+                       updated_examples_s.len(), updated_examples_s.capacity().unwrap());
+                debug!("channel status, next model, {}, {}",
+                       stats_update_s.len(), stats_update_s.capacity().unwrap());
+                sleep(Duration::from_millis(5000));
+            });
+        }
         {
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
