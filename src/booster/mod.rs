@@ -209,7 +209,8 @@ impl Boosting {
         let json = serde_json::to_string(&(iteration, &self.model)).expect(
             "Local model cannot be serialized."
         );
-        let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
+        // let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
+        let mut file_buffer = create_bufwriter(&String::from("model.json"));
         self.persist_id += 1;
         write_to_text_file(&mut file_buffer, &json);
     }

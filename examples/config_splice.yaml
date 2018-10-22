@@ -20,13 +20,13 @@ max_trials_before_shrink: 1000000
 channel_size: 1048576
 buffer_size: 2000000
 batch_size: 10000
-sampler_num_threads: 2
+sampler_num_threads: 1
 sampler_init_grid_size: 1.0
 sampler_average_window_size: 1000
 num_examples_per_block: 128
 disk_buffer_filename: stratified.bin
-num_assigners: 4
-num_samplers: 4
+num_assigners: 1
+num_samplers: 3
 network: []
 port: 8888
 local_name: local_worker
