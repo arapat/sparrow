@@ -112,26 +112,26 @@ fn sampler(
     let mut grids: HashMap<i8, f32> = HashMap::new();
 
     let mut pm_total = PerformanceMonitor::new();
+    let mut pm3_total = PerformanceMonitor::new();
+    let mut while3_total = PerformanceMonitor::new();
     let mut pm1 = PerformanceMonitor::new();
     let mut pm2 = PerformanceMonitor::new();
     let mut pm3 = PerformanceMonitor::new();
     let mut pm4 = PerformanceMonitor::new();
+    let mut num_updated = 0;
+    let mut num_sampled = 0;
     pm_total.start();
 
     loop {
         // STEP 1: Sample which strata to get next sample
-        pm1.resume();
         let index = super::sample_weights_table(&weights_table);
         if index.is_none() {
             // stratified storage is empty, wait for data loading
             sleep(Duration::from_millis(1000));
-            pm1.pause();
             continue;
         }
         let index = index.unwrap();
-        pm1.pause();
         // STEP 2: Access the queue for the sampled strata
-        pm2.resume();
         let existing_receiver = {
             let read_strata = strata.read().unwrap();
             read_strata.get_out_queue(index)
@@ -145,10 +145,9 @@ fn sampler(
                 receiver
             }
         };
-        pm2.pause();
         // STEP 3: Sample one example using minimum variance sampling
         // meanwhile update the weights of all accessed examples
-        pm3.resume();
+        pm3_total.resume();
         let grid_size = {
             if SPEED_TEST {
                 // assume sampling 1% of the weight sequence 1, 2, ..., 10
@@ -160,7 +159,9 @@ fn sampler(
         };
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
+        while3_total.resume();
         while sampled_example.is_none() {
+            pm1.resume();
             let (example, (score, version)) = receiver.recv().unwrap();
             let (updated_score, model_size) = {
                 let trees = model.read().unwrap();
@@ -172,41 +173,57 @@ fn sampler(
                 };
                 (score + inc_score, model_size)
             };
+            pm1.pause();
+            pm2.resume();
             *grid += get_weight(&example, updated_score);
             if *grid >= grid_size {
                 sampled_example = Some((example.clone(), (updated_score, model_size)));
             }
+            pm2.pause();
+            pm3.resume();
             stats_update_s.send((index, (-1, -get_weight(&example, score) as f64)));
+            pm3.pause();
+            pm4.resume();
             updated_examples.send((example, (updated_score, model_size)));
+            pm4.pause();
+            num_updated += 1;
             pm_update.update(1);
         }
-        pm3.pause();
+        while3_total.pause();
+        pm3_total.pause();
         // STEP 4: Send the sampled example to the buffer loader
-        pm4.resume();
         let sampled_example = sampled_example.unwrap();
         let sample_count = (*grid / grid_size) as u32;
         if sample_count > 0 {
             sampled_examples.send((sampled_example, sample_count));
             *grid -= grid_size * (sample_count as f32);
+            num_sampled += sample_count;
             pm_sample.update(sample_count as usize);
         }
-        pm4.pause();
 
         pm_update.write_log("sampler-update");
         pm_sample.write_log("sampler-sample");
         if pm_total.get_duration() > 5.0 {
             let total = pm_total.get_duration();
-            let step1 = pm1.get_duration() / total;
-            let step2 = pm2.get_duration() / total;
-            let step3 = pm3.get_duration() / total;
-            let step4 = pm4.get_duration() / total;
+            let s3_total = pm3_total.get_duration();
+            let w3_total = while3_total.get_duration();
+            let step1 = pm1.get_duration() / w3_total;
+            let step2 = pm2.get_duration() / w3_total;
+            let step3 = pm3.get_duration() / w3_total;
+            let step4 = pm4.get_duration() / w3_total;
             let others = 1.0 - step1 - step2 - step3 - step4;
+            debug!("sample-perf-breakdown, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                   num_updated, num_sampled, s3_total / total, w3_total / s3_total,
+                   step1, step2, step3, step4, others);
             pm_total.reset();
+            pm3_total.reset();
+            while3_total.reset();
             pm1.reset();
             pm2.reset();
             pm3.reset();
             pm4.reset();
-            debug!("sample-perf-breakdown, {}, {}, {}, {}, {}", step1, step2, step3, step4, others);
+            num_updated = 0;
+            num_sampled = 0;
         }
     }
 }
