@@ -1,7 +1,7 @@
 use std::thread::sleep;
 use std::thread::spawn;
 use crossbeam_channel as channel;
-use rayon::prelude::*;
+// use rayon::prelude::*;
 use rand;
 
 use std::collections::HashMap;
@@ -113,7 +113,6 @@ fn sampler(
 
     let mut pm_total = PerformanceMonitor::new();
     let mut pm3_total = PerformanceMonitor::new();
-    let mut while3_total = PerformanceMonitor::new();
     let mut pm1 = PerformanceMonitor::new();
     let mut pm2 = PerformanceMonitor::new();
     let mut pm3 = PerformanceMonitor::new();
@@ -147,7 +146,6 @@ fn sampler(
         };
         // STEP 3: Sample one example using minimum variance sampling
         // meanwhile update the weights of all accessed examples
-        pm3_total.resume();
         let grid_size = {
             if SPEED_TEST {
                 // assume sampling 1% of the weight sequence 1, 2, ..., 10
@@ -159,37 +157,36 @@ fn sampler(
         };
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
-        while3_total.resume();
+        pm3_total.resume();
         while sampled_example.is_none() {
             pm1.resume();
             let (example, (score, version)) = receiver.recv().unwrap();
+            pm1.pause();
             let (updated_score, model_size) = {
+                pm2.resume();
                 let trees = model.read().unwrap();
+                pm2.pause();
+                pm3.resume();
                 let model_size = trees.len();
+                pm3.pause();
+                pm4.resume();
                 let inc_score: f32 = {
-                    trees[version..model_size].par_iter().map(|tree| {
+                    trees[version..model_size].iter().map(|tree| {
                         tree.get_leaf_prediction(&example)
                     }).sum()
                 };
+                pm4.pause();
                 (score + inc_score, model_size)
             };
-            pm1.pause();
-            pm2.resume();
             *grid += get_weight(&example, updated_score);
             if *grid >= grid_size {
                 sampled_example = Some((example.clone(), (updated_score, model_size)));
             }
-            pm2.pause();
-            pm3.resume();
             stats_update_s.send((index, (-1, -get_weight(&example, score) as f64)));
-            pm3.pause();
-            pm4.resume();
             updated_examples.send((example, (updated_score, model_size)));
-            pm4.pause();
             num_updated += 1;
             pm_update.update(1);
         }
-        while3_total.pause();
         pm3_total.pause();
         // STEP 4: Send the sampled example to the buffer loader
         let sampled_example = sampled_example.unwrap();
@@ -206,24 +203,23 @@ fn sampler(
         if pm_total.get_duration() > 5.0 {
             let total = pm_total.get_duration();
             let s3_total = pm3_total.get_duration();
-            let w3_total = while3_total.get_duration();
-            let step1 = pm1.get_duration() / w3_total;
-            let step2 = pm2.get_duration() / w3_total;
-            let step3 = pm3.get_duration() / w3_total;
-            let step4 = pm4.get_duration() / w3_total;
+            let step1 = pm1.get_duration() / s3_total;
+            let step2 = pm2.get_duration() / s3_total;
+            let step3 = pm3.get_duration() / s3_total;
+            let step4 = pm4.get_duration() / s3_total;
             let others = 1.0 - step1 - step2 - step3 - step4;
-            debug!("sample-perf-breakdown, {}, {}, {}, {}, {}, {}, {}, {}, {}",
-                   num_updated, num_sampled, s3_total / total, w3_total / s3_total,
+            debug!("sample-perf-breakdown, {}, {}, {}, {}, {}, {}, {}, {}",
+                   (num_updated as f32) / total, (num_sampled as f32) / total, s3_total / total,
                    step1, step2, step3, step4, others);
             pm_total.reset();
             pm3_total.reset();
-            while3_total.reset();
             pm1.reset();
             pm2.reset();
             pm3.reset();
             pm4.reset();
             num_updated = 0;
             num_sampled = 0;
+            pm_total.start();
         }
     }
 }
