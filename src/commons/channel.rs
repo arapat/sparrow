@@ -46,7 +46,7 @@ impl<T> Receiver<T> {
     }
 
     pub fn try_recv(&self) -> Option<T> {
-        self.receiver.recv()
+        self.receiver.try_recv()
     }
 }
 
