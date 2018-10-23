@@ -1,3 +1,4 @@
+pub mod channel;
 pub mod performance_monitor;
 pub mod io;
 

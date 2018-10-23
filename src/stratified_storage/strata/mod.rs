@@ -2,16 +2,15 @@ mod bitmap;
 mod disk_buffer;
 mod stratum;
 
-use crossbeam_channel as channel;
 use bincode::serialize;
 
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
-use self::channel::Sender;
-use self::channel::Receiver;
 
 use commons::ExampleWithScore;
+use commons::channel::Sender;
+use commons::channel::Receiver;
 use super::Example;
 
 use super::super::TFeature;
@@ -81,7 +80,7 @@ impl Strata {
         } else {
             // Each stratum will create two threads for writing in and reading out examples
             // TODO: create a systematic approach to manage stratum threads
-            let stratum = Stratum::new(self.num_examples_per_block, self.disk_buffer.clone());
+            let stratum = Stratum::new(index, self.num_examples_per_block, self.disk_buffer.clone());
             let (in_queue, out_queue) = (stratum.in_queue_s.clone(), stratum.out_queue_r.clone());
             in_queues.insert(index, in_queue.clone());
             out_queues.insert(index, out_queue.clone());

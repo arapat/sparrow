@@ -43,16 +43,12 @@ mod labeled_data;
 /// Validating models
 mod validator;
 
-use std::thread::spawn;
-use std::thread::sleep;
-use crossbeam_channel as channel;
-use std::time::Duration;
-
 use booster::Boosting;
 use buffer_loader::BufferLoader;
 use stratified_storage::StratifiedStorage;
 use validator::EvalFunc;
 
+use commons::channel;
 use commons::io::create_bufreader;
 use validator::run_validate;
 
@@ -108,29 +104,11 @@ pub fn run_rust_boost(config_file: String) {
     ).unwrap();
 
     // Strata -> BufferLoader
-    let (sampled_examples_s, sampled_examples_r) = channel::bounded(config.channel_size);
+    let (sampled_examples_s, sampled_examples_r) = channel::bounded(config.channel_size, "gather-samples");
     // Booster -> Strata
-    let (next_model_s, next_model_r) = channel::bounded(config.channel_size);
+    let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
     // Booster -> Validator
-    let (model_validate_s, model_validate_r) = channel::bounded(config.channel_size);
-
-    // monitor the business of each channel
-    {
-        let sampled_examples_s = sampled_examples_s.clone();
-        let next_model_s = next_model_s.clone();
-        let model_validate_s = model_validate_s.clone();
-        spawn(move || {
-            loop {
-                debug!("channel status, sampled examples, {}, {}",
-                       sampled_examples_s.len(), sampled_examples_s.capacity().unwrap());
-                debug!("channel status, next model, {}, {}",
-                       next_model_s.len(), next_model_s.capacity().unwrap());
-                debug!("channel status, model validate, {}, {}",
-                       model_validate_s.len(), model_validate_s.capacity().unwrap());
-                sleep(Duration::from_millis(5000));
-            }
-        });
-    }
+    let (model_validate_s, model_validate_r) = channel::bounded(config.channel_size, "validate-models");
 
     info!("Starting the stratified structure.");
     let stratified_structure = StratifiedStorage::new(

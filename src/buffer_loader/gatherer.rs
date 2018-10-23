@@ -1,13 +1,12 @@
-use crossbeam_channel as channel;
 
 use std::sync::Arc;
 use std::sync::RwLock;
 use rand::Rng;
-use self::channel::Receiver;
 
 use std::thread::spawn;
 use rand::thread_rng;
 
+use commons::channel::Receiver;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 
@@ -52,20 +51,20 @@ pub fn run_gatherer(
 
 #[cfg(test)]
 mod tests {
-    use crossbeam_channel as channel;
     use std::thread::sleep;
 
     use std::sync::Arc;
     use std::sync::RwLock;
     use std::time::Duration;
 
+    use commons::channel;
+    use super::run_gatherer;
     use commons::ExampleWithScore;
     use labeled_data::LabeledData;
-    use super::run_gatherer;
 
     #[test]
     fn test_sampler() {
-        let (gather_sender, gather_receiver) = channel::bounded(10);
+        let (gather_sender, gather_receiver) = channel::bounded(10, "gather-samples");
         let mem_buffer = Arc::new(RwLock::new(None));
         run_gatherer(gather_receiver, mem_buffer.clone(), 100);
 

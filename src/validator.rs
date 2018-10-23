@@ -3,14 +3,13 @@ use rayon::prelude::*;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time;
-use crossbeam_channel as channel;
-use self::channel::Receiver;
 
-use super::stratified_storage::serial_storage::SerialStorage;
-use commons::Model;
 use commons::is_positive;
 use commons::is_zero;
 use commons::get_symmetric_label;
+use commons::channel::Receiver;
+use commons::Model;
+use super::stratified_storage::serial_storage::SerialStorage;
 
 
 #[allow(dead_code)]

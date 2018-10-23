@@ -1,16 +1,15 @@
 mod gatherer;
 
 use rayon::prelude::*;
-use crossbeam_channel as channel;
 
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
-use self::channel::Receiver;
 
 use std::cmp::min;
 use std::thread::sleep;
 
+use commons::channel::Receiver;
 use commons::ExampleInSampleSet;
 use commons::ExampleWithScore;
 use commons::Model;
@@ -174,11 +173,10 @@ impl BufferLoader {
 
 #[cfg(test)]
 mod tests {
-    use crossbeam_channel as channel;
     use std::thread::sleep;
+    use commons::channel;
 
     use std::time::Duration;
-
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use super::BufferLoader;
@@ -186,7 +184,7 @@ mod tests {
 
     #[test]
     fn test_buffer_loader() {
-        let (sender, receiver) = channel::bounded(10);
+        let (sender, receiver) = channel::bounded(10, "gather-samples");
         let mut buffer_loader = BufferLoader::new(100, 10, Some(receiver), false);
         sender.send((get_example(vec![0, 1, 2], 1.0), 100));
         sleep(Duration::from_millis(1000));

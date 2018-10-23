@@ -4,19 +4,18 @@ mod samplers;
 pub mod serial_storage;
 
 use std::thread::spawn;
-use std::thread::sleep;
-use crossbeam_channel as channel;
 use evmap;
 use rand;
+use commons::channel;
 use commons::get_sign;
 
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::time::Duration;
-use self::channel::Receiver;
 
 use commons::ExampleWithScore;
 use commons::Model;
+use commons::channel::Receiver;
+use commons::channel::Sender;
 use super::Example;
 
 use self::assigners::Assigners;
@@ -52,7 +51,7 @@ pub struct StratifiedStorage {
     // assigners: Assigners,
     // samplers: Samplers,
     // updated_examples_r: channel::Receiver<ExampleWithScore>,
-    updated_examples_s: channel::Sender<ExampleWithScore>,
+    updated_examples_s: Sender<ExampleWithScore>,
 }
 
 
@@ -105,7 +104,7 @@ impl StratifiedStorage {
         disk_buffer_filename: &str,
         num_assigners: usize,
         num_samplers: usize,
-        sampled_examples: channel::Sender<(ExampleWithScore, u32)>,
+        sampled_examples: Sender<(ExampleWithScore, u32)>,
         models: Receiver<Model>,
         channel_size: usize,
     ) -> StratifiedStorage {
@@ -115,23 +114,9 @@ impl StratifiedStorage {
 
         let (counts_table_r, mut counts_table_w) = evmap::new();
         let (weights_table_r, mut weights_table_w) = evmap::new();
-        let (updated_examples_s, updated_examples_r) = channel::bounded(channel_size);
+        let (updated_examples_s, updated_examples_r) = channel::bounded(channel_size, "updated-examples");
         // The messages in the stats channel are very small, so its capacity can be larger.
-        let (stats_update_s, stats_update_r) = channel::bounded(5000000);
-        // monitor the status of channels
-        {
-            let updated_examples_s = updated_examples_s.clone();
-            let stats_update_s = stats_update_s.clone();
-            spawn(move || {
-                loop {
-                    debug!("channel status, updated examples, {}, {}",
-                           updated_examples_s.len(), updated_examples_s.capacity().unwrap());
-                    debug!("channel status, stats update, {}, {}",
-                           stats_update_s.len(), stats_update_s.capacity().unwrap());
-                    sleep(Duration::from_millis(5000));
-                }
-            });
-        }
+        let (stats_update_s, stats_update_r) = channel::bounded(5000000, "stats");
         {
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
@@ -226,9 +211,9 @@ fn sample_weights_table(weights_table_r: &WeightTableRead) -> Option<i8> {
 #[cfg(test)]
 mod tests {
     extern crate env_logger;
-    use crossbeam_channel as channel;
 
     use std::fs::remove_file;
+    use commons::channel;
 
     use std::thread::spawn;
     use labeled_data::LabeledData;
@@ -242,8 +227,8 @@ mod tests {
         let filename = "unittest-stratified3.bin";
         let batch = 1000000;
         let num_read = 1000000;
-        let (sampled_examples_send, sampled_examples_recv) = channel::bounded(1000);
-        let (_, models_recv) = channel::bounded(10);
+        let (sampled_examples_send, sampled_examples_recv) = channel::bounded(1000, "sampled-examples");
+        let (_, models_recv) = channel::bounded(10, "updated-models");
         let stratified_storage = StratifiedStorage::new(
             batch * 10, 1, 1000, filename, 4, 4, sampled_examples_send, models_recv, 10
         );

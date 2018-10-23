@@ -1,6 +1,5 @@
 use std::thread::sleep;
 use std::thread::spawn;
-use crossbeam_channel as channel;
 // use rayon::prelude::*;
 use rand;
 
@@ -8,11 +7,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
-use self::channel::Sender;
 
+use commons::channel::Sender;
+use commons::channel::Receiver;
+use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
 use commons::Model;
-use commons::performance_monitor::PerformanceMonitor;
 use super::Strata;
 use super::WeightTableRead;
 use super::SPEED_TEST;
@@ -50,7 +50,7 @@ impl Samplers {
         strata: Arc<RwLock<Strata>>,
         sampled_examples: Sender<(ExampleWithScore, u32)>,
         updated_examples: Sender<ExampleWithScore>,
-        next_model: channel::Receiver<Model>,
+        next_model: Receiver<Model>,
         stats_update_s: Sender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
     ) -> Samplers {

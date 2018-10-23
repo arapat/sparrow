@@ -1,8 +1,9 @@
 use std::thread::sleep;
 use std::thread::spawn;
+use crossbeam_channel;
 use bincode::serialize;
 use bincode::deserialize;
-use crossbeam_channel as channel;
+use commons::channel;
 
 use std::collections::vec_deque::VecDeque;
 use std::sync::Arc;
@@ -24,14 +25,20 @@ pub struct Stratum {
 
 
 impl Stratum {
-    pub fn new(num_examples_per_block: usize, disk_buffer: Arc<RwLock<DiskBuffer>>) -> Stratum {
+    pub fn new(
+        index: i8,
+        num_examples_per_block: usize,
+        disk_buffer: Arc<RwLock<DiskBuffer>>,
+    ) -> Stratum {
         // memory buffer for incoming examples
-        let (in_queue_s, in_queue_r) = channel::bounded(num_examples_per_block * 2);
+        let (in_queue_s, in_queue_r) =
+            channel::bounded(num_examples_per_block * 2, &format!("i{}", index));
         // disk slot for storing most examples
         // maintained in a channel to support managing the strata with multiple threads (TODO)
-        let (slot_s, slot_r) = channel::unbounded();
+        let (slot_s, slot_r) = crossbeam_channel::unbounded();
         // memory buffer for outgoing examples
-        let (out_queue_s, out_queue_r) = channel::bounded(num_examples_per_block * 2);
+        let (out_queue_s, out_queue_r) =
+            channel::bounded(num_examples_per_block * 2, &format!("o{}", index));
 
         let in_block = Arc::new(RwLock::new(VecDeque::with_capacity(num_examples_per_block)));
         // Pushing in data from outside
@@ -157,7 +164,7 @@ mod tests {
 
     fn get_in_out_queues(filename: &str, size: usize) -> (InQueueSender, OutQueueReceiver) {
         let disk_buffer = get_disk_buffer(filename, 3, size, 10);
-        let stratum = Stratum::new(10, Arc::new(RwLock::new(disk_buffer)));
+        let stratum = Stratum::new(0, 10, Arc::new(RwLock::new(disk_buffer)));
         (stratum.in_queue_s.clone(), stratum.out_queue_r.clone())
     }
 }

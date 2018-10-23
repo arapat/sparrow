@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use std::sync::RwLock;
-use crossbeam_channel as channel;
-use self::channel::Sender;
 
 use std::thread::spawn;
 
+use commons::channel::Sender;
+use commons::channel::Receiver;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 use super::Strata;
@@ -14,7 +14,7 @@ use commons::get_weight;
 
 
 pub struct Assigners {
-    updated_examples_r: channel::Receiver<ExampleWithScore>,
+    updated_examples_r: Receiver<ExampleWithScore>,
     strata: Arc<RwLock<Strata>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
 }
@@ -22,7 +22,7 @@ pub struct Assigners {
 
 impl Assigners {
     pub fn new(
-        updated_examples_r: channel::Receiver<ExampleWithScore>,
+        updated_examples_r: Receiver<ExampleWithScore>,
         strata: Arc<RwLock<Strata>>,
         stats_update_s: Sender<(i8, (i32, f64))>,
     ) -> Assigners {
@@ -75,7 +75,7 @@ impl Assigners {
 mod tests {
     use std::fs::remove_file;
     use std::thread::sleep;
-    use crossbeam_channel as channel;
+    use commons::channel;
 
     use std::sync::Arc;
     use std::sync::RwLock;
@@ -134,8 +134,8 @@ mod tests {
         filename: &str
     ) -> (Receiver<(i8, (i32, f64))>, Sender<ExampleWithScore>, Assigners) {
         let strata = Arc::new(RwLock::new(Strata::new(100, 3, 10, filename)));
-        let (updated_examples_send, updated_examples_recv) = channel::bounded(10);
-        let (stats_update_s, stats_update_r) = channel::bounded(100);
+        let (updated_examples_send, updated_examples_recv) = channel::bounded(10, "updated-examples");
+        let (stats_update_s, stats_update_r) = channel::bounded(100, "stats");
         (
             stats_update_r,
             updated_examples_send,

@@ -4,25 +4,23 @@ mod learner;
 extern crate serde_json;
 
 use rayon::prelude::*;
-use crossbeam_channel as channel;
 use std::sync::mpsc;
 
 use std::ops::Range;
-use self::channel::Sender;
 
 use tmsn::network::start_network;
-
-use buffer_loader::BufferLoader;
-use tree::Tree;
-use commons::Model;
-use commons::performance_monitor::PerformanceMonitor;
-use commons::ModelScore;
-use self::learner::Learner;
 
 use self::bins::create_bins;
 use commons::get_relative_weights;
 use commons::io::create_bufwriter;
 use commons::io::write_to_text_file;
+use buffer_loader::BufferLoader;
+use tree::Tree;
+use commons::Model;
+use commons::performance_monitor::PerformanceMonitor;
+use commons::ModelScore;
+use commons::channel::Sender;
+use self::learner::Learner;
 
 
 /// The boosting algorithm. It contains two functions, one for starting
