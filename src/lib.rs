@@ -9,11 +9,12 @@ The components communicates via channels, which can be seens as shared FIFO queu
 
 ![System Design](https://www.lucidchart.com/publicSegments/view/23e1b351-c8b8-4cd9-a41f-3698a2b7df42/image.png)
 */
-#[macro_use] extern crate serde_derive;
+#[macro_use] extern crate crossbeam_channel;
+#[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
+#[macro_use] extern crate serde_derive;
 extern crate bincode;
 extern crate bufstream;
-extern crate crossbeam_channel;
 extern crate evmap;
 extern crate ordered_float;
 extern crate rand;
