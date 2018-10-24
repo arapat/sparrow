@@ -225,7 +225,7 @@ mod tests {
     fn test_mean() {
         let _ = env_logger::try_init();
         let filename = "unittest-stratified3.bin";
-        let batch = 1000000;
+        let batch = 100000;
         let num_read = 1000000;
         let (sampled_examples_send, sampled_examples_recv) = channel::bounded(1000, "sampled-examples");
         let (_, models_recv) = channel::bounded(10, "updated-models");
