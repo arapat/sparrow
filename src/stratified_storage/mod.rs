@@ -257,7 +257,7 @@ mod tests {
         let (sampled_examples_send, sampled_examples_recv) = channel::bounded(1000, "sampled-examples");
         let (_, models_recv) = channel::bounded(10, "updated-models");
         let stratified_storage = StratifiedStorage::new(
-            batch * 10, 1, 1000, filename, 4, 4, sampled_examples_send, models_recv, 10
+            batch * 10, 1, 10000, filename, 4, 4, sampled_examples_send, models_recv, 10
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
         let mut pm_load = PerformanceMonitor::new();

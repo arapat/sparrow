@@ -147,6 +147,10 @@ impl<T> Receiver<T> {
             }
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.receiver.len()
+    }
 }
 
 

@@ -4,8 +4,8 @@ use crossbeam_channel;
 use bincode::serialize;
 use bincode::deserialize;
 use commons::channel;
+use commons::ExampleWithScore;
 
-use std::collections::vec_deque::VecDeque;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
@@ -40,25 +40,25 @@ impl Stratum {
         let (out_queue_s, out_queue_r) =
             channel::bounded(num_examples_per_block * 2, &format!("o({})", index));
 
-        let in_block = Arc::new(RwLock::new(VecDeque::with_capacity(num_examples_per_block)));
         // Pushing in data from outside
         {
-            let in_block = in_block.clone();
+            let in_queue_r = in_queue_r.clone();
             let disk_buffer = disk_buffer.clone();
             spawn(move || {
-                while let Some(example) = in_queue_r.recv() {
-                    let mut in_block = in_block.write().unwrap();
-                    in_block.push_back(example);
-                    if in_block.len() >= num_examples_per_block {
+                loop {
+                    if in_queue_r.len() >= num_examples_per_block {
+                        let in_block: Vec<ExampleWithScore> =
+                            (0..num_examples_per_block).map(|_| in_queue_r.recv().unwrap())
+                                                       .collect();
                         let serialized_block = serialize(&(*in_block)).unwrap();
                         let mut disk = disk_buffer.write().unwrap();
                         let slot_index = disk.write(&serialized_block);
                         drop(disk);
 
                         slot_s.send(slot_index);
-                        in_block.clear();
+                    } else {
+                        sleep(Duration::from_millis(100));
                     }
-                    drop(in_block);
                 }
             });
         }
@@ -82,11 +82,9 @@ impl Stratum {
                         example = out_block_ptr.next();
                     } else {
                         // if the number of examples is less than what requires to form a block,
-                        // they would stay in `in_block` forever and never write to disk.
-                        // We read from `in_block` directly in this case.
-                        let mut in_block = in_block.write().unwrap();
-                        example = in_block.pop_front();
-                        drop(in_block);
+                        // they would stay in `in_queue` forever and never write to disk.
+                        // We read from `in_queue` directly in this case.
+                        example = in_queue_r.recv();
                     }
                 }
                 if example.is_some() {
