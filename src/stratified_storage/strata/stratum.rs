@@ -32,13 +32,13 @@ impl Stratum {
     ) -> Stratum {
         // memory buffer for incoming examples
         let (in_queue_s, in_queue_r) =
-            channel::bounded(num_examples_per_block * 2, &format!("i{}", index));
+            channel::bounded(num_examples_per_block * 2, &format!("i({})", index));
         // disk slot for storing most examples
         // maintained in a channel to support managing the strata with multiple threads (TODO)
         let (slot_s, slot_r) = crossbeam_channel::unbounded();
         // memory buffer for outgoing examples
         let (out_queue_s, out_queue_r) =
-            channel::bounded(num_examples_per_block * 2, &format!("o{}", index));
+            channel::bounded(num_examples_per_block * 2, &format!("o({})", index));
 
         let in_block = Arc::new(RwLock::new(VecDeque::with_capacity(num_examples_per_block)));
         // Pushing in data from outside

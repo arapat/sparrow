@@ -3,14 +3,15 @@ mod assigners;
 mod samplers;
 pub mod serial_storage;
 
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::thread::spawn;
+use std::thread::sleep;
+use std::time::Duration;
 use evmap;
 use rand;
 use commons::channel;
 use commons::get_sign;
-
-use std::sync::Arc;
-use std::sync::RwLock;
 
 use commons::ExampleWithScore;
 use commons::Model;
@@ -131,6 +132,32 @@ impl StratifiedStorage {
                         counts_table_w.refresh();
                         weights_table_w.refresh();
                     }
+                }
+            });
+        }
+        {
+            let counts_table_r = counts_table_r.clone();
+            let weights_table_r = weights_table_r.clone();
+            spawn(move || {
+                loop {
+                    sleep(Duration::from_millis(2000));
+                    let mut p: Vec<(i8, f64)> =
+                        weights_table_r.map_into(|a: &i8, b: &[Box<F64>]| (a.clone(), b[0].val));
+                    p.sort_by(|a, b| (a.0).cmp(&b.0));
+                    let mut c: Vec<(i8, i32)> = counts_table_r.map_into(|a, b| (a.clone(), b[0]));
+                    c.sort_by(|a, b| (a.0).cmp(&b.0));
+                    let sump: f64 = p.iter().map(|t| t.1).sum();
+                    let ps: Vec<String> = p.into_iter()
+                                           .map(|(index, w)| (index, w / sump))
+                                           .map(|(index, w)| format!("({}, {})", index, w))
+                                           .collect();
+                    debug!("strata weights distr, {}", ps.join(", "));
+                    let sumc: i32 = c.iter().map(|t| t.1).sum();
+                    let cs: Vec<String> = c.into_iter()
+                                           .map(|(index, c)| (index, c as f32 / (sumc as f32)))
+                                           .map(|(index, c)| format!("({}, {})", index, c))
+                                           .collect();
+                    debug!("strata counts distr, {}", cs.join(", "));
                 }
             });
         }
