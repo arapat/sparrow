@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::collections::HashMap;
@@ -44,8 +45,12 @@ impl ChannelMonitor {
                     }
                     for (name, val) in stats.iter() {
                         let ((send, blocked_send), (recv, blocked_recv)) = val;
-                        debug!("channel status, {}, {}, {}, {}, {}",
-                               name, send, blocked_send, recv, blocked_recv);
+                        let blocked_rate_s =
+                            100.0 * (*blocked_send as f32) / max(1, *send) as f32;
+                        let blocked_rate_r =
+                            100.0 * (*blocked_recv as f32) / max(1, *recv) as f32;
+                        debug!("channel status, {}, {}, {:.2}, {}, {:.2}",
+                               name, send, blocked_rate_s, recv, blocked_rate_r);
                     }
                     stats.clear();
                 }

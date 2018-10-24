@@ -23,7 +23,7 @@ batch_size: 10000
 sampler_num_threads: 1
 sampler_init_grid_size: 1.0
 sampler_average_window_size: 1000
-num_examples_per_block: 128
+num_examples_per_block: 8192
 disk_buffer_filename: stratified.bin
 num_assigners: 1
 num_samplers: 3
