@@ -152,14 +152,14 @@ impl StratifiedStorage {
                         sump = 1.0;
                     }
                     let ps: Vec<String> = p.into_iter()
-                                           .map(|(index, w)| (index, w / sump))
-                                           .map(|(index, w)| format!("({}, {})", index, w))
+                                           .map(|(idx, w)| (idx, 100.0 * w / sump))
+                                           .map(|(idx, w)| format!("({}, {:.2})", idx, w))
                                            .collect();
                     debug!("strata weights distr, {}, {}", ps.join(", "), sump);
                     let sumc: i32 = max(c.iter().map(|t| t.1).sum(), 1);
                     let cs: Vec<String> = c.into_iter()
-                                           .map(|(index, c)| (index, c as f32 / (sumc as f32)))
-                                           .map(|(index, c)| format!("({}, {})", index, c))
+                                           .map(|(idx, c)| (idx, 100.0 * c as f32 / (sumc as f32)))
+                                           .map(|(idx, c)| format!("({}, {:.2})", idx, c))
                                            .collect();
                     debug!("strata counts distr, {}, {}", cs.join(", "), sumc);
                 }
