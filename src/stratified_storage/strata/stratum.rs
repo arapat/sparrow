@@ -94,11 +94,12 @@ impl Stratum {
                 }
                 if example.is_some() {
                     out_queue_s.send(example.unwrap());
+                    pm.update(1);
                 } else {
                     sleep(Duration::from_millis(1000));
                 }
                 if pm.get_duration() >= 5.0 {
-                    debug!("stratum-queries, {}, {}", pm.get_counts(), num_stealed);
+                    debug!("stratum-queries, {}, {}, {}", index, pm.get_counts(), num_stealed);
                     pm.reset();
                     pm.start();
                     num_stealed = 0;

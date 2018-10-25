@@ -122,10 +122,14 @@ fn sampler(
     pm_total.start();
 
     loop {
+        pm_update.write_log("sampler-update");
+        pm_sample.write_log("sampler-sample");
+
         // STEP 1: Sample which strata to get next sample
         let index = super::sample_weights_table(&weights_table);
         if index.is_none() {
             // stratified storage is empty, wait for data loading
+            debug!("Sampler sleeps waiting for data loading");
             sleep(Duration::from_millis(1000));
             continue;
         }
@@ -160,8 +164,21 @@ fn sampler(
         pm3_total.resume();
         while sampled_example.is_none() {
             pm1.resume();
-            let (example, (score, version)) = receiver.recv().unwrap();
+            let recv = {
+                let mut failed_recv = 0;
+                let mut recv = receiver.try_recv();
+                while recv.is_none() && failed_recv < 5 {
+                    failed_recv += 1;
+                    sleep(Duration::from_millis(500));
+                    recv = receiver.try_recv();
+                }
+                recv
+            };
             pm1.pause();
+            if recv.is_none() {
+                break;
+            }
+            let (example, (score, version)) = recv.unwrap();
             let (updated_score, model_size) = {
                 pm2.resume();
                 let trees = model.read().unwrap();
@@ -189,6 +206,10 @@ fn sampler(
         }
         pm3_total.pause();
         // STEP 4: Send the sampled example to the buffer loader
+        if sampled_example.is_none() {
+            debug!("Sampling the stratum {} failed because it has too few examples", index);
+            continue;
+        }
         let sampled_example = sampled_example.unwrap();
         let sample_count = (*grid / grid_size) as u32;
         if sample_count > 0 {
@@ -198,8 +219,6 @@ fn sampler(
             pm_sample.update(sample_count as usize);
         }
 
-        pm_update.write_log("sampler-update");
-        pm_sample.write_log("sampler-sample");
         if pm_total.get_duration() > 5.0 {
             let total = pm_total.get_duration();
             let s3_total = pm3_total.get_duration();

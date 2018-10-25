@@ -3,6 +3,7 @@ mod assigners;
 mod samplers;
 pub mod serial_storage;
 
+use std::cmp::max;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
@@ -146,18 +147,21 @@ impl StratifiedStorage {
                     p.sort_by(|a, b| (a.0).cmp(&b.0));
                     let mut c: Vec<(i8, i32)> = counts_table_r.map_into(|a, b| (a.clone(), b[0]));
                     c.sort_by(|a, b| (a.0).cmp(&b.0));
-                    let sump: f64 = p.iter().map(|t| t.1).sum();
+                    let mut sump: f64 = p.iter().map(|t| t.1).sum();
+                    if get_sign(sump) == 0 {
+                        sump = 1.0;
+                    }
                     let ps: Vec<String> = p.into_iter()
                                            .map(|(index, w)| (index, w / sump))
                                            .map(|(index, w)| format!("({}, {})", index, w))
                                            .collect();
-                    debug!("strata weights distr, {}", ps.join(", "));
-                    let sumc: i32 = c.iter().map(|t| t.1).sum();
+                    debug!("strata weights distr, {}, {}", ps.join(", "), sump);
+                    let sumc: i32 = max(c.iter().map(|t| t.1).sum(), 1);
                     let cs: Vec<String> = c.into_iter()
                                            .map(|(index, c)| (index, c as f32 / (sumc as f32)))
                                            .map(|(index, c)| format!("({}, {})", index, c))
                                            .collect();
-                    debug!("strata counts distr, {}", cs.join(", "));
+                    debug!("strata counts distr, {}, {}", cs.join(", "), sumc);
                 }
             });
         }
@@ -212,6 +216,7 @@ impl StratifiedStorage {
                 });
                 index += batch_size;
             }
+            debug!("Raw data on disk has been loaded into the stratified storage");
         });
     }
 }
