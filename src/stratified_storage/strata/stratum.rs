@@ -4,6 +4,7 @@ use crossbeam_channel;
 use bincode::serialize;
 use bincode::deserialize;
 use commons::channel;
+use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
 
 use std::sync::Arc;
@@ -32,13 +33,13 @@ impl Stratum {
     ) -> Stratum {
         // memory buffer for incoming examples
         let (in_queue_s, in_queue_r) =
-            channel::bounded(num_examples_per_block * 2, &format!("i({})", index));
+            channel::bounded(num_examples_per_block * 2, &format!("stratum-i({})", index));
         // disk slot for storing most examples
         // maintained in a channel to support managing the strata with multiple threads (TODO)
         let (slot_s, slot_r) = crossbeam_channel::unbounded();
         // memory buffer for outgoing examples
         let (out_queue_s, out_queue_r) =
-            channel::bounded(num_examples_per_block * 2, &format!("o({})", index));
+            channel::bounded(num_examples_per_block * 2, &format!("stratum-o({})", index));
 
         // Pushing in data from outside
         {
@@ -65,7 +66,10 @@ impl Stratum {
 
         // Reading out data to outside
         spawn(move || {
+            let mut pm = PerformanceMonitor::new();
+            let mut num_stealed = 0;
             let mut out_block_ptr = (vec![]).into_iter();
+            pm.start();
             loop {
                 let mut example = out_block_ptr.next();
                 if example.is_none() {
@@ -85,12 +89,19 @@ impl Stratum {
                         // they would stay in `in_queue` forever and never write to disk.
                         // We read from `in_queue` directly in this case.
                         example = in_queue_r.recv();
+                        num_stealed += 1;
                     }
                 }
                 if example.is_some() {
                     out_queue_s.send(example.unwrap());
                 } else {
                     sleep(Duration::from_millis(1000));
+                }
+                if pm.get_duration() >= 5.0 {
+                    debug!("stratum-queries, {}, {}", pm.get_counts(), num_stealed);
+                    pm.reset();
+                    pm.start();
+                    num_stealed = 0;
                 }
             }
         });

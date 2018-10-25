@@ -43,14 +43,18 @@ impl ChannelMonitor {
                             StatType::BlockedRecv => { ((*entry).1).1 += k; },
                         }
                     }
-                    for (name, val) in stats.iter() {
-                        let ((send, blocked_send), (recv, blocked_recv)) = val;
-                        let blocked_rate_s =
-                            100.0 * (*blocked_send as f32) / max(1, *send) as f32;
-                        let blocked_rate_r =
-                            100.0 * (*blocked_recv as f32) / max(1, *recv) as f32;
-                        debug!("channel status, {}, {}, {:.2}, {}, {:.2}",
-                               name, send, blocked_rate_s, recv, blocked_rate_r);
+                    {
+                        let mut status: Vec<_> = stats.iter().collect();
+                        status.sort_by(|a, b| (a.0).cmp(b.0));
+                        for (name, val) in status.into_iter() {
+                            let ((send, blocked_send), (recv, blocked_recv)) = val;
+                            let blocked_rate_s =
+                                100.0 * (*blocked_send as f32) / max(1, *send) as f32;
+                            let blocked_rate_r =
+                                100.0 * (*blocked_recv as f32) / max(1, *recv) as f32;
+                            debug!("channel status, {}, {}, {:.2}, {}, {:.2}",
+                                name, send, blocked_rate_s, recv, blocked_rate_r);
+                        }
                     }
                     stats.clear();
                 }

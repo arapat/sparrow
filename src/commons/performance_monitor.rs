@@ -85,6 +85,10 @@ impl PerformanceMonitor {
         1e-6 * microseconds as f32
     }
 
+    pub fn get_counts(&self) -> usize {
+        self.counter
+    }
+
     fn get_performance(&mut self) -> (i64, usize, f32, f32) {
         let since_last_check = self.last_check.to(PreciseTime::now()).num_seconds();
         let duration = self.get_duration();
