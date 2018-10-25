@@ -38,16 +38,18 @@ pub fn run_validate(
         false,
     );
     spawn(move || {
-        let mut model: Option<Model> = None;
-        while let Some(rmodel) = receive_model.try_recv() {
-            model = Some(rmodel);
-        }
-        if model.is_some() {
-            let model = model.unwrap();
-            info!("validator model update, {}", model.len());
-            validate(&mut data_loader, &model, &eval_funcs);
-        } else {
-            sleep(time::Duration::from_millis(1000));
+        loop {
+            let mut model: Option<Model> = None;
+            while let Some(rmodel) = receive_model.try_recv() {
+                model = Some(rmodel);
+            }
+            if model.is_some() {
+                let model = model.unwrap();
+                info!("validator model update, {}", model.len());
+                validate(&mut data_loader, &model, &eval_funcs);
+            } else {
+                sleep(time::Duration::from_millis(1000));
+            }
         }
     });
 }
