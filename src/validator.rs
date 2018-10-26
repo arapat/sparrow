@@ -9,6 +9,7 @@ use commons::is_zero;
 use commons::get_symmetric_label;
 use commons::channel::Receiver;
 use commons::Model;
+use commons::performance_monitor::PerformanceMonitor;
 use super::stratified_storage::serial_storage::SerialStorage;
 
 
@@ -24,6 +25,7 @@ pub fn run_validate(
     testing_filename: String,
     testing_size: usize,
     feature_size: usize,
+    batch_size: usize,
     testing_is_binary: bool,
     bytes_per_example: Option<usize>,
     eval_funcs: Vec<EvalFunc>,
@@ -46,7 +48,7 @@ pub fn run_validate(
             if model.is_some() {
                 let model = model.unwrap();
                 info!("validator model update, {}", model.len());
-                validate(&mut data_loader, &model, &eval_funcs);
+                validate(&mut data_loader, &model, &eval_funcs, batch_size);
             } else {
                 sleep(time::Duration::from_millis(1000));
             }
@@ -58,15 +60,22 @@ fn validate (
     data_loader: &mut SerialStorage,
     trees: &Model,
     eval_funcs: &Vec<EvalFunc>,
+    batch_size: usize,
 ) -> Vec<String> {
-    let batch_size = 128;
-    let num_batches = (data_loader.get_size() + batch_size - 1) / batch_size;
-    let mut scores_labels: Vec<(f32, f32)> = (0..num_batches).flat_map(|_| {
+    let capacity = data_loader.get_size();
+    let mut scores_labels: Vec<(f32, f32)> = Vec::with_capacity(capacity);
+    let mut pm = PerformanceMonitor::new();
+    pm.start();
+    while scores_labels.len() < capacity {
         let examples = data_loader.read(batch_size);
+        pm.update(examples.len());
         data_loader.update_scores(&examples, trees);
-        data_loader.get_scores().into_iter().zip(
-            examples.into_iter().map(|data| get_symmetric_label(&data)))
-    }).collect();
+        scores_labels.extend(
+            data_loader.get_scores().into_iter().zip(
+                examples.into_iter().map(|data| get_symmetric_label(&data)))
+        );
+        pm.write_log("validator");
+    }
     scores_labels.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().reverse());
     let sorted_scores_labels = scores_labels;
     let scores: Vec<f32> =

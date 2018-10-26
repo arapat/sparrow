@@ -159,6 +159,7 @@ pub fn run_rust_boost(config_file: String) {
         config.testing_filename,
         config.num_testing_examples,
         config.num_features,
+        config.batch_size,
         config.testing_is_binary,
         Some(config.testing_bytes_per_example),
         vec![EvalFunc::AdaBoostLoss],
