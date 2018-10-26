@@ -200,7 +200,7 @@ impl StratifiedStorage {
         bytes_per_example: Option<usize>,
     ) {
         let mut reader = SerialStorage::new(
-            filename,
+            filename.clone(),
             size,
             feature_size,
             is_binary,
