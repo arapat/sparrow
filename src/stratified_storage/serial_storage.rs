@@ -63,6 +63,8 @@ impl SerialStorage {
             } else {
                 0
             };
+        debug!("Created a serial storage object for {}, capacity {}, feature size {}",
+               filename, size, feature_size);
         SerialStorage {
             filename: filename,
             size: size.clone(),
