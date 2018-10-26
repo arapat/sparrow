@@ -39,6 +39,7 @@ pub fn run_validate(
         bytes_per_example,
         false,
     );
+    data_loader.load_to_memory(batch_size);
     spawn(move || {
         loop {
             let mut model: Option<Model> = None;

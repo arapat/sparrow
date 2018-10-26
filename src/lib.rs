@@ -162,7 +162,7 @@ pub fn run_rust_boost(config_file: String) {
         config.batch_size,
         config.testing_is_binary,
         Some(config.testing_bytes_per_example),
-        vec![EvalFunc::AdaBoostLoss],
+        vec![EvalFunc::AdaBoostLoss, EvalFunc::AUPRC],
         model_validate_r,
     );
     booster.training();

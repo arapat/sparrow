@@ -97,6 +97,19 @@ impl<T> Sender<T> {
             }
         }
     }
+
+    pub fn try_send(&self, t: T) -> bool {
+        self.stats_sender.send((self.name.clone(), StatType::Send, 1));
+        let mut succeed = true;
+        select! {
+            send(self.sender, t) => (),
+            default => {
+                self.stats_sender.send((self.name.clone(), StatType::BlockedSend, 1));
+                succeed = false;
+            }
+        }
+        succeed
+    }
 }
 
 

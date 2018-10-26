@@ -13,6 +13,7 @@ use commons::io::create_bufwriter;
 use commons::io::read_k_labeled_data;
 use commons::io::read_k_labeled_data_from_binary_file;
 use commons::io::write_to_binary_file;
+use commons::performance_monitor::PerformanceMonitor;
 
 use super::super::Example;
 use super::super::TLabel;
@@ -173,11 +174,15 @@ impl SerialStorage {
         info!("Load current file into the memory.");
         assert_eq!(self.in_memory, false);
 
+        let mut pm = PerformanceMonitor::new();
+        pm.start();
         self.try_reset(true /* force */);
         let num_batch = (self.size + batch_size - 1) / batch_size;
         for _ in 0..num_batch {
             let data = self.read(batch_size);
+            pm.update(data.len());
             self.memory_buffer.extend(data);
+            pm.write_log(&format!("load_{}", self.filename));
         }
         self.in_memory = true;
         self.is_binary = true;

@@ -217,8 +217,8 @@ impl Boosting {
         if let Some(ref mut network_sender) = self.network_sender {
             network_sender.send((self.model.clone(), self.sum_gamma)).unwrap();
         }
-        self.sampler_channel_s.send(self.model.clone());
-        self.validator_channel_s.send(self.model.clone());
+        self.sampler_channel_s.try_send(self.model.clone());
+        self.validator_channel_s.try_send(self.model.clone());
     }
 }
 
