@@ -10,13 +10,13 @@ use std::cmp::min;
 use std::thread::sleep;
 
 use commons::channel::Receiver;
+use commons::channel::Sender;
+use commons::get_weight;
 use commons::ExampleInSampleSet;
 use commons::ExampleWithScore;
 use commons::Model;
-// use commons::performance_monitor::PerformanceMonitor;
-
-use commons::get_weight;
-use self::gatherer::run_gatherer;
+use commons::Signal;
+use self::gatherer::Gatherer;
 
 
 /// Double-buffered sample set. It consists of two buffers stores in memory. One of the
@@ -27,19 +27,20 @@ use self::gatherer::run_gatherer;
 ///
 /// It might take several scans over the sample set before the new sample set is ready.
 /// Thus it is very likely that the examples in the sample set would be accessed multiple times.
-#[derive(Debug)]
 pub struct BufferLoader {
     size: usize,
     batch_size: usize,
     num_batch: usize,
 
     examples: Vec<ExampleInSampleSet>,
-    pub new_examples: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
+    new_examples: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
+    gatherer: Gatherer,
+    blocking: bool,
+    sampling_signal_channel: Sender<Signal>,
 
     pub ess: f32,
 
     curr_example: usize,
-    // performance: PerformanceMonitor
 }
 
 
@@ -56,14 +57,14 @@ impl BufferLoader {
     pub fn new(
         size: usize,
         batch_size: usize,
-        gather_new_sample: Option<Receiver<(ExampleWithScore, u32)>>,
-        init_block: bool
+        gather_new_sample: Receiver<(ExampleWithScore, u32)>,
+        sampling_signal_channel: Sender<Signal>,
+        blocking: bool,
+        init_block: bool,
     ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
-        if gather_new_sample.is_some() {
-            run_gatherer(gather_new_sample.unwrap(), new_examples.clone(), size);
-        }
         let num_batch = (size + batch_size - 1) / batch_size;
+        let gatherer = Gatherer::new(gather_new_sample, new_examples.clone(), size.clone());
         let mut buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
@@ -71,24 +72,23 @@ impl BufferLoader {
 
             examples: vec![],
             new_examples: new_examples,
+            gatherer: gatherer,
+            blocking: blocking,
+            sampling_signal_channel: sampling_signal_channel,
 
             ess: 1.0,
-
             curr_example: 0,
-            // performance: PerformanceMonitor::new()
         };
+        if !buffer_loader.blocking {
+            buffer_loader.sampling_signal_channel.send(Signal::START);
+            buffer_loader.gatherer.run(false);
+        }
         if init_block {
-            buffer_loader.load();
+            while !buffer_loader.try_switch() {
+                sleep(Duration::from_millis(1000));
+            }
         }
         buffer_loader
-    }
-
-    /// Create the first sample set reading from the sampler.
-    /// This function blocks until the first sample set is created.
-    pub fn load(&mut self) {
-        while !self.try_switch() {
-            sleep(Duration::from_millis(1000));
-        }
     }
 
     /// Return the number of batches (i.e. the number of function calls to `get_next_batch`)
@@ -132,6 +132,11 @@ impl BufferLoader {
     }
 
     fn try_switch(&mut self) -> bool {
+        if self.blocking {
+            self.sampling_signal_channel.send(Signal::START);
+            self.gatherer.run(true);
+            self.sampling_signal_channel.send(Signal::STOP);
+        }
         let new_examples = {
             if let Ok(mut new_examples) = self.new_examples.try_write() {
                 new_examples.take()
@@ -179,13 +184,16 @@ mod tests {
     use std::time::Duration;
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
+    use commons::Signal;
     use super::BufferLoader;
 
 
     #[test]
     fn test_buffer_loader() {
         let (sender, receiver) = channel::bounded(10, "gather-samples");
-        let mut buffer_loader = BufferLoader::new(100, 10, Some(receiver), false);
+        let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
+        let mut buffer_loader = BufferLoader::new(100, 10, receiver, signal_s, false, false);
+        assert_eq!(signal_r.recv().unwrap(), Signal::START);
         sender.send((get_example(vec![0, 1, 2], 1.0), 100));
         sleep(Duration::from_millis(1000));
         for _ in 0..20 {

@@ -19,6 +19,7 @@ max_trials_before_shrink: 20000
 channel_size: 128
 buffer_size: 20000
 batch_size: 1000
+parallel_sampling: true,
 sampler_num_threads: 2
 sampler_init_grid_size: 1.0
 sampler_average_window_size: 1000

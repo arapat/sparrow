@@ -19,6 +19,13 @@ const THRESHOLD_FACTOR: f32 = 6.0;
 const ALMOST_ZERO: f32 = 1e-8;
 
 
+#[derive(Debug, PartialEq)]
+pub enum Signal {
+    START,
+    STOP,
+}
+
+
 // Boosting related
 
 #[inline]

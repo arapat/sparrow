@@ -17,6 +17,7 @@ pub struct Assigners {
     updated_examples_r: Receiver<ExampleWithScore>,
     strata: Arc<RwLock<Strata>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
+    num_threads: usize,
 }
 
 
@@ -25,16 +26,18 @@ impl Assigners {
         updated_examples_r: Receiver<ExampleWithScore>,
         strata: Arc<RwLock<Strata>>,
         stats_update_s: Sender<(i8, (i32, f64))>,
+        num_threads: usize,
     ) -> Assigners {
         Assigners {
             updated_examples_r: updated_examples_r,
             strata: strata,
             stats_update_s: stats_update_s,
+            num_threads: num_threads,
         }
     }
 
-    pub fn run(&mut self, num_threads: usize) {
-        for _ in 0..num_threads {
+    pub fn run(&self) {
+        for _ in 0..self.num_threads {
             let updated_examples_r = self.updated_examples_r.clone();
             let strata = self.strata.clone();
             let stats_update_s = self.stats_update_s.clone();
@@ -91,8 +94,8 @@ mod tests {
     #[test]
     fn test_assigner_1_thread() {
         let filename = "unittest-assigners1.bin";
-        let (stats_update_r, sender, mut assigners) = get_assigner(filename);
-        assigners.run(1);
+        let (stats_update_r, sender, assigners) = get_assigner(filename, 1);
+        assigners.run();
         for i in 0..1 {
             for k in 0..3 {
                 let t = get_example(vec![0, i, k], (2.0f32).powi(k as i32));
@@ -112,8 +115,8 @@ mod tests {
     #[test]
     fn test_assigner_10_thread() {
         let filename = "unittest-assigners10.bin";
-        let (stats_update_r, sender, mut assigners) = get_assigner(filename);
-        assigners.run(10);
+        let (stats_update_r, sender, assigners) = get_assigner(filename, 10);
+        assigners.run();
         for i in 0..10 {
             for k in 0..3 {
                 let t = get_example(vec![0, i, k], (2.0f32).powi(k as i32));
@@ -131,7 +134,8 @@ mod tests {
     }
 
     fn get_assigner(
-        filename: &str
+        filename: &str,
+        num_threads: usize,
     ) -> (Receiver<(i8, (i32, f64))>, Sender<ExampleWithScore>, Assigners) {
         let strata = Arc::new(RwLock::new(Strata::new(100, 3, 10, filename)));
         let (updated_examples_send, updated_examples_recv) = channel::bounded(10, "updated-examples");
@@ -139,7 +143,7 @@ mod tests {
         (
             stats_update_r,
             updated_examples_send,
-            Assigners::new(updated_examples_recv, strata, stats_update_s)
+            Assigners::new(updated_examples_recv, strata, stats_update_s, num_threads)
         )
     }
 
