@@ -15,12 +15,13 @@ range:
 max_sample_size: 20000
 max_bin_size: 10
 default_gamma: 0.25
+min_ess: 0.5
 num_iterations: 0
 max_trials_before_shrink: 1000000
 channel_size: 1048576
 buffer_size: 2000000
 batch_size: 10000
-parallel_sampling: true,
+parallel_sampling: true
 sampler_num_threads: 1
 sampler_init_grid_size: 1.0
 sampler_average_window_size: 1000

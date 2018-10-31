@@ -2,12 +2,9 @@ mod gatherer;
 
 use rayon::prelude::*;
 
+use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::time::Duration;
-
-use std::cmp::min;
-use std::thread::sleep;
 
 use commons::channel::Receiver;
 use commons::channel::Sender;
@@ -38,8 +35,8 @@ pub struct BufferLoader {
     blocking: bool,
     sampling_signal_channel: Sender<Signal>,
 
-    pub ess: f32,
-
+    ess: f32,
+    min_ess: f32,
     curr_example: usize,
 }
 
@@ -61,6 +58,7 @@ impl BufferLoader {
         sampling_signal_channel: Sender<Signal>,
         blocking: bool,
         init_block: bool,
+        min_ess: Option<f32>,
     ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
@@ -77,6 +75,7 @@ impl BufferLoader {
             sampling_signal_channel: sampling_signal_channel,
 
             ess: 1.0,
+            min_ess: min_ess.unwrap_or(0.0),
             curr_example: 0,
         };
         if !buffer_loader.blocking {
@@ -84,9 +83,7 @@ impl BufferLoader {
             buffer_loader.gatherer.run(false);
         }
         if init_block {
-            while !buffer_loader.try_switch() {
-                sleep(Duration::from_millis(1000));
-            }
+            buffer_loader.force_switch();
         }
         buffer_loader
     }
@@ -104,7 +101,7 @@ impl BufferLoader {
     /// was ready. If it was, the loader will switched to the alternate buffer for
     /// reading the next batch of examples.
     pub fn get_next_batch(&mut self, allow_switch: bool) -> &[ExampleInSampleSet] {
-        if allow_switch {
+        if allow_switch && !self.blocking {
             self.try_switch();
         }
         self.curr_example += self.batch_size;
@@ -131,12 +128,14 @@ impl BufferLoader {
         self.update_ess();
     }
 
+    fn force_switch(&mut self) {
+        self.sampling_signal_channel.send(Signal::START);
+        self.gatherer.run(true);
+        self.sampling_signal_channel.send(Signal::STOP);
+        assert_eq!(self.try_switch(), true);
+    }
+
     fn try_switch(&mut self) -> bool {
-        if self.blocking {
-            self.sampling_signal_channel.send(Signal::START);
-            self.gatherer.run(true);
-            self.sampling_signal_channel.send(Signal::STOP);
-        }
         let new_examples = {
             if let Ok(mut new_examples) = self.new_examples.try_write() {
                 new_examples.take()
@@ -172,6 +171,11 @@ impl BufferLoader {
                         .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
+        if self.blocking && self.ess < self.min_ess {
+            debug!("blocking sampling started");
+            self.force_switch();
+            debug!("blocking sampling finished");
+        }
     }
 }
 
@@ -192,7 +196,7 @@ mod tests {
     fn test_buffer_loader() {
         let (sender, receiver) = channel::bounded(10, "gather-samples");
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
-        let mut buffer_loader = BufferLoader::new(100, 10, receiver, signal_s, false, false);
+        let mut buffer_loader = BufferLoader::new(100, 10, receiver, signal_s, false, false, None);
         assert_eq!(signal_r.recv().unwrap(), Signal::START);
         sender.send((get_example(vec![0, 1, 2], 1.0), 100));
         sleep(Duration::from_millis(1000));

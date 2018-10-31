@@ -79,6 +79,7 @@ struct Config {
     pub max_sample_size: usize, 
     pub max_bin_size: usize, 
     pub default_gamma: f32,
+    pub min_ess: f32,
 
     pub num_iterations: usize,
     pub max_trials_before_shrink: u32,
@@ -144,6 +145,7 @@ pub fn run_rust_boost(config_file: String) {
         sampling_signal_s,
         config.parallel_sampling,
         true,
+        Some(config.min_ess),
     );
     info!("Starting the booster.");
     let mut booster = Boosting::new(
