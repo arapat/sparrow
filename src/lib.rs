@@ -86,6 +86,7 @@ struct Config {
     pub channel_size: usize,
     pub buffer_size: usize,
     pub batch_size: usize,
+    pub parallel_sampling: bool,
 
     pub num_examples_per_block: usize,
     pub disk_buffer_filename: String,
@@ -106,6 +107,8 @@ pub fn run_rust_boost(config_file: String) {
 
     // Strata -> BufferLoader
     let (sampled_examples_s, sampled_examples_r) = channel::bounded(config.channel_size, "gather-samples");
+    // BufferLoader -> Strata
+    let (sampling_signal_s, sampling_signal_r) = channel::bounded(10, "sampling-signal");
     // Booster -> Strata
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
     // Booster -> Validator
@@ -120,6 +123,7 @@ pub fn run_rust_boost(config_file: String) {
         config.num_assigners,
         config.num_samplers,
         sampled_examples_s,
+        sampling_signal_r,
         next_model_r,
         config.channel_size,
     );
@@ -136,7 +140,9 @@ pub fn run_rust_boost(config_file: String) {
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
-        Some(sampled_examples_r),
+        sampled_examples_r,
+        sampling_signal_s,
+        config.parallel_sampling,
         true,
     );
     info!("Starting the booster.");

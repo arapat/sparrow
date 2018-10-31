@@ -12,12 +12,12 @@ use std::time::Duration;
 use evmap;
 use rand;
 use commons::channel;
-use commons::get_sign;
-
-use commons::ExampleWithScore;
-use commons::Model;
 use commons::channel::Receiver;
 use commons::channel::Sender;
+use commons::get_sign;
+use commons::ExampleWithScore;
+use commons::Model;
+use commons::Signal;
 use super::Example;
 
 use self::assigners::Assigners;
@@ -46,14 +46,17 @@ pub struct StratifiedStorage {
     // feature_size: usize,
     // num_examples_per_block: usize,
     // disk_buffer_filename: String,
+    // strata: Arc<RwLock<Strata>>,
+    // stats_update_s: Sender<(i8, (i32, f64))>,
     #[allow(dead_code)] counts_table_r: evmap::ReadHandle<i8, i32>,
     #[allow(dead_code)] weights_table_r: WeightTableRead,
     // num_assigners: usize,
     // num_samplers: usize,
-    // assigners: Assigners,
-    // samplers: Samplers,
-    // updated_examples_r: channel::Receiver<ExampleWithScore>,
+    // updated_examples_r: Receiver<ExampleWithScore>,
     updated_examples_s: Sender<ExampleWithScore>,
+    // sampled_examples_s: Sender<(ExampleWithScore, u32)>,
+    // sampling_signal: Receiver<Signal>,
+    // models: Receiver<Model>,
 }
 
 
@@ -69,6 +72,8 @@ impl StratifiedStorage {
     /// * `num_samplers`: the number of threads that run the `Sampler`s (explained below)
     /// * `sampled_examples`: the channle that the stratified storage sends the sampled examples to
     /// the buffer loader
+    /// * `sampling_singal`: the channle that the buffer loader sends sampling signals to
+    /// start and stop the samplers as needed
     /// * `models`: the channel that the booster sends the latest models in
     ///
     /// Stratified storage organizes training examples according to their weights
@@ -107,6 +112,7 @@ impl StratifiedStorage {
         num_assigners: usize,
         num_samplers: usize,
         sampled_examples: Sender<(ExampleWithScore, u32)>,
+        sampling_signal: Receiver<Signal>,
         models: Receiver<Model>,
         channel_size: usize,
     ) -> StratifiedStorage {
@@ -119,6 +125,7 @@ impl StratifiedStorage {
         let (updated_examples_s, updated_examples_r) = channel::bounded(channel_size, "updated-examples");
         // The messages in the stats channel are very small, so its capacity can be larger.
         let (stats_update_s, stats_update_r) = channel::bounded(5000000, "stats");
+        // Update shared weights table (non-blocking)
         {
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
@@ -136,12 +143,13 @@ impl StratifiedStorage {
                 }
             });
         }
+        // Monitor the distribution of strata
         {
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
             spawn(move || {
                 loop {
-                    sleep(Duration::from_millis(2000));
+                    sleep(Duration::from_millis(5000));
                     let mut p: Vec<(i8, f64)> =
                         weights_table_r.map_into(|a: &i8, b: &[Box<F64>]| (a.clone(), b[0].val));
                     p.sort_by(|a, b| (a.0).cmp(&b.0));
@@ -165,33 +173,46 @@ impl StratifiedStorage {
                 }
             });
         }
-
-        let mut assigners = Assigners::new(
-            updated_examples_r.clone(), strata.clone(), stats_update_s.clone());
-        let mut samplers = Samplers::new(
-            strata.clone(), sampled_examples, updated_examples_s.clone(), models,
-            stats_update_s.clone(), weights_table_r.clone());
-        assigners.run(num_assigners);
-        samplers.run(num_samplers);
+        let assigners = Assigners::new(
+            updated_examples_r,
+            strata.clone(),
+            stats_update_s.clone(),
+            num_assigners,
+        );
+        let samplers = Samplers::new(
+            strata.clone(),
+            sampled_examples.clone(),
+            updated_examples_s.clone(),
+            models.clone(),
+            stats_update_s.clone(),
+            weights_table_r.clone(),
+            sampling_signal.clone(),
+            num_samplers,
+        );
+        assigners.run();
+        samplers.run();
 
         StratifiedStorage {
             // num_examples: num_examples,
             // feature_size: feature_size,
             // num_examples_per_block: num_examples_per_block,
             // disk_buffer_filename: String::from(disk_buffer_filename),
+            // strata: strata,
+            // stats_update_s: stats_update_s,
             counts_table_r: counts_table_r,
             weights_table_r: weights_table_r,
             // num_assigners: num_assigners,
             // num_samplers: num_samplers,
-            // assigners: assigners,
-            // samplers: samplers,
             // updated_examples_r: updated_examples_r,
             updated_examples_s: updated_examples_s,
+            // sampled_examples_s: sampled_examples,
+            // sampling_signal: sampling_signal,
+            // models: models,
         }
     }
 
     pub fn init_stratified_from_file(
-        self,
+        &self,
         filename: String,
         size: usize,
         batch_size: usize,
@@ -207,12 +228,12 @@ impl StratifiedStorage {
             bytes_per_example,
             true,
         );
-
+        let updated_examples_s = self.updated_examples_s.clone();
         spawn(move || {
             let mut index = 0;
             while index < size {
                 reader.read(batch_size).into_iter().for_each(|data| {
-                    self.updated_examples_s.send((data, (0.0, 0)));
+                    updated_examples_s.send((data, (0.0, 0)));
                 });
                 index += batch_size;
             }
@@ -251,6 +272,7 @@ mod tests {
     use std::thread::spawn;
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
+    use commons::Signal;
     use commons::performance_monitor::PerformanceMonitor;
     use super::StratifiedStorage;
 
@@ -262,8 +284,10 @@ mod tests {
         let num_read = 1000000;
         let (sampled_examples_send, sampled_examples_recv) = channel::bounded(1000, "sampled-examples");
         let (_, models_recv) = channel::bounded(10, "updated-models");
+        let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
+        signal_s.send(Signal::START);
         let stratified_storage = StratifiedStorage::new(
-            batch * 10, 1, 10000, filename, 4, 4, sampled_examples_send, models_recv, 10
+            batch * 10, 1, 10000, filename, 4, 4, sampled_examples_send, signal_r, models_recv, 10
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
         let mut pm_load = PerformanceMonitor::new();
