@@ -9,6 +9,7 @@ use std::sync::RwLock;
 use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_weight;
+use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleInSampleSet;
 use commons::ExampleWithScore;
 use commons::Model;
@@ -38,6 +39,7 @@ pub struct BufferLoader {
     ess: f32,
     min_ess: f32,
     curr_example: usize,
+    sampling_pm: PerformanceMonitor,
 }
 
 
@@ -77,6 +79,7 @@ impl BufferLoader {
             ess: 1.0,
             min_ess: min_ess.unwrap_or(0.0),
             curr_example: 0,
+            sampling_pm: PerformanceMonitor::new(),
         };
         if !buffer_loader.blocking {
             buffer_loader.sampling_signal_channel.send(Signal::START);
@@ -130,13 +133,17 @@ impl BufferLoader {
     }
 
     fn force_switch(&mut self) {
+        self.sampling_pm.resume();
         self.sampling_signal_channel.send(Signal::START);
         self.gatherer.run(true);
         self.sampling_signal_channel.send(Signal::STOP);
+        self.sampling_pm.pause();
+
         assert_eq!(self.try_switch(), true);
     }
 
     fn try_switch(&mut self) -> bool {
+        self.sampling_pm.resume();
         let new_examples = {
             if let Ok(mut new_examples) = self.new_examples.try_write() {
                 new_examples.take()
@@ -144,19 +151,23 @@ impl BufferLoader {
                 None
             }
         };
-        if new_examples.is_some() {
-            self.examples = new_examples.unwrap()
-                                        .into_iter()
-                                        .map(|t| {
-                                            let (a, s) = t;
-                                            (a, s, s.clone())
-                                        }).collect();
-            self.curr_example = 0;
-            debug!("switched-buffer, {}", self.examples.len());
-            true
-        } else {
-            false
-        }
+        let switched = {
+            if new_examples.is_some() {
+                self.examples = new_examples.unwrap()
+                                            .into_iter()
+                                            .map(|t| {
+                                                let (a, s) = t;
+                                                (a, s, s.clone())
+                                            }).collect();
+                self.curr_example = 0;
+                debug!("switched-buffer, {}", self.examples.len());
+                true
+            } else {
+                false
+            }
+        };
+        self.sampling_pm.pause();
+        switched
     }
 
     // ESS and others
@@ -177,6 +188,10 @@ impl BufferLoader {
             self.force_switch();
             debug!("blocking sampling finished");
         }
+    }
+
+    pub fn get_sampling_duration(&self) -> f32 {
+        self.sampling_pm.get_duration()
     }
 }
 

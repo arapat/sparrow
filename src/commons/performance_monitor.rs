@@ -15,6 +15,7 @@ pub struct PerformanceMonitor {
     last_check: PreciseTime,
     status: PerformanceMonitorStatus,
     duration: i64,
+    duration_adjust: f32,
     counter: usize
 }
 
@@ -31,6 +32,7 @@ impl PerformanceMonitor {
             last_check: PreciseTime::now(),
             status: PerformanceMonitorStatus::PAUSE,
             duration: 0,
+            duration_adjust: 0.0,
             counter: 0,
         }
     }
@@ -64,6 +66,10 @@ impl PerformanceMonitor {
         self.status = PerformanceMonitorStatus::PAUSE;
     }
 
+    pub fn set_adjust(&mut self, adjust_val: f32) {
+        self.duration_adjust = adjust_val;
+    }
+
     pub fn write_log(&mut self, name: &str) -> bool {
         let (since_last_check, count, duration, speed) = self.get_performance();
         if since_last_check >= 5 {
@@ -82,7 +88,7 @@ impl PerformanceMonitor {
             } else {
                 0
             };
-        1e-6 * microseconds as f32
+        1e-6 * microseconds as f32 + self.duration_adjust
     }
 
     pub fn get_counts(&self) -> usize {

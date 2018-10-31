@@ -171,11 +171,15 @@ impl Learner {
                 let labeled_weight = weight * label;
                 let null_weight = 2.0 * gamma * weight;
                 let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                let left_score: Vec<_> =
+                    LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
+                let right_score: Vec<_> =
+                    RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
                 (
                     &example.0,
                     (
-                        [labeled_weight, labeled_weight, -labeled_weight, -labeled_weight],
-                        [labeled_weight, -labeled_weight, labeled_weight, -labeled_weight],
+                        [left_score[0], left_score[1], left_score[2], left_score[3]],
+                        [right_score[0], right_score[1], right_score[2], right_score[3]],
                     ),
                     null_weight,
                     c_sq,
