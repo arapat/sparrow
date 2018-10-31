@@ -127,7 +127,7 @@ impl Boosting {
         while self.num_iterations <= 0 || self.model.len() < self.num_iterations {
             learner_timer.resume();
             let (new_rule, batch_size) = {
-                let data = self.training_loader.get_next_batch(true);
+                let data = self.training_loader.get_next_batch_and_update(true, &self.model);
                 let weights = get_relative_weights(data);
                 (self.learner.update(data, &weights), data.len())
             };
@@ -141,7 +141,6 @@ impl Boosting {
                 self.model.push(new_rule.to_tree());
                 // post updates
                 self.try_send_model();
-                self.training_loader.update_scores(&self.model);
                 self.learner.reset();
             }
             iteration += 1;

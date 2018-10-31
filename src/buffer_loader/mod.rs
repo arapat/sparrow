@@ -101,6 +101,20 @@ impl BufferLoader {
     /// was ready. If it was, the loader will switched to the alternate buffer for
     /// reading the next batch of examples.
     pub fn get_next_batch(&mut self, allow_switch: bool) -> &[ExampleInSampleSet] {
+        self.get_next_mut_batch(allow_switch)
+    }
+
+    pub fn get_next_batch_and_update(
+        &mut self,
+        allow_switch: bool,
+        model: &Model
+    ) -> &[ExampleInSampleSet] {
+        let batch = self.get_next_mut_batch(allow_switch);
+        update_scores(batch, model);
+        batch
+    }
+
+    fn get_next_mut_batch(&mut self, allow_switch: bool) -> &mut [ExampleInSampleSet] {
         if allow_switch && !self.blocking {
             self.try_switch();
         }
@@ -112,20 +126,7 @@ impl BufferLoader {
 
         assert!(!self.examples.is_empty());
         let tail = min(self.curr_example + self.batch_size, self.size);
-        &self.examples[self.curr_example..tail]
-    }
-
-    /// Update the scores of the examples in the current batch using `model`.
-    pub fn update_scores(&mut self, model: &Model) {
-        let model_size = model.len();
-        self.examples.par_iter_mut().for_each(|example| {
-            let mut curr_score = (example.2).0;
-            for tree in model[((example.2).1)..model_size].iter() {
-                curr_score += tree.get_leaf_prediction(&example.0);
-            }
-            (*example).2 = (curr_score, model_size);
-        });
-        self.update_ess();
+        &mut self.examples[self.curr_example..tail]
     }
 
     fn force_switch(&mut self) {
@@ -163,12 +164,12 @@ impl BufferLoader {
     fn update_ess(&mut self) {
         let (sum_weights, sum_weight_squared) =
             self.examples.iter()
-                        .map(|(data, (base_score, _), (curr_score, _))| {
-                            let score = curr_score - base_score;
-                            let w = get_weight(data, score);
-                            (w, w * w)
-                        })
-                        .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
+                         .map(|(data, (base_score, _), (curr_score, _))| {
+                             let score = curr_score - base_score;
+                             let w = get_weight(data, score);
+                             (w, w * w)
+                         })
+                         .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
         if self.blocking && self.ess < self.min_ess {
@@ -177,6 +178,19 @@ impl BufferLoader {
             debug!("blocking sampling finished");
         }
     }
+}
+
+
+/// Update the scores of the examples using `model`
+fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
+    let model_size = model.len();
+    data.par_iter_mut().for_each(|example| {
+        let mut curr_score = (example.2).0;
+        for tree in model[((example.2).1)..model_size].iter() {
+            curr_score += tree.get_leaf_prediction(&example.0);
+        }
+        (*example).2 = (curr_score, model_size);
+    });
 }
 
 
