@@ -11,7 +11,6 @@ use std::ops::Range;
 use tmsn::network::start_network;
 
 use self::bins::create_bins;
-use commons::get_relative_weights;
 use commons::io::create_bufwriter;
 use commons::io::write_to_text_file;
 use buffer_loader::BufferLoader;
@@ -128,8 +127,7 @@ impl Boosting {
             learner_timer.resume();
             let (new_rule, batch_size) = {
                 let data = self.training_loader.get_next_batch_and_update(true, &self.model);
-                let weights = get_relative_weights(data);
-                (self.learner.update(data, &weights), data.len())
+                (self.learner.update(data), data.len())
             };
             learner_timer.update(batch_size);
             learner_timer.pause();
