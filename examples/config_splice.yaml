@@ -18,7 +18,7 @@ default_gamma: 0.25
 min_ess: 0.5
 num_iterations: 0
 max_trials_before_shrink: 1000000
-channel_size: 1048576
+channel_size: 65536
 buffer_size: 2000000
 batch_size: 10000
 parallel_sampling: true
