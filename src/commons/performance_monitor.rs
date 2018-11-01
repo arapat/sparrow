@@ -73,7 +73,7 @@ impl PerformanceMonitor {
     pub fn write_log(&mut self, name: &str) -> bool {
         let (since_last_check, count, duration, speed) = self.get_performance();
         if since_last_check >= 5 {
-            debug!("{}-perf-mon, {}, {}, {}", name, duration, count, speed);
+            debug!("{}-perf-mon, {:.2}, {}, {:.2}", name, duration, count, speed);
             self.last_check = PreciseTime::now();
             true
         } else {
