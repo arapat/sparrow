@@ -26,10 +26,6 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
     BufWriter::new(f)
 }
 
-pub fn write_to_text_file(writer: &mut BufWriter<File>, content: &String) {
-    writer.write(content.as_ref()).unwrap();
-}
-
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
     let mut ret: Vec<String> = vec![String::new(); k];
     for string in &mut ret {

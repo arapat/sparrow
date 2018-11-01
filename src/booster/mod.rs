@@ -5,13 +5,15 @@ extern crate serde_json;
 
 use std::fs::File;
 use std::io::BufWriter;
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::io::Write;
 use std::sync::mpsc;
 use std::ops::Range;
 use tmsn::network::start_network;
 
 use self::bins::create_bins;
 use commons::io::create_bufwriter;
-use commons::io::write_to_text_file;
 use buffer_loader::BufferLoader;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
@@ -210,7 +212,8 @@ impl Boosting {
         );
         // let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
         self.persist_id += 1;
-        write_to_text_file(&mut self.persist_file_buffer, &json);
+        self.persist_file_buffer.seek(SeekFrom::Start(0)).unwrap();
+        self.persist_file_buffer.write(json.as_ref()).unwrap();
     }
 
     fn try_send_model(&mut self) {
