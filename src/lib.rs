@@ -87,7 +87,7 @@ struct Config {
     pub channel_size: usize,
     pub buffer_size: usize,
     pub batch_size: usize,
-    pub parallel_sampling: bool,
+    pub serial_sampling: bool,
 
     pub num_examples_per_block: usize,
     pub disk_buffer_filename: String,
@@ -143,7 +143,7 @@ pub fn run_rust_boost(config_file: String) {
         config.batch_size,
         sampled_examples_r,
         sampling_signal_s,
-        config.parallel_sampling,
+        config.serial_sampling,
         true,
         Some(config.min_ess),
     );

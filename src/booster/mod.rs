@@ -118,6 +118,7 @@ impl Boosting {
     pub fn training(&mut self) {
         info!("Start training.");
 
+        let init_sampling_duration = self.training_loader.get_sampling_duration();
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
@@ -149,7 +150,7 @@ impl Boosting {
             }
             global_timer.update(batch_size);
 
-            let sampling_duration = self.training_loader.get_sampling_duration();
+            let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
             global_timer.write_log("boosting-overall");
             learner_timer.set_adjust(-sampling_duration);
