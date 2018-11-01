@@ -166,11 +166,11 @@ impl Learner {
 
         // preprocess examples
         let gamma = self.cur_rho_gamma;
-        let data: Vec<(&Example, ([f32; 4], [f32; 4]), f32, f32)> =
+        let data: Vec<(&Example, ([f32; 4], [f32; 4]))> =
             data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
                 let labeled_weight = weight * get_symmetric_label(&(example.0));
-                let null_weight = 2.0 * gamma * weight;
-                let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                // let null_weight = 2.0 * gamma * weight;
+                // let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
                 let left_score: Vec<_> =
                     LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
                 let right_score: Vec<_> =
@@ -179,7 +179,7 @@ impl Learner {
                     [left_score[0], left_score[1], left_score[2], left_score[3]],
                     [right_score[0], right_score[1], right_score[2], right_score[3]],
                 );
-                (&example.0, signed_labeled_weight, null_weight, c_sq)
+                (&example.0, signed_labeled_weight)
             }).collect();
 
         // update each weak rule
@@ -192,14 +192,24 @@ impl Learner {
         ).zip(
             self.sum_c_squared.par_iter_mut()
         ).enumerate().map(|(i, (((bin, weak_rules_score), sum_c), sum_c_squared))| {
-            let mut valid_weak_rule = None;
-            data.iter().for_each(|(example, labeled_weight, null_weight, c_sq)| {
+            // Update stats
+            sum_c.iter_mut().for_each(|v| {
+                v[0] -= 2.0 * gamma * sum_w;
+                v[1] -= 2.0 * gamma * sum_w;
+                v[2] -= 2.0 * gamma * sum_w;
+                v[3] -= 2.0 * gamma * sum_w;
+            });
+            sum_c_squared.iter_mut().for_each(|v| {
+                v[0] += (1.0 + 2.0 * gamma).powi(2) * sum_w_squared;
+                v[1] += (1.0 + 2.0 * gamma).powi(2) * sum_w_squared;
+                v[2] += (1.0 + 2.0 * gamma).powi(2) * sum_w_squared;
+                v[3] += (1.0 + 2.0 * gamma).powi(2) * sum_w_squared;
+            });
+            data.iter().for_each(|(example, labeled_weight)| {
                 let feature_val = example.feature[i + range_start] as f32;
                 bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
-                    // 4 possible labeling for each split
-                    let threshold = *threshold;
                     let labeled_weight =
-                        if feature_val <= threshold {
+                        if feature_val <= *threshold {
                             &labeled_weight.0
                         } else {
                             &labeled_weight.1
@@ -210,42 +220,40 @@ impl Learner {
                     weak_rules_score[j][2] += labeled_weight[2];
                     weak_rules_score[j][3] += labeled_weight[3];
 
-                    sum_c[j][0]            += labeled_weight[0] - null_weight;
-                    sum_c[j][1]            += labeled_weight[1] - null_weight;
-                    sum_c[j][2]            += labeled_weight[2] - null_weight;
-                    sum_c[j][3]            += labeled_weight[3] - null_weight;
-
-                    sum_c_squared[j][0]    += c_sq;
-                    sum_c_squared[j][1]    += c_sq;
-                    sum_c_squared[j][2]    += c_sq;
-                    sum_c_squared[j][3]    += c_sq;
-
-                    // check stopping rule
-                    for k in 0..4 {
-                        let weak_rules_score = weak_rules_score[j][k];
-                        let sum_c            = sum_c[j][k];
-                        let sum_c_squared    = sum_c_squared[j][k];
-                        let bound = get_bound(sum_c, sum_c_squared).unwrap_or(INFINITY);
-                        if sum_c > bound {
-                            let base_pred = 0.5 * ((0.5 + gamma) / (0.5 - gamma)).ln();
-                            valid_weak_rule = Some(
-                                WeakRule {
-                                    feature:        i + range_start,
-                                    threshold:      threshold,
-                                    left_predict:   base_pred * LEFT_NODE[k],
-                                    right_predict:  base_pred * RIGHT_NODE[k],
-
-                                    gamma:          gamma,
-                                    raw_martingale: weak_rules_score,
-                                    sum_c:          sum_c,
-                                    sum_c_squared:  sum_c_squared,
-                                    bound:          bound,
-                                    num_scanned:    num_scanned,
-                                }
-                            );
-                        }
-                    }
+                    sum_c[j][0]            += labeled_weight[0];  // - null_weight;
+                    sum_c[j][1]            += labeled_weight[1];  // - null_weight;
+                    sum_c[j][2]            += labeled_weight[2];  // - null_weight;
+                    sum_c[j][3]            += labeled_weight[3];  // - null_weight;
                 });
+            });
+
+            // check stopping rule
+            let mut valid_weak_rule = None;
+            bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
+                for k in 0..4 {
+                    let weak_rules_score = weak_rules_score[j][k];
+                    let sum_c            = sum_c[j][k];
+                    let sum_c_squared    = sum_c_squared[j][k];
+                    let bound = get_bound(sum_c, sum_c_squared).unwrap_or(INFINITY);
+                    if sum_c > bound {
+                        let base_pred = 0.5 * ((0.5 + gamma) / (0.5 - gamma)).ln();
+                        valid_weak_rule = Some(
+                            WeakRule {
+                                feature:        i + range_start,
+                                threshold:      *threshold,
+                                left_predict:   base_pred * LEFT_NODE[k],
+                                right_predict:  base_pred * RIGHT_NODE[k],
+
+                                gamma:          gamma,
+                                raw_martingale: weak_rules_score,
+                                sum_c:          sum_c,
+                                sum_c_squared:  sum_c_squared,
+                                bound:          bound,
+                                num_scanned:    num_scanned,
+                            }
+                        );
+                    }
+                }
             });
             valid_weak_rule
         }).find_any(|t| t.is_some()).unwrap_or(None)

@@ -3,6 +3,8 @@ mod learner;
 
 extern crate serde_json;
 
+use std::fs::File;
+use std::io::BufWriter;
 use std::sync::mpsc;
 use std::ops::Range;
 use tmsn::network::start_network;
@@ -37,6 +39,7 @@ pub struct Boosting {
     sampler_channel_s: Sender<Model>,
     validator_channel_s: Sender<Model>,
     persist_id: u32,
+    persist_file_buffer: BufWriter<File>,
 }
 
 impl Boosting {
@@ -88,6 +91,7 @@ impl Boosting {
             sampler_channel_s: sampler_channel_s,
             validator_channel_s: validator_channel_s,
             persist_id: 0,
+            persist_file_buffer: create_bufwriter(&String::from("model.json")),
         }
     }
 
@@ -122,12 +126,13 @@ impl Boosting {
 
         let mut iteration = 0;
         while self.num_iterations <= 0 || self.model.len() < self.num_iterations {
-            learner_timer.resume();
             let (new_rule, batch_size) = {
                 let data = self.training_loader.get_next_batch_and_update(true, &self.model);
+                learner_timer.resume();
                 (self.learner.update(data), data.len())
             };
             learner_timer.update(batch_size);
+            global_timer.update(batch_size);
             learner_timer.pause();
 
             if new_rule.is_some() {
@@ -139,13 +144,12 @@ impl Boosting {
                 self.try_send_model();
                 self.learner.reset();
             }
-            iteration += 1;
 
-            self.handle_network();
+            iteration += 1;
             if iteration % 10 == 0 {
                 self.handle_persistent(iteration);
             }
-            global_timer.update(batch_size);
+            self.handle_network();
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
@@ -206,9 +210,8 @@ impl Boosting {
             "Local model cannot be serialized."
         );
         // let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
-        let mut file_buffer = create_bufwriter(&String::from("model.json"));
         self.persist_id += 1;
-        write_to_text_file(&mut file_buffer, &json);
+        write_to_text_file(&mut self.persist_file_buffer, &json);
     }
 
     fn try_send_model(&mut self) {
