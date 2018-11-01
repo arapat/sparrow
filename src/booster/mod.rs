@@ -154,7 +154,6 @@ impl Boosting {
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
             global_timer.write_log("boosting-overall");
-            learner_timer.set_adjust(-sampling_duration);
             learner_timer.write_log("boosting-learning");
         }
         self.handle_persistent(iteration);
