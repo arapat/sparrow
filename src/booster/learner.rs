@@ -8,6 +8,7 @@ use tree::Tree;
 use super::bins::Bins;
 use super::super::Example;
 
+use buffer_loader::BufferLoader;
 use commons::max;
 use commons::min;
 use commons::get_bound;
@@ -167,23 +168,18 @@ impl Learner {
         let gamma = self.cur_rho_gamma;
         let data: Vec<(&Example, ([f32; 4], [f32; 4]), f32, f32)> =
             data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
-                let label = get_symmetric_label(&(example.0));
-                let labeled_weight = weight * label;
+                let labeled_weight = weight * get_symmetric_label(&(example.0));
                 let null_weight = 2.0 * gamma * weight;
                 let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
                 let left_score: Vec<_> =
                     LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
                 let right_score: Vec<_> =
                     RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
-                (
-                    &example.0,
-                    (
-                        [left_score[0], left_score[1], left_score[2], left_score[3]],
-                        [right_score[0], right_score[1], right_score[2], right_score[3]],
-                    ),
-                    null_weight,
-                    c_sq,
-                )
+                let signed_labeled_weight = (
+                    [left_score[0], left_score[1], left_score[2], left_score[3]],
+                    [right_score[0], right_score[1], right_score[2], right_score[3]],
+                );
+                (&example.0, signed_labeled_weight, null_weight, c_sq)
             }).collect();
 
         // update each weak rule
@@ -252,6 +248,39 @@ impl Learner {
                 });
             });
             valid_weak_rule
-        }).find_first(|t| t.is_some()).unwrap_or(None)
+        }).find_any(|t| t.is_some()).unwrap_or(None)
     }
+}
+
+
+pub fn get_base_tree(max_sample_size: usize, data_loader: &mut BufferLoader) -> (Tree, f32) {
+    let mut sample_size = max_sample_size;
+    let mut n_pos = 0;
+    let mut n_neg = 0;
+    while sample_size > 0 {
+        let data = data_loader.get_next_batch(true);
+        let (num_pos, num_neg) =
+            data.par_iter().fold(
+                || (0, 0),
+                |(num_pos, num_neg), (example, _, _)| {
+                    if example.label > 0 {
+                        (num_pos + 1, num_neg)
+                    } else {
+                        (num_pos, num_neg + 1)
+                    }
+                }
+            ).reduce(|| (0, 0), |(a1, a2), (b1, b2)| (a1 + b1, a2 + b2));
+        n_pos += num_pos;
+        n_neg += num_neg;
+        sample_size -= data.len();
+    }
+
+    let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();
+    let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
+    let mut tree = Tree::new(2);
+    tree.split(0, 0, 0.0, prediction, prediction);
+    tree.release();
+
+    info!("root-tree-info, {}, {}, {}, {}", 1, max_sample_size, gamma, gamma * gamma);
+    (tree, gamma)
 }
