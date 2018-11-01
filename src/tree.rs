@@ -1,5 +1,3 @@
-use rayon::prelude::*;
-
 use super::Example;
 
 use commons::is_zero;
@@ -88,6 +86,7 @@ impl Tree {
         self.add_new_node(leaf_value + right_value, leaf_depth + 1);
     }
 
+    /*
     pub fn add_prediction_to_score(
             &self, data: &Vec<Example>, score: &mut Vec<f32>) {
         score.par_iter_mut()
@@ -96,6 +95,7 @@ impl Tree {
                      .map(|ex| self.get_leaf_prediction(ex)))
              .for_each(|(accum, update)| *accum += update)
     }
+    */
 
     pub fn get_leaf_prediction(&self, data: &Example) -> f32 {
         let mut node: usize = 0;

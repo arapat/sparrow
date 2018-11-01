@@ -1,6 +1,5 @@
 use std::thread::sleep;
 use std::thread::spawn;
-// use rayon::prelude::*;
 use rand;
 
 use std::collections::HashMap;

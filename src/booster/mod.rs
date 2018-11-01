@@ -3,22 +3,19 @@ mod learner;
 
 extern crate serde_json;
 
-use rayon::prelude::*;
 use std::sync::mpsc;
-
 use std::ops::Range;
-
 use tmsn::network::start_network;
 
 use self::bins::create_bins;
 use commons::io::create_bufwriter;
 use commons::io::write_to_text_file;
 use buffer_loader::BufferLoader;
-use tree::Tree;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 use commons::channel::Sender;
+use self::learner::get_base_tree;
 use self::learner::Learner;
 
 
@@ -221,37 +218,4 @@ impl Boosting {
         self.sampler_channel_s.try_send(self.model.clone());
         self.validator_channel_s.try_send(self.model.clone());
     }
-}
-
-
-fn get_base_tree(max_sample_size: usize, data_loader: &mut BufferLoader) -> (Tree, f32) {
-    let mut sample_size = max_sample_size;
-    let mut n_pos = 0;
-    let mut n_neg = 0;
-    while sample_size > 0 {
-        let data = data_loader.get_next_batch(true);
-        let (num_pos, num_neg) =
-            data.par_iter().fold(
-                || (0, 0),
-                |(num_pos, num_neg), (example, _, _)| {
-                    if example.label > 0 {
-                        (num_pos + 1, num_neg)
-                    } else {
-                        (num_pos, num_neg + 1)
-                    }
-                }
-            ).reduce(|| (0, 0), |(a1, a2), (b1, b2)| (a1 + b1, a2 + b2));
-        n_pos += num_pos;
-        n_neg += num_neg;
-        sample_size -= data.len();
-    }
-
-    let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();
-    let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
-    let mut tree = Tree::new(2);
-    tree.split(0, 0, 0.0, prediction, prediction);
-    tree.release();
-
-    info!("root-tree-info, {}, {}, {}, {}", 1, max_sample_size, gamma, gamma * gamma);
-    (tree, gamma)
 }
