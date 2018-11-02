@@ -134,9 +134,13 @@ impl BufferLoader {
 
     fn force_switch(&mut self) {
         self.sampling_pm.resume();
-        self.sampling_signal_channel.send(Signal::START);
+        if self.blocking {
+            self.sampling_signal_channel.send(Signal::START);
+        }
         self.gatherer.run(true);
-        self.sampling_signal_channel.send(Signal::STOP);
+        if self.blocking {
+            self.sampling_signal_channel.send(Signal::STOP);
+        }
         self.sampling_pm.pause();
 
         assert_eq!(self.try_switch(), true);

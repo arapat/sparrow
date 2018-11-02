@@ -148,10 +148,11 @@ impl Learner {
         // Shrinking the value of the targetting edge `gamma` if it was too high
         if self.count >= self.num_examples_before_shrink {
             let old_rho_gamma = self.cur_rho_gamma;
-            let max_empirical_ratio = self.get_max_empirical_ratio();
-            self.cur_rho_gamma = 0.9 * min(self.cur_rho_gamma, max_empirical_ratio / 2.0);
+            let max_empirical_gamma = self.get_max_empirical_ratio() / 2.0;
+            self.cur_rho_gamma = 0.9 * min(self.cur_rho_gamma, max_empirical_gamma);
             self.reset();
-            debug!("shrink-gamma, {}, {}", old_rho_gamma, self.cur_rho_gamma);
+            debug!("shrink-gamma, {}, {}, {}",
+                   old_rho_gamma, max_empirical_gamma, self.cur_rho_gamma);
         }
 
         // update global stats
