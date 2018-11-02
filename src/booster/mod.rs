@@ -3,23 +3,23 @@ mod learner;
 
 extern crate serde_json;
 
-use rayon::prelude::*;
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::Seek;
+use std::io::SeekFrom;
+use std::io::Write;
 use std::sync::mpsc;
-
 use std::ops::Range;
-
 use tmsn::network::start_network;
 
 use self::bins::create_bins;
-use commons::get_relative_weights;
 use commons::io::create_bufwriter;
-use commons::io::write_to_text_file;
 use buffer_loader::BufferLoader;
-use tree::Tree;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 use commons::channel::Sender;
+use self::learner::get_base_tree;
 use self::learner::Learner;
 
 
@@ -41,6 +41,7 @@ pub struct Boosting {
     sampler_channel_s: Sender<Model>,
     validator_channel_s: Sender<Model>,
     persist_id: u32,
+    persist_file_buffer: BufWriter<File>,
 }
 
 impl Boosting {
@@ -92,6 +93,7 @@ impl Boosting {
             sampler_channel_s: sampler_channel_s,
             validator_channel_s: validator_channel_s,
             persist_id: 0,
+            persist_file_buffer: create_bufwriter(&String::from("model.json")),
         }
     }
 
@@ -119,19 +121,20 @@ impl Boosting {
     pub fn training(&mut self) {
         info!("Start training.");
 
+        let init_sampling_duration = self.training_loader.get_sampling_duration();
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
         let mut iteration = 0;
         while self.num_iterations <= 0 || self.model.len() < self.num_iterations {
-            learner_timer.resume();
             let (new_rule, batch_size) = {
-                let data = self.training_loader.get_next_batch(true);
-                let weights = get_relative_weights(data);
-                (self.learner.update(data, &weights), data.len())
+                let data = self.training_loader.get_next_batch_and_update(true, &self.model);
+                learner_timer.resume();
+                (self.learner.update(data), data.len())
             };
             learner_timer.update(batch_size);
+            global_timer.update(batch_size);
             learner_timer.pause();
 
             if new_rule.is_some() {
@@ -141,17 +144,17 @@ impl Boosting {
                 self.model.push(new_rule.to_tree());
                 // post updates
                 self.try_send_model();
-                self.training_loader.update_scores(&self.model);
                 self.learner.reset();
             }
-            iteration += 1;
 
-            self.handle_network();
+            iteration += 1;
             if iteration % 10 == 0 {
                 self.handle_persistent(iteration);
             }
+            self.handle_network();
 
-            global_timer.update(batch_size);
+            let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
+            global_timer.set_adjust(-sampling_duration);
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
@@ -208,9 +211,9 @@ impl Boosting {
             "Local model cannot be serialized."
         );
         // let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
-        let mut file_buffer = create_bufwriter(&String::from("model.json"));
         self.persist_id += 1;
-        write_to_text_file(&mut file_buffer, &json);
+        self.persist_file_buffer.seek(SeekFrom::Start(0)).unwrap();
+        self.persist_file_buffer.write(json.as_ref()).unwrap();
     }
 
     fn try_send_model(&mut self) {
@@ -220,37 +223,4 @@ impl Boosting {
         self.sampler_channel_s.try_send(self.model.clone());
         self.validator_channel_s.try_send(self.model.clone());
     }
-}
-
-
-fn get_base_tree(max_sample_size: usize, data_loader: &mut BufferLoader) -> (Tree, f32) {
-    let mut sample_size = max_sample_size;
-    let mut n_pos = 0;
-    let mut n_neg = 0;
-    while sample_size > 0 {
-        let data = data_loader.get_next_batch(true);
-        let (num_pos, num_neg) =
-            data.par_iter().fold(
-                || (0, 0),
-                |(num_pos, num_neg), (example, _, _)| {
-                    if example.label > 0 {
-                        (num_pos + 1, num_neg)
-                    } else {
-                        (num_pos, num_neg + 1)
-                    }
-                }
-            ).reduce(|| (0, 0), |(a1, a2), (b1, b2)| (a1 + b1, a2 + b2));
-        n_pos += num_pos;
-        n_neg += num_neg;
-        sample_size -= data.len();
-    }
-
-    let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();
-    let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
-    let mut tree = Tree::new(2);
-    tree.split(0, 0, 0.0, prediction, prediction);
-    tree.release();
-
-    info!("root-tree-info, {}, {}, {}, {}", 1, max_sample_size, gamma, gamma * gamma);
-    (tree, gamma)
 }
