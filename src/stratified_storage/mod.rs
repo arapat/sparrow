@@ -237,7 +237,7 @@ impl StratifiedStorage {
                 });
                 index += batch_size;
             }
-            debug!("Raw data on disk has been loaded into the stratified storage,
+            debug!("Raw data on disk has been loaded into the stratified storage, \
                     filename {}, capacity {}, feature size {}", filename, size, feature_size);
         });
     }
