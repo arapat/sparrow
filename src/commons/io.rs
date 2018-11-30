@@ -2,6 +2,7 @@ use bincode::serialize;
 use bincode::deserialize;
 use rayon::prelude::*;
 
+use std::f32::NAN;
 use std::str::FromStr;
 use std::fmt::Debug;
 
@@ -90,7 +91,13 @@ where
         let sep = index_value.find(':').unwrap();
         (
             index_value[..sep].parse().unwrap(),
-            index_value[sep+1..].parse().unwrap()
+            {
+                if index_value[sep+1..].to_lowercase() == "nan" {
+                    NAN
+                } else {
+                    index_value[sep+1..].parse().unwrap()
+                }
+            }
         )
     }).for_each(|(index, value): (usize, TFeature)| {
         feature[index] = value;
