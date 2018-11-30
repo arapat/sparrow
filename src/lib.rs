@@ -56,7 +56,7 @@ use validator::run_validate;
 // Types
 // TODO: use generic types for specifing types
 use labeled_data::LabeledData;
-pub type TFeature = u8;
+pub type TFeature = f32;
 pub type TLabel = u8;
 pub type Example = LabeledData<TFeature, TLabel>;
 

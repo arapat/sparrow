@@ -16,7 +16,7 @@ use commons::io::write_to_binary_file;
 use commons::performance_monitor::PerformanceMonitor;
 
 use super::super::Example;
-use super::super::TLabel;
+use super::super::TFeature;
 
 /// A naive file loader
 #[derive(Debug)]
@@ -101,7 +101,7 @@ impl SerialStorage {
                     &mut self.reader, true_batch_size, self.bytes_per_example)
             } else {
                 read_k_labeled_data(
-                    &mut self.reader, true_batch_size, 0 as TLabel, self.feature_size)
+                    &mut self.reader, true_batch_size, 0 as TFeature, self.feature_size)
             };
         if let Some(ref mut cons) = self.binary_cons {
             batch.iter().for_each(|data| {
