@@ -136,7 +136,7 @@ mod tests {
         let (in_queue, out_queue) = get_in_out_queues(filename, 100);
 
         for i in 0..2 {
-            let t = get_example(vec![i, 2, 3]);
+            let t = get_example(vec![i as f32, 2.0, 3.0]);
             in_queue.send(t.clone());
             let retrieve = out_queue.recv().unwrap();
             assert_eq!(retrieve, t);
@@ -150,7 +150,7 @@ mod tests {
         let (in_queue, out_queue) = get_in_out_queues(filename, 100);
         let mut examples = vec![];
         for i in 0..100 {
-            let t = get_example(vec![i, 2, 3]);
+            let t = get_example(vec![i as f32, 2.0, 3.0]);
             in_queue.send(t.clone());
             examples.push(t);
         }
@@ -159,14 +159,14 @@ mod tests {
             let retrieve = out_queue.recv().unwrap();
             output.push(retrieve);
         }
-        output.sort_by_key(|t| (t.0).feature[0]);
+        output.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
         for i in 0..100 {
             assert_eq!(output[i], examples[i]);
         }
         remove_file(filename).unwrap();
     }
 
-    fn get_example(feature: Vec<u8>) -> ExampleWithScore {
+    fn get_example(feature: Vec<f32>) -> ExampleWithScore {
         let label: u8 = 0;
         let example = LabeledData::new(feature, label);
         (example, (1.0, 0))

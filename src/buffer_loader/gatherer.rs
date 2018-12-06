@@ -108,7 +108,7 @@ mod tests {
 
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
-            let t = get_example(vec![i, 1, 2], 0.0);
+            let t = get_example(vec![i as f32, 1.0, 2.0], 0.0);
             gather_sender.send((t.clone(), 1));
             examples.push(t);
         }
@@ -118,7 +118,7 @@ mod tests {
             assert!(mem_buffer.is_some());  // will poison the lock if this fails
             mem_buffer.take().unwrap()
         };
-        all_sampled.sort_by_key(|t| (t.0).feature[0]);
+        all_sampled.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
         for (input, output) in examples.iter().zip(all_sampled.iter()) {
             assert_eq!(*input, *output);
         }
@@ -132,7 +132,7 @@ mod tests {
 
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
-            let t = get_example(vec![i, 1, 2], 0.0);
+            let t = get_example(vec![i as f32, 1.0, 2.0], 0.0);
             gather_sender.send((t.clone(), 1));
             examples.push(t);
         }
@@ -142,13 +142,13 @@ mod tests {
             assert!(mem_buffer.is_some());  // will poison the lock if this fails
             mem_buffer.take().unwrap()
         };
-        all_sampled.sort_by_key(|t| (t.0).feature[0]);
+        all_sampled.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
         for (input, output) in examples.iter().zip(all_sampled.iter()) {
             assert_eq!(*input, *output);
         }
     }
 
-    fn get_example(features: Vec<u8>, score: f32) -> ExampleWithScore {
+    fn get_example(features: Vec<f32>, score: f32) -> ExampleWithScore {
         let label: u8 = 0;
         let example = LabeledData::new(features, label);
         (example, (score, 0))

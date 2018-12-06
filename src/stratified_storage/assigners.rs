@@ -98,7 +98,7 @@ mod tests {
         assigners.run();
         for i in 0..1 {
             for k in 0..3 {
-                let t = get_example(vec![0, i, k], (2.0f32).powi(k as i32));
+                let t = get_example(vec![0.0, i as f32, k as f32], (2.0f32).powi(k as i32));
                 sender.send(t.clone());
             }
         }
@@ -119,7 +119,7 @@ mod tests {
         assigners.run();
         for i in 0..10 {
             for k in 0..3 {
-                let t = get_example(vec![0, i, k], (2.0f32).powi(k as i32));
+                let t = get_example(vec![0.0, i as f32, k as f32], (2.0f32).powi(k as i32));
                 sender.send(t.clone());
             }
         }
@@ -147,7 +147,7 @@ mod tests {
         )
     }
 
-    fn get_example(features: Vec<u8>, weight: f32) -> ExampleWithScore {
+    fn get_example(features: Vec<f32>, weight: f32) -> ExampleWithScore {
         let label: u8 = 0;
         let example = LabeledData::new(features, label);
         let score = weight.ln();

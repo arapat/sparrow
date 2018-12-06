@@ -59,6 +59,7 @@ impl Boosting {
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
         num_iterations: usize,
+        max_leaves: usize,
         max_trials_before_shrink: u32,
         training_loader: BufferLoader,
         range: Range<usize>,
@@ -70,7 +71,8 @@ impl Boosting {
     ) -> Boosting {
         let mut training_loader = training_loader;
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
-        let learner = Learner::new(default_gamma, max_trials_before_shrink, bins, &range);
+        let learner = Learner::new(
+            max_leaves, default_gamma, max_trials_before_shrink, bins, &range);
 
         // add root node for balancing labels
         let (base_tree, gamma) = get_base_tree(max_sample_size, &mut training_loader);
@@ -139,12 +141,13 @@ impl Boosting {
 
             if new_rule.is_some() {
                 let new_rule = new_rule.unwrap();
-                new_rule.write_log(self.model.len(), self.sum_gamma);
-                self.sum_gamma += new_rule.gamma.powi(2);
-                self.model.push(new_rule.to_tree());
+                self.model.push(new_rule);
+                // TODO: how to calculate sum_gamma in the case of trees?
+                // self.sum_gamma += new_rule.gamma.powi(2);
                 // post updates
                 self.try_send_model();
-                self.learner.reset();
+                self.learner.reset_all();
+                info!("new-tree-info, {}", self.model.len());
             }
 
             iteration += 1;
@@ -185,7 +188,7 @@ impl Boosting {
             self.model = model.unwrap();
             self.sum_gamma = score;
             self.remote_sum_gamma = self.sum_gamma;
-            self.learner.reset();
+            self.learner.reset_all();
             debug!("model-replaced, {}, {}, {}, {}",
                     self.sum_gamma, old_score, self.model.len(), old_size);
         }

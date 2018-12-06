@@ -14,7 +14,7 @@ Why JSON but not binary?
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tree {
     max_leaves:     DimScaleType,
-    num_leaves:     DimScaleType,
+    pub num_leaves: usize,
     // left_child[i] is the left child of the node i
     left_child:     Vec<DimScaleType>,
     right_child:    Vec<DimScaleType>,
@@ -73,17 +73,20 @@ impl Tree {
         self.leaf_depth.shrink_to_fit();
     }
 
-    pub fn split(&mut self, leaf: usize, feature: usize, threshold: f32,
-                 left_value: f32, right_value: f32) {
+    pub fn split(
+        &mut self, leaf: usize, feature: usize, threshold: f32,
+        left_value: f32, right_value: f32,
+    ) -> (u16, u16) {
         let leaf_value = self.leaf_value[leaf];
         let leaf_depth = self.leaf_depth[leaf];
 
         self.split_feature[leaf] = Some(feature as DimScaleType);
         self.threshold[leaf] = threshold;
-        self.left_child[leaf] = self.num_leaves;
+        self.left_child[leaf] = self.num_leaves as DimScaleType;
         self.add_new_node(leaf_value + left_value, leaf_depth + 1);
-        self.right_child[leaf] = self.num_leaves;
+        self.right_child[leaf] = self.num_leaves as DimScaleType;
         self.add_new_node(leaf_value + right_value, leaf_depth + 1);
+        (self.left_child[leaf], self.right_child[leaf])
     }
 
     /*
@@ -97,7 +100,7 @@ impl Tree {
     }
     */
 
-    pub fn get_leaf_prediction(&self, data: &Example) -> f32 {
+    pub fn get_leaf_index(&self, data: &Example) -> usize {
         let mut node: usize = 0;
         let feature = &(data.feature);
         while let Some(split_feature) = self.split_feature[node] {
@@ -107,7 +110,11 @@ impl Tree {
                 self.right_child[node]
             } as usize;
         }
-        self.leaf_value[node]
+        node
+    }
+
+    pub fn get_leaf_prediction(&self, data: &Example) -> f32 {
+        self.leaf_value[self.get_leaf_index(data)]
     }
 
     fn add_new_node(&mut self, leaf_value: f32, depth: DimScaleType) {
@@ -123,8 +130,8 @@ impl Tree {
 
 impl PartialEq for Tree {
     fn eq(&self, other: &Tree) -> bool {
-        let k = self.num_leaves as usize;
-        if k == other.num_leaves as usize &&
+        let k = self.num_leaves;
+        if k == other.num_leaves &&
            self.split_feature[0..k] == other.split_feature[0..k] &&
            self.left_child[0..k] == other.left_child[0..k] &&
            self.right_child[0..k] == other.right_child[0..k] {

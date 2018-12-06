@@ -295,7 +295,7 @@ mod tests {
         let loading = spawn(move || {
             for _ in 0..batch {
                 for i in 1..11 {
-                    let t = get_example(vec![i], i as f32);
+                    let t = get_example(vec![i as f32], i as f32);
                     updated_examples_send.send(t.clone());
                 }
             }
@@ -325,7 +325,7 @@ mod tests {
         remove_file(filename).unwrap();
     }
 
-    fn get_example(feature: Vec<u8>, weight: f32) -> ExampleWithScore {
+    fn get_example(feature: Vec<f32>, weight: f32) -> ExampleWithScore {
         let label: u8 = 1;
         let example = LabeledData::new(feature, label);
         let score = -weight.ln();

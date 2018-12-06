@@ -82,6 +82,7 @@ struct Config {
     pub min_ess: f32,
 
     pub num_iterations: usize,
+    pub max_leaves: usize,
     pub max_trials_before_shrink: u32,
 
     pub channel_size: usize,
@@ -150,6 +151,7 @@ pub fn run_rust_boost(config_file: String) {
     info!("Starting the booster.");
     let mut booster = Boosting::new(
         config.num_iterations,
+        config.max_leaves,
         config.max_trials_before_shrink,
         buffer_loader,
         config.range,

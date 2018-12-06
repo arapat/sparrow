@@ -231,7 +231,7 @@ mod tests {
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
         let mut buffer_loader = BufferLoader::new(100, 10, receiver, signal_s, false, false, None);
         assert_eq!(signal_r.recv().unwrap(), Signal::START);
-        sender.send((get_example(vec![0, 1, 2], 1.0), 100));
+        sender.send((get_example(vec![0.0, 1.0, 2.0], 1.0), 100));
         sleep(Duration::from_millis(1000));
         for _ in 0..20 {
             let batch = buffer_loader.get_next_batch(true);
@@ -241,7 +241,7 @@ mod tests {
             assert_eq!((batch[9].1).0, 1.0);
             assert_eq!((batch[9].2).0, 1.0);
         }
-        sender.send((get_example(vec![0, 1, 2], 2.0), 100));
+        sender.send((get_example(vec![0.0, 1.0, 2.0], 2.0), 100));
         sleep(Duration::from_millis(1000));
         for _ in 0..10 {
             let batch = buffer_loader.get_next_batch(true);
@@ -253,7 +253,7 @@ mod tests {
         }
     }
 
-    fn get_example(features: Vec<u8>, score: f32) -> ExampleWithScore {
+    fn get_example(features: Vec<f32>, score: f32) -> ExampleWithScore {
         let label: u8 = 0;
         let example = LabeledData::new(features, label);
         (example, (score, 0))
