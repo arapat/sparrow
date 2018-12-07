@@ -82,6 +82,7 @@ pub struct Learner {
     counts: Vec<usize>,  // track the number of examples exposed to each splitting candidates
     sum_weights: Vec<f32>,
 
+    min_gamma: f32,
     num_candid: usize,
     pub total_count: usize,
 
@@ -99,6 +100,7 @@ impl Learner {
     /// if the algorithm is running on multiple workers, `range` is a subset of the feature set.
     pub fn new(
         max_leaves: usize,
+        min_gamma: f32,
         default_gamma: f32,
         num_examples_before_shrink: u32,
         bins: Vec<Bins>,
@@ -116,6 +118,7 @@ impl Learner {
             sum_weights: vec![],
             rho_gamma: vec![],
 
+            min_gamma: min_gamma,
             num_candid: 0,
             total_count: 0,
 
@@ -200,25 +203,30 @@ impl Learner {
 
         // preprocess examples
         let rho_gamma = self.rho_gamma.clone();
+        let min_gamma = self.min_gamma;
         let data = {
             let mut data: Vec<(usize, f32, &Example, ([f32; 4], [f32; 4]), f32, f32)> =
                 data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
                     let example = &example.0;
                     let index = self.tree.get_leaf_index(example);
                     let gamma = rho_gamma[index];
-                    let labeled_weight = weight * get_symmetric_label(example);
-                    let null_weight = 2.0 * gamma * weight;
-                    let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
-                    let left_score: Vec<_> =
-                        LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
-                    let right_score: Vec<_> =
-                        RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
-                    let s_labeled_weight = (
-                        [left_score[0], left_score[1], left_score[2], left_score[3]],
-                        [right_score[0], right_score[1], right_score[2], right_score[3]],
-                    );
-                    (index, *weight, example, s_labeled_weight, null_weight, c_sq)
-                }).collect();
+                    if gamma >= min_gamma {
+                        let labeled_weight = weight * get_symmetric_label(example);
+                        let null_weight = 2.0 * gamma * weight;
+                        let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                        let left_score: Vec<_> =
+                            LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
+                        let right_score: Vec<_> =
+                            RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
+                        let s_labeled_weight = (
+                            [left_score[0], left_score[1], left_score[2], left_score[3]],
+                            [right_score[0], right_score[1], right_score[2], right_score[3]],
+                        );
+                        Some((index, *weight, example, s_labeled_weight, null_weight, c_sq))
+                    } else {
+                        None
+                    }
+                }).filter(|t| t.is_some()).map(|t| t.unwrap()).collect();
             data.sort_by(|a, b| (a.0).cmp(&b.0));
             data
         };

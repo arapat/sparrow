@@ -75,6 +75,7 @@ struct Config {
     pub range: std::ops::Range<usize>, 
     pub max_sample_size: usize, 
     pub max_bin_size: usize, 
+    pub min_gamma: f32,
     pub default_gamma: f32,
     pub min_ess: f32,
 
@@ -147,6 +148,7 @@ pub fn run_rust_boost(config_file: String) {
     let mut booster = Boosting::new(
         config.num_iterations,
         config.max_leaves,
+        config.min_gamma,
         config.max_trials_before_shrink,
         buffer_loader,
         config.range,

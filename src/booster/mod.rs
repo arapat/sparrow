@@ -59,6 +59,7 @@ impl Boosting {
     pub fn new(
         num_iterations: usize,
         max_leaves: usize,
+        min_gamma: f32,
         max_trials_before_shrink: u32,
         training_loader: BufferLoader,
         range: Range<usize>,
@@ -70,7 +71,7 @@ impl Boosting {
         let mut training_loader = training_loader;
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
         let learner = Learner::new(
-            max_leaves, default_gamma, max_trials_before_shrink, bins, &range);
+            max_leaves, min_gamma, default_gamma, max_trials_before_shrink, bins, &range);
 
         // add root node for balancing labels
         let (base_tree, gamma) = get_base_tree(max_sample_size, &mut training_loader);
