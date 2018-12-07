@@ -151,8 +151,9 @@ impl Learner {
             self.is_active[index] = false;
         }
 
-        self.num_candid = 0;
         self.total_count = 0;
+        self.num_candid = 1;
+        self.is_active[0] = true;
     }
 
     /// Reset the statistics of the speicified candidate weak rules (except gamma)
@@ -187,6 +188,7 @@ impl Learner {
             self.rho_gamma.push(0.0);
             self.is_active.push(false);
         }
+        self.num_candid = max(self.num_candid, index + 1);
         self.rho_gamma[index] = gamma;
         self.is_active[index] = true;
     }
