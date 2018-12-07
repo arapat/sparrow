@@ -81,6 +81,7 @@ pub struct Learner {
     rho_gamma: Vec<f32>,  // track the values of gamma on each splitting candidate
     counts: Vec<usize>,  // track the number of examples exposed to each splitting candidates
     sum_weights: Vec<f32>,
+    is_active: Vec<bool>,
 
     min_gamma: f32,
     num_candid: usize,
@@ -117,6 +118,7 @@ impl Learner {
             counts: vec![],
             sum_weights: vec![],
             rho_gamma: vec![],
+            is_active: vec![],
 
             min_gamma: min_gamma,
             num_candid: 0,
@@ -146,6 +148,7 @@ impl Learner {
         for index in 0..self.sum_weights.len() {
             self.sum_weights[index] = 0.0;
             self.counts[index] = 0;
+            self.is_active[index] = false;
         }
 
         self.num_candid = 0;
@@ -182,8 +185,10 @@ impl Learner {
             self.sum_weights.push(0.0);
             self.counts.push(0);
             self.rho_gamma.push(0.0);
+            self.is_active.push(false);
         }
         self.rho_gamma[index] = gamma;
+        self.is_active[index] = true;
     }
 
     fn get_max_empirical_ratio(&self, index: usize) -> f32 {
@@ -192,6 +197,15 @@ impl Learner {
                 candidate[index].iter().map(|s| s / self.sum_weights[index])
             })
         }).fold(0.0, max)
+    }
+
+    pub fn is_any_candidate_active(&self) -> bool {
+        for i in 0..self.num_candid {
+            if self.is_active[i] && self.rho_gamma[i] >= self.min_gamma {
+                return true;
+            }
+        }
+        false
     }
 
     /// Update the statistics of all candidate weak rules using current batch of
@@ -338,6 +352,7 @@ impl Learner {
                 tree_node.tree_index, tree_node.feature, tree_node.threshold,
                 tree_node.left_predict, tree_node.right_predict,
             );
+            self.is_active[tree_node.tree_index] = false;
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 // A new tree is created
                 self.tree.release();

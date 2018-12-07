@@ -127,7 +127,8 @@ impl Boosting {
         global_timer.start();
 
         let mut iteration = 0;
-        while self.num_iterations <= 0 || self.model.len() < self.num_iterations {
+        while self.learner.is_any_candidate_active() &&
+                (self.num_iterations <= 0 || self.model.len() < self.num_iterations) {
             let (new_rule, batch_size) = {
                 let data = self.training_loader.get_next_batch_and_update(true, &self.model);
                 learner_timer.resume();
