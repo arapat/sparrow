@@ -39,7 +39,6 @@ pub struct Boosting {
     remote_sum_gamma: f32,
 
     sampler_channel_s: Sender<Model>,
-    validator_channel_s: Sender<Model>,
     persist_id: u32,
     persist_file_buffer: BufWriter<File>,
 }
@@ -67,7 +66,6 @@ impl Boosting {
         max_bin_size: usize,
         default_gamma: f32,
         sampler_channel_s: Sender<Model>,
-        validator_channel_s: Sender<Model>,
     ) -> Boosting {
         let mut training_loader = training_loader;
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
@@ -93,7 +91,6 @@ impl Boosting {
             remote_sum_gamma: gamma_squared,
 
             sampler_channel_s: sampler_channel_s,
-            validator_channel_s: validator_channel_s,
             persist_id: 0,
             persist_file_buffer: create_bufwriter(&String::from("model.json")),
         }
@@ -224,6 +221,5 @@ impl Boosting {
             network_sender.send((self.model.clone(), self.sum_gamma)).unwrap();
         }
         self.sampler_channel_s.try_send(self.model.clone());
-        self.validator_channel_s.try_send(self.model.clone());
     }
 }

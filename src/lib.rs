@@ -42,16 +42,13 @@ mod commons;
 /// The class of the training examples.
 mod labeled_data;
 /// Validating models
-mod validator;
 
 use booster::Boosting;
 use buffer_loader::BufferLoader;
 use stratified_storage::StratifiedStorage;
-use validator::EvalFunc;
 
 use commons::channel;
 use commons::io::create_bufreader;
-use validator::run_validate;
 
 // Types
 // TODO: use generic types for specifing types
@@ -113,8 +110,6 @@ pub fn run_rust_boost(config_file: String) {
     let (sampling_signal_s, sampling_signal_r) = channel::bounded(10, "sampling-signal");
     // Booster -> Strata
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
-    // Booster -> Validator
-    let (model_validate_s, model_validate_r) = channel::bounded(config.channel_size, "validate-models");
 
     info!("Starting the stratified structure.");
     let stratified_structure = StratifiedStorage::new(
@@ -159,21 +154,9 @@ pub fn run_rust_boost(config_file: String) {
         config.max_bin_size,
         config.default_gamma,
         next_model_s,
-        model_validate_s,
     );
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);
     }
-    info!("Starting the validator.");
-    run_validate(
-        config.testing_filename,
-        config.num_testing_examples,
-        config.num_features,
-        config.batch_size,
-        config.testing_is_binary,
-        Some(config.testing_bytes_per_example),
-        vec![EvalFunc::AdaBoostLoss, EvalFunc::AUPRC],
-        model_validate_r,
-    );
     booster.training();
 }

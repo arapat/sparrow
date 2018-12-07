@@ -1,13 +1,11 @@
 use rand;
 use rand::Rng;
-use rayon::prelude::*;
 
 use std::cmp::min;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufWriter;
 
-use commons::Model;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::read_k_labeled_data;
@@ -138,39 +136,6 @@ impl SerialStorage {
          self.reader = create_bufreader(&self.filename);
     }
 
-    pub fn update_scores(&mut self, data: &Vec<Example>, model: &Model) {
-        let model_size = model.len();
-        let inc_scores: Vec<f32> =
-            self.scores_version[self.head..self.tail]
-                .iter()
-                .zip(data.iter())
-                .map(|(version, example)| {
-                    model[*version..model_size]
-                        .par_iter()
-                        .map(|tree| {
-                            tree.get_leaf_prediction(example)
-                        })
-                        .sum()
-                })
-                .collect();
-        self.scores[self.head..self.tail]
-            .par_iter_mut()
-            .zip(inc_scores.par_iter())
-            .for_each(|(score, increase)| {
-                *score += increase;
-            });
-        self.scores_version[self.head..self.tail]
-            .par_iter_mut()
-            .for_each(|version| {
-                *version = model_size;
-            });
-    }
-
-    pub fn get_scores(&self) -> Vec<f32> {
-        // TODO: check if the change is updated
-        self.scores[self.head..self.tail].to_vec()
-    }
-
     #[allow(dead_code)]
     pub fn load_to_memory(&mut self, batch_size: usize) {
         info!("Load current file into the memory.");
@@ -189,10 +154,6 @@ impl SerialStorage {
         self.in_memory = true;
         self.is_binary = true;
         info!("In-memory conversion finished.");
-    }
-
-    pub fn get_size(&self) -> usize {
-        self.size
     }
 }
 
