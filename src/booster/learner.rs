@@ -119,7 +119,7 @@ impl Learner {
             num_candid: 0,
             total_count: 0,
 
-            tree: Tree::new(max_leaves as u16),
+            tree: Tree::new((max_leaves * 2 - 1) as u16),
             max_leaves: max_leaves,
             bins: bins,
         };
@@ -330,11 +330,11 @@ impl Learner {
                 tree_node.tree_index, tree_node.feature, tree_node.threshold,
                 tree_node.left_predict, tree_node.right_predict,
             );
-            if self.tree.num_leaves == self.max_leaves {
+            if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 // A new tree is created
                 self.tree.release();
                 ret = Some(self.tree.clone());
-                self.tree = Tree::new(self.max_leaves as u16);
+                self.tree = Tree::new((self.max_leaves * 2 - 1) as u16);
             } else {
                 // Tracking weak rules on the new candidate leaves
                 self.setup(left_node as usize, gamma);

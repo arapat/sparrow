@@ -17,6 +17,7 @@ max_bin_size: 10
 default_gamma: 0.25
 min_ess: 0.5
 num_iterations: 0
+max_leaves: 2
 max_trials_before_shrink: 1000000
 channel_size: 65536
 buffer_size: 2000000

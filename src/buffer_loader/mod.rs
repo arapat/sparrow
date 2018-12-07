@@ -33,7 +33,7 @@ pub struct BufferLoader {
     examples: Vec<ExampleInSampleSet>,
     new_examples: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
     gatherer: Gatherer,
-    blocking: bool,
+    serial_sampling: bool,
     sampling_signal_channel: Sender<Signal>,
 
     ess: f32,
@@ -58,7 +58,7 @@ impl BufferLoader {
         batch_size: usize,
         gather_new_sample: Receiver<(ExampleWithScore, u32)>,
         sampling_signal_channel: Sender<Signal>,
-        blocking: bool,
+        serial_sampling: bool,
         init_block: bool,
         min_ess: Option<f32>,
     ) -> BufferLoader {
@@ -73,7 +73,7 @@ impl BufferLoader {
             examples: vec![],
             new_examples: new_examples,
             gatherer: gatherer,
-            blocking: blocking,
+            serial_sampling: serial_sampling,
             sampling_signal_channel: sampling_signal_channel,
 
             ess: 1.0,
@@ -81,7 +81,7 @@ impl BufferLoader {
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
-        if !buffer_loader.blocking {
+        if !buffer_loader.serial_sampling {
             buffer_loader.sampling_signal_channel.send(Signal::START);
             buffer_loader.gatherer.run(false);
         }
@@ -118,7 +118,7 @@ impl BufferLoader {
     }
 
     fn get_next_mut_batch(&mut self, allow_switch: bool) -> &mut [ExampleInSampleSet] {
-        if allow_switch && !self.blocking {
+        if allow_switch && !self.serial_sampling {
             self.try_switch();
         }
         self.curr_example += self.batch_size;
@@ -134,11 +134,11 @@ impl BufferLoader {
 
     fn force_switch(&mut self) {
         self.sampling_pm.resume();
-        if self.blocking {
+        if self.serial_sampling {
             self.sampling_signal_channel.send(Signal::START);
         }
         self.gatherer.run(true);
-        if self.blocking {
+        if self.serial_sampling {
             self.sampling_signal_channel.send(Signal::STOP);
         }
         self.sampling_pm.pause();
@@ -187,10 +187,10 @@ impl BufferLoader {
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
-        if self.blocking && self.ess < self.min_ess {
-            debug!("blocking sampling started");
+        if self.serial_sampling && self.ess < self.min_ess {
+            debug!("serial (blocking) sampling started");
             self.force_switch();
-            debug!("blocking sampling finished");
+            debug!("serial (blocking) sampling finished");
         }
     }
 

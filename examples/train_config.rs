@@ -4,6 +4,7 @@ extern crate time;
 
 extern crate sparrow;
 
+use std::env;
 use std::io::Write;
 use time::get_time;
 
@@ -23,6 +24,7 @@ fn main() {
         })
         .init();
 
-    let config_file = String::from("./examples/config_splice.yaml");
-    run_rust_boost(config_file);
+    let args: Vec<String> = env::args().collect();
+    assert!(args.len() == 2);
+    run_rust_boost(args[1].clone());
 }
