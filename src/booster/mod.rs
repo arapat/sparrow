@@ -15,6 +15,7 @@ use tmsn::network::start_network;
 use self::bins::create_bins;
 use commons::io::create_bufwriter;
 use buffer_loader::BufferLoader;
+use stratified_storage::serial_storage::SerialStorage;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
@@ -28,6 +29,7 @@ use self::learner::Learner;
 pub struct Boosting {
     num_iterations: usize,
     training_loader: BufferLoader,
+    serial_training_loader: SerialStorage,
     // max_trials_before_shrink: u32,
 
     learner: Learner,
@@ -41,6 +43,8 @@ pub struct Boosting {
     sampler_channel_s: Sender<Model>,
     persist_id: u32,
     persist_file_buffer: BufWriter<File>,
+
+    debug_mode: bool,
 }
 
 impl Boosting {
@@ -62,11 +66,13 @@ impl Boosting {
         min_gamma: f32,
         max_trials_before_shrink: u32,
         training_loader: BufferLoader,
+        serial_training_loader: SerialStorage,
         range: Range<usize>,
         max_sample_size: usize,
         max_bin_size: usize,
         default_gamma: f32,
         sampler_channel_s: Sender<Model>,
+        debug_mode: bool,
     ) -> Boosting {
         let mut training_loader = training_loader;
         let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
@@ -81,6 +87,7 @@ impl Boosting {
         Boosting {
             num_iterations: num_iterations,
             training_loader: training_loader,
+            serial_training_loader: serial_training_loader,
             // max_trials_before_shrink: max_trials_before_shrink,
 
             learner: learner,
@@ -94,6 +101,8 @@ impl Boosting {
             sampler_channel_s: sampler_channel_s,
             persist_id: 0,
             persist_file_buffer: create_bufwriter(&String::from("model.json")),
+
+            debug_mode: debug_mode,
         }
     }
 
@@ -147,6 +156,24 @@ impl Boosting {
                 self.try_send_model();
                 self.learner.reset_all();
                 info!("new-tree-info, {}", self.model.len());
+
+                if self.debug_mode {
+                    // TODO: tidy up this debugging code; support general loss function
+                    let mut k = 0;
+                    let mut score: f32 = 0.0;
+                    while k < self.serial_training_loader.size {
+                        let examples = self.serial_training_loader.read(1000);
+                        k += examples.len();
+                        let sum_scores: f32 = examples.iter().map(|example| {
+                            let pred: f32 = self.model.iter()
+                                           .map(|model| model.get_leaf_prediction(example)).sum();
+                            let label: f32 = if example.label > 0 { 1.0 } else { -1.0 };
+                            (-label * pred).exp()
+                        }).sum();
+                        score += sum_scores;
+                    }
+                    debug!("Validation: {}", score / (k as f32));
+                }
             }
 
             iteration += 1;

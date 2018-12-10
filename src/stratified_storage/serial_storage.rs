@@ -22,7 +22,7 @@ pub struct SerialStorage {
     filename: String,
     is_binary: bool,
     in_memory: bool,
-    size: usize,
+    pub size: usize,
     feature_size: usize,
 
     bytes_per_example: usize,

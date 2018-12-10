@@ -46,6 +46,7 @@ mod labeled_data;
 use booster::Boosting;
 use buffer_loader::BufferLoader;
 use stratified_storage::StratifiedStorage;
+use stratified_storage::serial_storage::SerialStorage;
 
 use commons::channel;
 use commons::io::create_bufreader;
@@ -96,6 +97,7 @@ struct Config {
     pub network: Vec<String>,
     pub port: u16,
     pub local_name: String,
+    pub debug_mode: bool,
 }
 
 
@@ -144,6 +146,14 @@ pub fn run_rust_boost(config_file: String) {
         true,
         Some(config.min_ess),
     );
+    let serial_training_loader = SerialStorage::new(
+        config.training_filename.clone(),
+        config.num_examples,
+        config.num_features,
+        false,
+        None,
+        false,
+    );
     info!("Starting the booster.");
     let mut booster = Boosting::new(
         config.num_iterations,
@@ -151,11 +161,13 @@ pub fn run_rust_boost(config_file: String) {
         config.min_gamma,
         config.max_trials_before_shrink,
         buffer_loader,
+        serial_training_loader,
         config.range,
         config.max_sample_size,
         config.max_bin_size,
         config.default_gamma,
         next_model_s,
+        config.debug_mode,
     );
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);
