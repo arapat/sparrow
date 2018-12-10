@@ -57,6 +57,7 @@ pub struct StratifiedStorage {
     // sampled_examples_s: Sender<(ExampleWithScore, u32)>,
     // sampling_signal: Receiver<Signal>,
     // models: Receiver<Model>,
+    positive: String,
 }
 
 
@@ -107,6 +108,7 @@ impl StratifiedStorage {
     pub fn new(
         num_examples: usize,
         feature_size: usize,
+        positive: String,
         num_examples_per_block: usize,
         disk_buffer_filename: &str,
         num_assigners: usize,
@@ -208,6 +210,7 @@ impl StratifiedStorage {
             // sampled_examples_s: sampled_examples,
             // sampling_signal: sampling_signal,
             // models: models,
+            positive: positive,
         }
     }
 
@@ -227,6 +230,7 @@ impl StratifiedStorage {
             is_binary,
             bytes_per_example,
             true,
+            self.positive.clone(),
         );
         let updated_examples_s = self.updated_examples_s.clone();
         spawn(move || {
@@ -326,7 +330,7 @@ mod tests {
     }
 
     fn get_example(feature: Vec<f32>, weight: f32) -> ExampleWithScore {
-        let label: u8 = 1;
+        let label: i8 = 1;
         let example = LabeledData::new(feature, label);
         let score = -weight.ln();
         (example, (score, 0))

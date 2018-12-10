@@ -30,8 +30,8 @@ pub enum Signal {
 
 #[inline]
 pub fn get_weight(data: &Example, score: f32) -> f32 {
-    // min(1.0, (-score * get_symmetric_label(data)).exp())
-    (-score * get_symmetric_label(data)).exp()
+    // min(1.0, (-score * data.label).exp())
+    (-score * (data.label as f32)).exp()
 }
 
 #[allow(dead_code)]
@@ -73,15 +73,6 @@ pub fn get_bound(sum_c: f32, sum_c_squared: f32) -> Option<f32> {
     None
 }
 
-#[inline]
-pub fn get_symmetric_label(data: &Example) -> f32 {
-    if is_positive(data.label as f32) {
-        1.0
-    } else {
-        -1.0
-    }
-}
-
 
 // Computational functions
 
@@ -117,9 +108,4 @@ pub fn get_sign(a: f64) -> i8 {
     } else {
         0
     }
-}
-
-#[inline]
-pub fn is_positive(label: f32) -> bool {
-    is_zero(label - 1.0)
 }

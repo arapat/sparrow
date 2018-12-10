@@ -38,7 +38,8 @@ pub fn read_k_labeled_data<TFeature, TLabel>(
     reader: &mut BufReader<File>,
     k: usize,
     missing_val: TFeature,
-    size: usize
+    size: usize,
+    positive: &String,
 ) -> Vec<LabeledData<TFeature, TLabel>>
 where
     TFeature: FromStr + Clone + Send + Sync,
@@ -47,7 +48,7 @@ where
     TLabel::Err: Debug,
 {
     let lines = read_k_lines(reader, k);
-    parse_libsvm(&lines, missing_val, size)
+    parse_libsvm(&lines, missing_val, size, positive)
 }
 
 pub fn read_k_labeled_data_from_binary_file(
@@ -76,6 +77,7 @@ fn parse_libsvm_one_line<TFeature, TLabel>(
     raw_string: &String,
     missing_val: TFeature,
     size: usize,
+    positive: &String,
 ) -> LabeledData<TFeature, TLabel>
 where
     TFeature: FromStr + Clone + Send + Sync,
@@ -84,7 +86,13 @@ where
     TLabel::Err: Debug
 {
     let mut numbers = raw_string.split_whitespace();
-    let label: TLabel = numbers.next().unwrap().parse().unwrap();
+    let label: TLabel = {
+        if numbers.next().unwrap() == *positive {
+            "1".parse().unwrap()
+        } else {
+            "-1".parse().unwrap()
+        }
+    };
     let mut feature: Vec<TFeature> = vec![missing_val; size];
     numbers.map(|index_value| {
         let sep = index_value.find(':').unwrap();
@@ -108,6 +116,7 @@ fn parse_libsvm<TFeature, TLabel>(
     raw_strings: &Vec<String>,
     missing_val: TFeature,
     size: usize,
+    positive: &String,
 ) -> Vec<LabeledData<TFeature, TLabel>>
 where
     TFeature: FromStr + Clone + Send + Sync,
@@ -116,7 +125,7 @@ where
     TLabel::Err: Debug
 {
     raw_strings.par_iter()
-               .map(|s| parse_libsvm_one_line(&s, missing_val.clone(), size))
+               .map(|s| parse_libsvm_one_line(&s, missing_val.clone(), size, positive))
                .collect()
 }
 
@@ -128,10 +137,11 @@ mod tests {
     #[test]
     fn test_parse_libsvm_one_line() {
         let raw_string = String::from("0 1:2 3:5 4:10");
-        let label = 0;
+        let label = -1;
         let feature = vec![0, 2, 0, 5, 10, 0];
         let labeled_data = LabeledData::new(feature, label);
-        assert_eq!(parse_libsvm_one_line(&raw_string, 0, 6), labeled_data);
+        let positive = "1".to_string();
+        assert_eq!(parse_libsvm_one_line(&raw_string, 0, 6, "1"), labeled_data, &positive);
     }
 
     #[test]
@@ -141,7 +151,7 @@ mod tests {
             String::from("1.2 1:3.0 2:10.0 4:10.0    5:20.0")
         ];
         let labeled_data = get_libsvm_answer();
-        assert_eq!(parse_libsvm(&raw_strings, 0.0, 6), labeled_data);
+        assert_eq!(parse_libsvm(&raw_strings, 0.0, 6, &"1.2".to_string()), labeled_data);
     }
 
     #[test]
@@ -159,7 +169,7 @@ mod tests {
     fn test_read_libsvm() {
         let mut f = create_bufreader(&get_libsvm_file_path());
         let labeled_data = get_libsvm_answer();
-        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6), labeled_data);
+        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6, &"1.2".to_string()), labeled_data);
     }
 
     fn get_libsvm_file_path() -> String {
@@ -167,9 +177,9 @@ mod tests {
     }
 
     fn get_libsvm_answer() -> Vec<LabeledData<f32, f32>> {
-        let label1 = 0.0;
+        let label1 = -1.0;
         let feature1 = vec![0.0, 2.0, 0.0, 5.0, 10.0, 0.0];
-        let label2 = 1.2;
+        let label2 = 1.0;  // 1.2;
         let feature2 = vec![0.0, 3.0, 10.0, 0.0, 10.0, 20.0];
         vec![
             LabeledData::new(feature1, label1),

@@ -24,6 +24,7 @@ pub struct SerialStorage {
     in_memory: bool,
     pub size: usize,
     feature_size: usize,
+    positive: String,
 
     bytes_per_example: usize,
     binary_cons: Option<TextToBinHelper>,
@@ -46,6 +47,7 @@ impl SerialStorage {
         is_binary: bool,
         bytes_per_example: Option<usize>,
         one_pass: bool,
+        positive: String,
     ) -> SerialStorage {
         assert!(!is_binary || bytes_per_example.is_some());
 
@@ -69,6 +71,7 @@ impl SerialStorage {
             feature_size: feature_size,
             is_binary: is_binary,
             in_memory: false,
+            positive: positive,
 
             bytes_per_example: unwrap_bytes_per_example,
             binary_cons: binary_cons,
@@ -99,7 +102,9 @@ impl SerialStorage {
                     &mut self.reader, true_batch_size, self.bytes_per_example)
             } else {
                 read_k_labeled_data(
-                    &mut self.reader, true_batch_size, 0 as TFeature, self.feature_size)
+                    &mut self.reader, true_batch_size,
+                    0 as TFeature, self.feature_size, &self.positive,
+                )
             };
         if let Some(ref mut cons) = self.binary_cons {
             batch.iter().for_each(|data| {

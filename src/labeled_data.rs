@@ -35,9 +35,9 @@ mod tests {
     #[test]
     fn test_labeled_data() {
         let feature = vec!(1.0, 2.0, 3.0);
-        let label: u8 = 0;
+        let label: i8 = -1;
         let data = LabeledData::new(feature, label);
         assert_eq!(&data.feature, &vec!(1.0, 2.0, 3.0));
-        assert_eq!(&data.label, &0u8);
+        assert_eq!(&data.label, &0i8);
     }
 }

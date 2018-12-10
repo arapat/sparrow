@@ -55,7 +55,7 @@ use commons::io::create_bufreader;
 // TODO: use generic types for specifing types
 use labeled_data::LabeledData;
 pub type TFeature = f32;
-pub type TLabel = u8;
+pub type TLabel = i8;
 pub type Example = LabeledData<TFeature, TLabel>;
 
 
@@ -69,6 +69,7 @@ struct Config {
     pub testing_filename: String,
     pub testing_is_binary: bool,
     pub testing_bytes_per_example: usize,
+    pub positive: String,
 
     pub num_examples: usize,
     pub num_testing_examples: usize,
@@ -118,6 +119,7 @@ pub fn run_rust_boost(config_file: String) {
     let stratified_structure = StratifiedStorage::new(
         config.num_examples,
         config.num_features,
+        config.positive.clone(),
         config.num_examples_per_block,
         config.disk_buffer_filename.as_ref(),
         config.num_assigners,
@@ -153,6 +155,7 @@ pub fn run_rust_boost(config_file: String) {
         false,
         None,
         false,
+        config.positive.clone(),
     );
     info!("Starting the booster.");
     let mut booster = Boosting::new(

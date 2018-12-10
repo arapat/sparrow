@@ -149,7 +149,7 @@ mod tests {
     }
 
     fn get_example(features: Vec<f32>, score: f32) -> ExampleWithScore {
-        let label: u8 = 0;
+        let label: i8 = -1;
         let example = LabeledData::new(features, label);
         (example, (score, 0))
     }

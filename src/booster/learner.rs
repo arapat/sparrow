@@ -14,7 +14,6 @@ use commons::max;
 use commons::min;
 use commons::get_bound;
 use commons::get_relative_weights;
-use commons::get_symmetric_label;
 
 /*
 TODO: extend support to regression tasks
@@ -227,7 +226,7 @@ impl Learner {
                     let index = self.tree.get_leaf_index(example);
                     let gamma = rho_gamma[index];
                     if gamma >= min_gamma {
-                        let labeled_weight = weight * get_symmetric_label(example);
+                        let labeled_weight = weight * (example.label as f32);
                         let null_weight = 2.0 * gamma * weight;
                         let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
                         let left_score: Vec<_> =

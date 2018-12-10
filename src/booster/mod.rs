@@ -167,7 +167,7 @@ impl Boosting {
                         let sum_scores: f32 = examples.iter().map(|example| {
                             let pred: f32 = self.model.iter()
                                            .map(|model| model.get_leaf_prediction(example)).sum();
-                            let label: f32 = if example.label > 0 { 1.0 } else { -1.0 };
+                            let label: f32 = example.label as f32;  // either +1 or -1
                             (-label * pred).exp()
                         }).sum();
                         score += sum_scores;

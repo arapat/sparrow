@@ -103,7 +103,7 @@ pub fn get_disk_buffer(
 
 
 fn get_block_size(feature_size: usize, num_examples_per_block: usize) -> usize {
-    let example: Example = LabeledData::new(vec![0 as TFeature; feature_size], 0 as TLabel);
+    let example: Example = LabeledData::new(vec![0 as TFeature; feature_size], -1 as TLabel);
     let example_with_score: ExampleWithScore = (example, (0.0, 0));
     let block: Block = vec![example_with_score; num_examples_per_block];
     let serialized_block: Vec<u8> = serialize(&block).unwrap();
@@ -147,7 +147,7 @@ mod tests {
     }
 
     fn get_example(features: Vec<f32>) -> ExampleWithScore {
-        let label: u8 = 0;
+        let label: i8 = -1;
         let example = LabeledData::new(features, label);
         (example, (1.0, 0))
     }
