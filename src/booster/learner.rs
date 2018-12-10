@@ -30,10 +30,10 @@ Each split corresponds to 4 types of predictions,
     3. Left -1, Right +1;
     4. Left -1, Right -1.
 */
-type ScoreBoard = Vec<Vec<Vec<[f32; 4]>>>;
+type ScoreBoard = Vec<Vec<Vec<[f32; 2]>>>;
 
-const LEFT_NODE:  [f32; 4] = [1.0, 1.0, -1.0, -1.0];
-const RIGHT_NODE: [f32; 4] = [1.0, -1.0, 1.0, -1.0];
+const LEFT_NODE:  [f32; 2] = [1.0, -1.0];
+const RIGHT_NODE: [f32; 2] = [-1.0, 1.0];
 
 /// A weak rule with an edge larger or equal to the targetting value of `gamma`
 struct TreeNode {
@@ -137,7 +137,7 @@ impl Learner {
         for i in 0..self.weak_rules_score.len() {
             for j in 0..self.weak_rules_score[i].len() {
                 for index in 0..self.weak_rules_score[i][j].len() {
-                    for k in 0..4 {
+                    for k in 0..2 {
                         self.weak_rules_score[i][j][index][k] = 0.0;
                         self.sum_c[i][j][index][k]            = 0.0;
                         self.sum_c_squared[i][j][index][k]    = 0.0;
@@ -160,7 +160,7 @@ impl Learner {
     fn reset(&mut self, index: usize) {
         for i in 0..self.weak_rules_score.len() {
             for j in 0..self.weak_rules_score[i].len() {
-                for k in 0..4 {
+                for k in 0..2 {
                     self.weak_rules_score[i][j][index][k] = 0.0;
                     self.sum_c[i][j][index][k]            = 0.0;
                     self.sum_c_squared[i][j][index][k]    = 0.0;
@@ -173,7 +173,7 @@ impl Learner {
     }
 
     fn setup(&mut self, index: usize, gamma: f32) {
-        let b = [0.0; 4];
+        let b = [0.0; 2];
         while index >= self.sum_weights.len() {
             for i in 0..self.bins.len() {
                 let bin = &self.bins[i];
@@ -221,7 +221,7 @@ impl Learner {
         let rho_gamma = self.rho_gamma.clone();
         let min_gamma = self.min_gamma;
         let data = {
-            let mut data: Vec<(usize, f32, &Example, ([f32; 4], [f32; 4]), f32, f32)> =
+            let mut data: Vec<(usize, f32, &Example, ([f32; 2], [f32; 2]), f32, f32)> =
                 data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
                     let example = &example.0;
                     let index = self.tree.get_leaf_index(example);
@@ -235,8 +235,7 @@ impl Learner {
                         let right_score: Vec<_> =
                             RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
                         let s_labeled_weight = (
-                            [left_score[0], left_score[1], left_score[2], left_score[3]],
-                            [right_score[0], right_score[1], right_score[2], right_score[3]],
+                            [left_score[0], left_score[1]], [right_score[0], right_score[1]],
                         );
                         Some((index, *weight, example, s_labeled_weight, null_weight, c_sq))
                     } else {
@@ -291,18 +290,12 @@ impl Learner {
                     let gamma = rho_gamma[index];
                     weak_rules_score[j][index][0] += labeled_weight[0];
                     weak_rules_score[j][index][1] += labeled_weight[1];
-                    weak_rules_score[j][index][2] += labeled_weight[2];
-                    weak_rules_score[j][index][3] += labeled_weight[3];
 
                     sum_c[j][index][0]            += labeled_weight[0] - null_weight;
                     sum_c[j][index][1]            += labeled_weight[1] - null_weight;
-                    sum_c[j][index][2]            += labeled_weight[2] - null_weight;
-                    sum_c[j][index][3]            += labeled_weight[3] - null_weight;
 
                     sum_c_squared[j][index][0]    += (1.0 + 2.0 * gamma).powi(2) * c_sq;
                     sum_c_squared[j][index][1]    += (1.0 + 2.0 * gamma).powi(2) * c_sq;
-                    sum_c_squared[j][index][2]    += (1.0 + 2.0 * gamma).powi(2) * c_sq;
-                    sum_c_squared[j][index][3]    += (1.0 + 2.0 * gamma).powi(2) * c_sq;
                 });
             });
 
@@ -314,7 +307,7 @@ impl Learner {
                         // this candidate received no data or is already generated
                         continue;
                     }
-                    for k in 0..4 {
+                    for k in 0..2 {
                         let weak_rules_score = weak_rules_score[j][index][k];
                         let sum_c            = sum_c[j][index][k];
                         let sum_c_squared    = sum_c_squared[j][index][k];
