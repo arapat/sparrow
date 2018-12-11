@@ -1,37 +1,38 @@
 ---
-training_filename: ../small/splice-training.libsvm
+# training_filename: /Users/arapat/Documents/data/splice/training-data-100K.libsvm
+training_filename: ../small/bal_bathymetry-training.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
-testing_filename: ../small/splice-testing.libsvm
+testing_filename: ../small/bal_bathymetry-testing.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 574
 num_examples: 100000
-num_testing_examples: 20000
-num_features: 565
+num_testing_examples: 55000
+num_features: 15
 range:
   start: 0
-  end: 564
+  end: 14
 positive: 1
 max_sample_size: 20000
 max_bin_size: 10
-min_gamma: 0.0001
 default_gamma: 0.25
+min_gamma: 0.0005
 min_ess: 0.5
 num_iterations: 0
-max_leaves: 4
-max_trials_before_shrink: 100000
-channel_size: 65536
-buffer_size: 50000
+max_leaves: 2
+max_trials_before_shrink: 50000
+channel_size: 8192
+buffer_size: 20000
 batch_size: 100
 serial_sampling: false
 sampler_num_threads: 1
 sampler_init_grid_size: 1.0
 sampler_average_window_size: 1000
 num_examples_per_block: 8192
+debug_mode: true
 disk_buffer_filename: stratified.bin
 num_assigners: 1
 num_samplers: 3
 network: []
 port: 8888
 local_name: local_worker
-debug_mode: true
