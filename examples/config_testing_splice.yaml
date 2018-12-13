@@ -1,0 +1,8 @@
+---
+models_table_filename: ./models_table.txt
+testing_filename: ./data/splice-testing.libsvm
+num_examples: 20000
+num_features: 564
+batch_size: 2000
+incremental_testing: true
+positive: 1

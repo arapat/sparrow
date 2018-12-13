@@ -8,7 +8,8 @@ use std::env;
 use std::io::Write;
 use time::get_time;
 
-use sparrow::run_rust_boost;
+use sparrow::testing;
+use sparrow::training;
 
 
 fn main() {
@@ -25,6 +26,10 @@ fn main() {
         .init();
 
     let args: Vec<String> = env::args().collect();
-    assert!(args.len() == 2);
-    run_rust_boost(args[1].clone());
+    assert!(args.len() == 3);
+    if args[1] == "train" {
+        training(args[2].clone());
+    } else {
+        testing(args[2].clone());
+    }
 }

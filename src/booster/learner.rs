@@ -23,11 +23,9 @@ TODO: re-use ScoreBoard space of the generated rules to reduce the memory footpr
 Structure:
     Feature index -> split value index -> candidate splitting node index -> prediction types
 
-Each split corresponds to 4 types of predictions,
-    1. Left +1, Right +1;
-    2. Left +1, Right -1;
-    3. Left -1, Right +1;
-    4. Left -1, Right -1.
+Each split corresponds to 2 types of predictions,
+    1. Left +1, Right -1;
+    2. Left -1, Right +1;
 */
 type ScoreBoard = Vec<Vec<Vec<[f32; 2]>>>;
 

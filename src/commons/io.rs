@@ -6,11 +6,12 @@ use std::str::FromStr;
 use std::fmt::Debug;
 
 use std::fs::File;
-use std::io::Read;
-use std::io::Write;
 use std::io::BufRead;
 use std::io::BufReader;
 use std::io::BufWriter;
+use std::io::Read;
+use std::io::Write;
+use std::io::Result;
 
 use commons::Example;
 use labeled_data::LabeledData;
@@ -24,6 +25,20 @@ pub fn create_bufreader(filename: &String) -> BufReader<File> {
 pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
     let f = File::create(filename).expect(&format!("Cannot create the file `{}`.", filename));
     BufWriter::new(f)
+}
+
+pub fn read_all(filename: &String) -> String {
+    let mut file = File::open(filename).expect(
+        &format!("File `{}` does not exist or cannot be read.", filename));
+    let mut contents = String::new();
+    file.read_to_string(&mut contents).expect(&format!("Cannot read `{}`", filename));
+    contents
+}
+
+pub fn write_all(filename: &String, content: &String) -> Result<()> {
+    let mut file = File::create(filename).expect(
+        &format!("File `{}` does not exist or cannot be read.", filename));
+    file.write_all(content.as_bytes())
 }
 
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {

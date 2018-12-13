@@ -1,8 +1,6 @@
 mod bins;
 mod learner;
 
-extern crate serde_json;
-
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Seek;
@@ -10,6 +8,7 @@ use std::io::SeekFrom;
 use std::io::Write;
 use std::sync::mpsc;
 use std::ops::Range;
+use serde_json;
 use tmsn::network::start_network;
 
 use self::bins::create_bins;

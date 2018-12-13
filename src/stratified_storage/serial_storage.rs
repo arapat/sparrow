@@ -34,8 +34,6 @@ pub struct SerialStorage {
 
     head: usize,
     tail: usize,
-    scores: Vec<f32>,
-    scores_version: Vec<usize>,
 }
 
 
@@ -81,8 +79,6 @@ impl SerialStorage {
 
             head: 0,
             tail: 0,
-            scores: vec![0.0; size.clone()],
-            scores_version: vec![0; size.clone()],
         }
     }
 

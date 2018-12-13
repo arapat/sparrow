@@ -27,7 +27,7 @@ extern crate tmsn;
 
 
 /// The class of the weak learner, namely a decision stump.
-pub mod tree;
+mod tree;
 
 /// The implementation of the AdaBoost algorithm with early stopping rule.
 mod booster;
@@ -35,18 +35,20 @@ mod booster;
 /// of the caches to feed data to the boosting algorithm, and the other
 /// to load next sample set.
 mod buffer_loader; 
-/// A stratified storage structor that organize examples on disk according to their weights.
-mod stratified_storage;
 /// Common functions and classes.
 mod commons;
 /// The class of the training examples.
 mod labeled_data;
+/// A stratified storage structor that organize examples on disk according to their weights.
+mod stratified_storage;
 /// Validating models
+mod testing;
 
 use booster::Boosting;
 use buffer_loader::BufferLoader;
 use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
+use testing::validate;
 
 use commons::channel;
 use commons::io::create_bufreader;
@@ -59,7 +61,7 @@ pub type TLabel = i8;
 pub type Example = LabeledData<TFeature, TLabel>;
 
 
-/// Configuration of the RustBoost
+/// Configuration for training with Sparrow
 #[derive(Serialize, Deserialize)]
 struct Config {
     pub training_filename: String,
@@ -102,7 +104,20 @@ struct Config {
 }
 
 
-pub fn run_rust_boost(config_file: String) {
+// Configuration for testing with Sparrow
+#[derive(Serialize, Deserialize)]
+struct TestingConfig {
+    pub models_table_filename: String,
+    pub testing_filename: String,
+    pub num_examples: usize,
+    pub num_features: usize,
+    pub batch_size: usize,
+    pub incremental_testing: bool,
+    pub positive: String,
+}
+
+
+pub fn training(config_file: String) {
     // Load configurations
     let config: Config = serde_yaml::from_reader(
         create_bufreader(&config_file)
@@ -148,6 +163,7 @@ pub fn run_rust_boost(config_file: String) {
         true,
         Some(config.min_ess),
     );
+    // This is for validation in the debugging mode
     let serial_training_loader = SerialStorage::new(
         config.training_filename.clone(),
         config.num_examples,
@@ -176,4 +192,21 @@ pub fn run_rust_boost(config_file: String) {
         booster.enable_network(config.local_name, &config.network, config.port);
     }
     booster.training();
+}
+
+
+pub fn testing(config_file: String) {
+    // Load configurations
+    let config: TestingConfig = serde_yaml::from_reader(
+        create_bufreader(&config_file)
+    ).unwrap();
+    validate(
+        config.models_table_filename.clone(),
+        config.testing_filename.clone(),
+        config.num_examples,
+        config.num_features,
+        config.batch_size,
+        config.positive.clone(),
+        config.incremental_testing,
+    );
 }
