@@ -98,6 +98,7 @@ struct Config {
     pub network: Vec<String>,
     pub port: u16,
     pub local_name: String,
+    pub save_process: bool,
     pub debug_mode: bool,
 }
 
@@ -170,6 +171,7 @@ pub fn run_rust_boost(config_file: String) {
         config.max_bin_size,
         config.default_gamma,
         next_model_s,
+        config.save_process,
         config.debug_mode,
     );
     if config.network.len() > 0 {

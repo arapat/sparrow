@@ -42,8 +42,9 @@ pub struct Boosting {
 
     sampler_channel_s: Sender<Model>,
     persist_id: u32,
-    persist_file_buffer: BufWriter<File>,
+    persist_file_buffer: Option<BufWriter<File>>,
 
+    save_process: bool,
     debug_mode: bool,
 }
 
@@ -72,6 +73,7 @@ impl Boosting {
         max_bin_size: usize,
         default_gamma: f32,
         sampler_channel_s: Sender<Model>,
+        save_process: bool,
         debug_mode: bool,
     ) -> Boosting {
         let mut training_loader = training_loader;
@@ -84,6 +86,13 @@ impl Boosting {
         let gamma_squared = gamma.powi(2);
         let model = vec![base_tree];
 
+        let persist_file_buffer = {
+            if save_process {
+                None
+            } else {
+                Some(create_bufwriter(&String::from("model.json")))
+            }
+        };
         Boosting {
             num_iterations: num_iterations,
             training_loader: training_loader,
@@ -100,8 +109,9 @@ impl Boosting {
 
             sampler_channel_s: sampler_channel_s,
             persist_id: 0,
-            persist_file_buffer: create_bufwriter(&String::from("model.json")),
+            persist_file_buffer: persist_file_buffer,
 
+            save_process: save_process,
             debug_mode: debug_mode,
         }
     }
@@ -156,6 +166,9 @@ impl Boosting {
                 self.try_send_model();
                 self.learner.reset_all();
                 info!("new-tree-info, {}", self.model.len());
+                if self.model.len() % 10 == 0 {
+                    self.handle_persistent(iteration);
+                }
 
                 if self.debug_mode {
                     // TODO: tidy up this debugging code; support general loss function
@@ -177,9 +190,6 @@ impl Boosting {
             }
 
             iteration += 1;
-            if iteration % 10 == 0 {
-                self.handle_persistent(iteration);
-            }
             self.handle_network();
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
@@ -239,10 +249,15 @@ impl Boosting {
         let json = serde_json::to_string(&(iteration, &self.model)).expect(
             "Local model cannot be serialized."
         );
-        // let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
         self.persist_id += 1;
-        self.persist_file_buffer.seek(SeekFrom::Start(0)).unwrap();
-        self.persist_file_buffer.write(json.as_ref()).unwrap();
+        if self.save_process {
+            let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
+            file_buffer.write(json.as_ref()).unwrap();
+        } else {
+            let buf = self.persist_file_buffer.as_mut().unwrap();
+            buf.seek(SeekFrom::Start(0)).unwrap();
+            buf.write(json.as_ref()).unwrap();
+        }
     }
 
     fn try_send_model(&mut self) {
