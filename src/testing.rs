@@ -41,10 +41,8 @@ pub fn validate(
         if models_list.read_line(&mut line).is_err() || line.trim() == "" {
             break;
         }
-        let (filepath, outputpath) = {
-            let seps: Vec<&str> = line.split(",").collect();
-            (seps[0].to_string().trim().to_string(), seps[1].to_string().trim().to_string())
-        };
+        let filepath = line.to_string().trim().to_string();
+        let outputpath = filepath.clone() + "_scores";
         line.clear();
         // validate model
         let (_, model): (usize, Model) = serde_json::from_str(&read_all(&filepath)).expect(
