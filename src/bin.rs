@@ -26,10 +26,14 @@ fn main() {
         .init();
 
     let args: Vec<String> = env::args().collect();
-    assert!(args.len() == 3);
-    if args[1] == "train" {
+    let usage_info = "Usage: ./sparrow [train|test] <config_file_path>";
+    if args.len() != 3 {
+        println!("{}", usage_info);
+    } else if args[1] == "train" {
         training(args[2].clone());
-    } else {
+    } else if args[1] == "test" {
         testing(args[2].clone());
+    } else {
+        println!("{}", usage_info);
     }
 }

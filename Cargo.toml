@@ -3,6 +3,10 @@ name = "sparrow"
 version = "0.1.0"
 authors = ["Julaiti Alafate <jalafate@gmail.com>"]
 
+[[bin]]
+name = "sparrow"
+path = "src/bin.rs"
+
 [dependencies]
 log = "0.4.1"
 env_logger = "0.5.5"
