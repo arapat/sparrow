@@ -166,7 +166,7 @@ impl Boosting {
                 self.learner.reset_all();
                 info!("new-tree-info, {}", self.model.len());
                 if self.model.len() % 10 == 0 {
-                    self.handle_persistent(iteration);
+                    self.handle_persistent(iteration, global_timer.get_duration());
                 }
 
                 if self.debug_mode {
@@ -196,7 +196,7 @@ impl Boosting {
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
-        self.handle_persistent(iteration);
+        self.handle_persistent(iteration, global_timer.get_duration());
         info!("Training is finished.");
     }
 
@@ -244,13 +244,14 @@ impl Boosting {
         replace
     }
 
-    fn handle_persistent(&mut self, iteration: usize) {
-        let json = serde_json::to_string(&(iteration, &self.model)).expect(
+    fn handle_persistent(&mut self, iteration: usize, timestamp: f32) {
+        let json = serde_json::to_string(&(timestamp, iteration, &self.model)).expect(
             "Local model cannot be serialized."
         );
         self.persist_id += 1;
         if self.save_process {
-            let mut file_buffer = create_bufwriter(&format!("model-v{}.json", self.persist_id));
+            let mut file_buffer = create_bufwriter(
+                &format!("model_{}-v{}.json", self.model.len(), self.persist_id));
             file_buffer.write(json.as_ref()).unwrap();
         } else {
             let buf = self.persist_file_buffer.as_mut().unwrap();
