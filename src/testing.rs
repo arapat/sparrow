@@ -45,8 +45,9 @@ pub fn validate(
         let outputpath = filepath.clone() + "_scores";
         line.clear();
         // validate model
-        let (_, model): (usize, Model) = serde_json::from_str(&read_all(&filepath)).expect(
-            &format!("Cannot parse the model in `{}`", filepath));
+        let (_, _, model): (f32, usize, Model) =
+            serde_json::from_str(&read_all(&filepath))
+                       .expect(&format!("Cannot parse the model in `{}`", filepath));
         let mut index = 0;
         while index < num_examples {
             let batch = data.read(batch_size);

@@ -251,7 +251,7 @@ impl Boosting {
         self.persist_id += 1;
         if self.save_process {
             let mut file_buffer = create_bufwriter(
-                &format!("model_{}-v{}.json", self.model.len(), self.persist_id));
+                &format!("models/model_{}-v{}.json", self.model.len(), self.persist_id));
             file_buffer.write(json.as_ref()).unwrap();
         } else {
             let buf = self.persist_file_buffer.as_mut().unwrap();
