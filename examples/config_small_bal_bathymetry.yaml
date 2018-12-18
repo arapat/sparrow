@@ -1,13 +1,12 @@
 ---
-# training_filename: /Users/arapat/Documents/data/splice/training-data-100K.libsvm
-training_filename: ../small/bathymetry-training.libsvm
+training_filename: ./small/bal_bathymetry-training.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
-testing_filename: ../small/bathymetry-testing.libsvm
+testing_filename: ./small/bal_bathymetry-testing.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 574
-num_examples: 114670
-num_testing_examples: 60000
+num_examples: 100000
+num_testing_examples: 55000
 num_features: 15
 range:
   start: 0
