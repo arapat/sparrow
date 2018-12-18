@@ -24,6 +24,7 @@ extern crate serde_yaml;
 extern crate threadpool;
 extern crate time;
 extern crate tmsn;
+extern crate metricslib;
 
 
 /// The class of the weak learner, namely a decision stump.
@@ -115,6 +116,7 @@ struct TestingConfig {
     pub batch_size: usize,
     pub incremental_testing: bool,
     pub positive: String,
+    pub scores_only: bool,
 }
 
 
@@ -210,5 +212,6 @@ pub fn testing(config_file: String) {
         config.batch_size,
         config.positive.clone(),
         config.incremental_testing,
+        config.scores_only,
     );
 }

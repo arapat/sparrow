@@ -25,3 +25,4 @@ bincode = "1.0.0"
 evmap = "4.0.0"
 lazy_static = "1.1.0"
 tmsn = { path = "../tmsn" }
+metricslib = { path = "../metricslib" }
