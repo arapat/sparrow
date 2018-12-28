@@ -1,0 +1,39 @@
+---
+# training_filename: /Users/arapat/Documents/data/splice/training-data-100K.libsvm
+training_filename: ./data/synthetic/deterministic.libsvm
+training_is_binary: false
+training_bytes_per_example: 0
+testing_filename: ./data/synthetic/deterministic_test.libsvm
+testing_is_binary: false
+testing_bytes_per_example: 574
+num_examples: 1000000
+num_testing_examples: 10000
+num_features: 100
+range:
+  start: 0
+  end: 99
+max_sample_size: 100000
+max_bin_size: 10
+default_gamma: 0.25
+min_ess: 0.5
+num_iterations: 0
+max_leaves: 2
+max_trials_before_shrink: 200000
+channel_size: 65536
+buffer_size: 200000
+batch_size: 100
+serial_sampling: false
+sampler_num_threads: 1
+sampler_init_grid_size: 1.0
+sampler_average_window_size: 1000
+num_examples_per_block: 8192
+disk_buffer_filename: stratified.bin
+num_assigners: 1
+num_samplers: 3
+network: []
+port: 8888
+local_name: local_worker
+positive: 1
+debug_mode: false
+min_gamma: 0.001
+save_process: true
