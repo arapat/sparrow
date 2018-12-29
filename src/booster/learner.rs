@@ -80,6 +80,7 @@ pub struct Learner {
     sum_weights: Vec<f32>,
     is_active: Vec<bool>,
 
+    default_gamma: f32,
     min_gamma: f32,
     num_candid: usize,
     pub total_count: usize,
@@ -117,6 +118,7 @@ impl Learner {
             rho_gamma: vec![],
             is_active: vec![],
 
+            default_gamma: default_gamma,
             min_gamma: min_gamma,
             num_candid: 0,
             total_count: 0,
@@ -125,11 +127,13 @@ impl Learner {
             max_leaves: max_leaves,
             bins: bins,
         };
-        learner.setup(0, default_gamma);
+        learner.setup(0);
         learner
     }
 
-    /// Reset the statistics of all candidate weak rules (except gamma)
+    /// Reset the statistics of all candidate weak rules
+    /// (except gamma, because the advantage of the root node is not likely to increase)
+    /// Trigger when the model is changed (i.e. the weight distribution of examples)
     pub fn reset_all(&mut self) {
         for i in 0..self.weak_rules_score.len() {
             for j in 0..self.weak_rules_score[i].len() {
@@ -153,8 +157,9 @@ impl Learner {
         self.is_active[0] = true;
     }
 
-    /// Reset the statistics of the speicified candidate weak rules (except gamma)
-    fn reset(&mut self, index: usize) {
+    /// Reset the statistics of the speicified candidate weak rules
+    /// Trigger when the gamma is changed
+    fn reset(&mut self, index: usize, rho_gamma: f32) {
         for i in 0..self.weak_rules_score.len() {
             for j in 0..self.weak_rules_score[i].len() {
                 for k in 0..2 {
@@ -167,9 +172,10 @@ impl Learner {
 
         self.sum_weights[index] = 0.0;
         self.counts[index] = 0;
+        self.rho_gamma[index] = rho_gamma;
     }
 
-    fn setup(&mut self, index: usize, gamma: f32) {
+    fn setup(&mut self, index: usize) {
         let b = [0.0; 2];
         while index >= self.sum_weights.len() {
             for i in 0..self.bins.len() {
@@ -186,7 +192,7 @@ impl Learner {
             self.is_active.push(false);
         }
         self.num_candid = max(self.num_candid, index + 1);
-        self.rho_gamma[index] = gamma;
+        self.rho_gamma[index] = self.default_gamma;
         self.is_active[index] = true;
     }
 
@@ -254,8 +260,8 @@ impl Learner {
             if self.counts[k] >= shrink_threshold {
                 let old_rho_gamma = self.rho_gamma[k];
                 let max_empirical_gamma = self.get_max_empirical_ratio(k) / 2.0;
-                self.rho_gamma[k] = 0.9 * min(old_rho_gamma, max_empirical_gamma);
-                self.reset(k);
+                let new_rho_gamma = 0.9 * min(old_rho_gamma, max_empirical_gamma);
+                self.reset(k, new_rho_gamma);
                 debug!("shrink-gamma, {}, {}, {}, {}",
                        k, old_rho_gamma, max_empirical_gamma, self.rho_gamma[k]);
             }
@@ -338,7 +344,6 @@ impl Learner {
         let mut ret = None;
         if tree_node.is_some() {
             let tree_node = tree_node.unwrap();
-            let gamma = tree_node.gamma;
             tree_node.write_log();
             let (left_node, right_node) = self.tree.split(
                 tree_node.tree_index, tree_node.feature, tree_node.threshold,
@@ -352,8 +357,8 @@ impl Learner {
                 self.tree = Tree::new((self.max_leaves * 2 - 1) as u16);
             } else {
                 // Tracking weak rules on the new candidate leaves
-                self.setup(left_node as usize, gamma);
-                self.setup(right_node as usize, gamma);
+                self.setup(left_node as usize);
+                self.setup(right_node as usize);
             }
         }
         ret

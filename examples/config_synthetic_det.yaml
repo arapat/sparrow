@@ -16,7 +16,7 @@ max_sample_size: 100000
 max_bin_size: 10
 default_gamma: 0.25
 min_ess: 0.5
-num_iterations: 0
+num_iterations: 100
 max_leaves: 2
 max_trials_before_shrink: 200000
 channel_size: 65536
@@ -35,5 +35,9 @@ port: 8888
 local_name: local_worker
 positive: 1
 debug_mode: false
-min_gamma: 0.001
+min_gamma: 0.01
 save_process: true
+save_interval: 1
+models_table_filename: ./models_table.txt
+incremental_testing: true
+testing_scores_only: false

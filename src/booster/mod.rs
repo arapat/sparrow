@@ -42,6 +42,7 @@ pub struct Boosting {
     sampler_channel_s: Sender<Model>,
     persist_id: u32,
     persist_file_buffer: Option<BufWriter<File>>,
+    save_interval: usize,
 
     save_process: bool,
     debug_mode: bool,
@@ -73,6 +74,7 @@ impl Boosting {
         default_gamma: f32,
         sampler_channel_s: Sender<Model>,
         save_process: bool,
+        save_interval: usize,
         debug_mode: bool,
     ) -> Boosting {
         let mut training_loader = training_loader;
@@ -109,6 +111,7 @@ impl Boosting {
             sampler_channel_s: sampler_channel_s,
             persist_id: 0,
             persist_file_buffer: persist_file_buffer,
+            save_interval: save_interval,
 
             save_process: save_process,
             debug_mode: debug_mode,
@@ -165,7 +168,7 @@ impl Boosting {
                 self.try_send_model();
                 self.learner.reset_all();
                 info!("new-tree-info, {}", self.model.len());
-                if self.model.len() % 10 == 0 {
+                if self.model.len() % self.save_interval == 0 {
                     self.handle_persistent(iteration, global_timer.get_duration());
                 }
 

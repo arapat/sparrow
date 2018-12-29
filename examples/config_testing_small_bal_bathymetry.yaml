@@ -1,8 +1,0 @@
----
-models_table_filename: ./models_table.txt
-testing_filename: ./small/bal_bathymetry-testing.libsvm
-num_examples: 55000
-num_features: 15
-batch_size: 2000
-incremental_testing: true
-positive: 1

@@ -1,9 +1,0 @@
----
-models_table_filename: ./models_table.txt
-testing_filename: ./data/synthetic/deterministic_test.libsvm
-num_examples: 10000
-num_features: 100
-batch_size: 2000
-incremental_testing: true
-positive: 1
-scores_only: false

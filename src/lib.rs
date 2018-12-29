@@ -68,14 +68,9 @@ struct Config {
     pub training_filename: String,
     pub training_is_binary: bool,
     pub training_bytes_per_example: usize,
-
-    pub testing_filename: String,
-    pub testing_is_binary: bool,
-    pub testing_bytes_per_example: usize,
     pub positive: String,
 
     pub num_examples: usize,
-    pub num_testing_examples: usize,
     pub num_features: usize,
     pub range: std::ops::Range<usize>, 
     pub max_sample_size: usize, 
@@ -102,21 +97,16 @@ struct Config {
     pub port: u16,
     pub local_name: String,
     pub save_process: bool,
+    pub save_interval: usize,
     pub debug_mode: bool,
-}
 
-
-// Configuration for testing with Sparrow
-#[derive(Serialize, Deserialize)]
-struct TestingConfig {
-    pub models_table_filename: String,
     pub testing_filename: String,
-    pub num_examples: usize,
-    pub num_features: usize,
-    pub batch_size: usize,
+    pub testing_is_binary: bool,
+    pub testing_bytes_per_example: usize,
+    pub num_testing_examples: usize,
+    pub models_table_filename: String,
     pub incremental_testing: bool,
-    pub positive: String,
-    pub scores_only: bool,
+    pub testing_scores_only: bool,
 }
 
 
@@ -190,6 +180,7 @@ pub fn training(config_file: String) {
         config.default_gamma,
         next_model_s,
         config.save_process,
+        config.save_interval,
         config.debug_mode,
     );
     if config.network.len() > 0 {
@@ -201,17 +192,17 @@ pub fn training(config_file: String) {
 
 pub fn testing(config_file: String) {
     // Load configurations
-    let config: TestingConfig = serde_yaml::from_reader(
+    let config: Config = serde_yaml::from_reader(
         create_bufreader(&config_file)
     ).unwrap();
     validate(
         config.models_table_filename.clone(),
         config.testing_filename.clone(),
-        config.num_examples,
+        config.num_testing_examples,
         config.num_features,
         config.batch_size,
         config.positive.clone(),
         config.incremental_testing,
-        config.scores_only,
+        config.testing_scores_only,
     );
 }
