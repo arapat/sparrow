@@ -35,7 +35,7 @@ port: 8888
 local_name: local_worker
 positive: 1
 debug_mode: false
-min_gamma: 0.01
+min_gamma: 0.001
 save_process: true
 save_interval: 1
 models_table_filename: ./models_table.txt
