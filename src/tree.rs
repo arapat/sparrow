@@ -100,7 +100,7 @@ impl Tree {
     }
     */
 
-    pub fn get_leaf_index(&self, data: &Example) -> usize {
+    pub fn get_leaf_index_prediction(&self, data: &Example) -> (usize, f32) {
         let mut node: usize = 0;
         let feature = &(data.feature);
         while let Some(split_feature) = self.split_feature[node] {
@@ -110,11 +110,11 @@ impl Tree {
                 self.right_child[node]
             } as usize;
         }
-        node
+        (node, self.leaf_value[node])
     }
 
     pub fn get_leaf_prediction(&self, data: &Example) -> f32 {
-        self.leaf_value[self.get_leaf_index(data)]
+        self.get_leaf_index_prediction(data).1
     }
 
     fn add_new_node(&mut self, leaf_value: f32, depth: DimScaleType) {

@@ -14,6 +14,10 @@ use commons::max;
 use commons::min;
 use commons::get_bound;
 use commons::get_relative_weights;
+use commons::get_weight;
+
+// TODO: The tree generation and score updates are for AdaBoost only,
+// extend it to other potential functions
 
 /*
 TODO: extend support to regression tasks
@@ -51,7 +55,10 @@ struct TreeNode {
 impl TreeNode {
     pub fn write_log(&self) {
         info!(
-            "tree-node-info, {}, {}, {}, {}, {}, {}",
+            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            self.tree_index,
+            self.feature,
+            self.threshold,
             self.num_scanned,
             self.gamma,
             self.raw_martingale,
@@ -227,7 +234,8 @@ impl Learner {
             let mut data: Vec<(usize, f32, &Example, ([f32; 2], [f32; 2]), f32, f32)> =
                 data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
                     let example = &example.0;
-                    let index = self.tree.get_leaf_index(example);
+                    let (index, pred) = self.tree.get_leaf_index_prediction(example);
+                    let weight = weight * get_weight(example, pred);
                     let gamma = rho_gamma[index];
                     if gamma >= min_gamma {
                         let labeled_weight = weight * (example.label as f32);
@@ -240,7 +248,7 @@ impl Learner {
                         let s_labeled_weight = (
                             [left_score[0], left_score[1]], [right_score[0], right_score[1]],
                         );
-                        Some((index, *weight, example, s_labeled_weight, null_weight, c_sq))
+                        Some((index, weight, example, s_labeled_weight, null_weight, c_sq))
                     } else {
                         None
                     }
@@ -268,6 +276,7 @@ impl Learner {
         }
 
         // update each weak rule
+        let is_active = self.is_active.clone();
         let range_start = self.range_start;
         let num_scanned = self.total_count;
         let num_candid = self.num_candid;
@@ -306,7 +315,7 @@ impl Learner {
             let mut valid_weak_rule = None;
             bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
                 for index in 0..num_candid {
-                    if is_zero(sum_c_squared[j][index][0]) {
+                    if !is_active[index] || is_zero(sum_c_squared[j][index][0]) {
                         // this candidate received no data or is already generated
                         continue;
                     }
