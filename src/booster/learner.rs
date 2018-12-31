@@ -277,6 +277,7 @@ impl Learner {
 
         // update each weak rule
         let is_active = self.is_active.clone();
+        let counts = self.counts.clone();
         let range_start = self.range_start;
         let num_scanned = self.total_count;
         let num_candid = self.num_candid;
@@ -319,11 +320,12 @@ impl Learner {
                         // this candidate received no data or is already generated
                         continue;
                     }
+                    let count = counts[index];
                     for k in 0..2 {
                         let weak_rules_score = weak_rules_score[j][index][k];
                         let sum_c            = sum_c[j][index][k];
                         let sum_c_squared    = sum_c_squared[j][index][k];
-                        let bound = get_bound(sum_c, sum_c_squared).unwrap_or(INFINITY);
+                        let bound = get_bound(count, sum_c, sum_c_squared).unwrap_or(INFINITY);
                         if sum_c > bound {
                             let gamma = rho_gamma[index];
                             let base_pred = 0.5 * ((0.5 + gamma) / (0.5 - gamma)).ln();
