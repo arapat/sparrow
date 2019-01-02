@@ -96,6 +96,7 @@ pub struct Learner {
     min_gamma: f32,
     num_candid: usize,
     pub total_count: usize,
+    total_weight: f32,
 
     tree: Tree,
     max_leaves: usize,
@@ -135,6 +136,7 @@ impl Learner {
             min_gamma: min_gamma,
             num_candid: 0,
             total_count: 0,
+            total_weight: 0.0,
 
             tree: Tree::new((max_leaves * 2 - 1) as u16),
             max_leaves: max_leaves,
@@ -159,6 +161,7 @@ impl Learner {
         self.counts.clear();
         self.is_active.clear();
         self.total_count = 0;
+        self.total_weight = 0.0;
         self.num_candid = 0;
         self.setup(0);
         self.rho_gamma = self.root_rho_gamma;
@@ -185,6 +188,7 @@ impl Learner {
             self.counts[index] = 0;
         }
         self.total_count = 0;
+        self.total_weight = 0.0;
     }
 
     fn setup(&mut self, index: usize) {
@@ -212,22 +216,25 @@ impl Learner {
                                       .map(|(index, _)| index)
                                       .collect();
         let mut max_ratio = 0.0;
+        let mut actual_ratio = 0.0;
         let mut rule_id = None;
         for i in 0..self.bins.len() {
             for j in 0..self.bins[i].len() {
                 for index in indices.iter() {
-                    let sum_weight = self.sum_weights[*index];
                     for k in 0..2 {
-                        let ratio = self.weak_rules_score[i][j][*index][k] / sum_weight;
+                        // max ratio considers absent examples, actual ratio does not
+                        let ratio = self.weak_rules_score[i][j][*index][k] / self.total_weight;
                         if ratio >= max_ratio {
                             max_ratio = ratio;
+                            actual_ratio =
+                                self.weak_rules_score[i][j][*index][k] / self.sum_weights[*index];
                             rule_id = Some((i, j, *index, k));
                         }
                     }
                 }
             }
         }
-        (max_ratio, rule_id.unwrap())
+        (actual_ratio, rule_id.unwrap())
     }
 
     pub fn is_gamma_significant(&self) -> bool {
@@ -240,6 +247,7 @@ impl Learner {
         // update global stats
         let weights = get_relative_weights(data);
         self.total_count += data.len();
+        self.total_weight += weights.iter().sum::<f32>();
 
         // preprocess examples
         let rho_gamma = self.rho_gamma;
@@ -404,6 +412,7 @@ impl Learner {
             );
             self.is_active[tree_node.tree_index] = false;
             self.total_count = 0;
+            self.total_weight = 0.0;
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 // A new tree is created
                 self.tree.release();
