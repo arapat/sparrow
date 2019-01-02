@@ -10,7 +10,6 @@ use super::super::Example;
 
 use buffer_loader::BufferLoader;
 use commons::is_zero;
-use commons::max;
 use commons::min;
 use commons::get_bound;
 use commons::get_relative_weights;
@@ -31,6 +30,7 @@ Each split corresponds to 2 types of predictions,
     1. Left +1, Right -1;
     2. Left -1, Right +1;
 */
+// [i][j][k][0,1] => bin i slot j node k
 type ScoreBoard = Vec<Vec<Vec<[f32; 2]>>>;
 
 const LEFT_NODE:  [f32; 2] = [1.0, -1.0];
@@ -50,21 +50,25 @@ struct TreeNode {
     sum_c_squared: f32,
     bound: f32,
     num_scanned: usize,
+    pub fallback: bool,
 }
 
 impl TreeNode {
     pub fn write_log(&self) {
         info!(
-            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.tree_index,
             self.feature,
             self.threshold,
+            self.left_predict,
+            self.right_predict,
             self.num_scanned,
             self.gamma,
             self.raw_martingale,
             self.sum_c,
             self.sum_c_squared,
             self.bound,
+            self.fallback,
         );
     }
 }
@@ -82,7 +86,8 @@ pub struct Learner {
     sum_c:            ScoreBoard,
     sum_c_squared:    ScoreBoard,
 
-    rho_gamma: Vec<f32>,  // track the values of gamma on each splitting candidate
+    rho_gamma: f32,
+    root_rho_gamma: f32,
     counts: Vec<usize>,  // track the number of examples exposed to each splitting candidates
     sum_weights: Vec<f32>,
     is_active: Vec<bool>,
@@ -122,7 +127,8 @@ impl Learner {
 
             counts: vec![],
             sum_weights: vec![],
-            rho_gamma: vec![],
+            rho_gamma: default_gamma.clone(),
+            root_rho_gamma: default_gamma.clone(),
             is_active: vec![],
 
             default_gamma: default_gamma,
@@ -142,52 +148,50 @@ impl Learner {
     /// (except gamma, because the advantage of the root node is not likely to increase)
     /// Trigger when the model is changed (i.e. the weight distribution of examples)
     pub fn reset_all(&mut self) {
-        for i in 0..self.weak_rules_score.len() {
-            for j in 0..self.weak_rules_score[i].len() {
-                for index in 0..self.weak_rules_score[i][j].len() {
-                    for k in 0..2 {
-                        self.weak_rules_score[i][j][index][k] = 0.0;
-                        self.sum_c[i][j][index][k]            = 0.0;
-                        self.sum_c_squared[i][j][index][k]    = 0.0;
-                    }
-                }
+        for i in 0..self.bins.len() {
+            for j in 0..self.bins[i].len() {
+                self.weak_rules_score[i][j].clear();
+                self.sum_c[i][j].clear();
+                self.sum_c_squared[i][j].clear();
             }
         }
-        for index in 0..self.sum_weights.len() {
-            self.sum_weights[index] = 0.0;
-            self.counts[index] = 0;
-            self.is_active[index] = false;
-        }
-
+        self.sum_weights.clear();
+        self.counts.clear();
+        self.is_active.clear();
         self.total_count = 0;
-        self.num_candid = 1;
-        self.is_active[0] = true;
+        self.num_candid = 0;
+        self.setup(0);
+        self.rho_gamma = self.root_rho_gamma;
     }
 
     /// Reset the statistics of the speicified candidate weak rules
     /// Trigger when the gamma is changed
-    fn reset(&mut self, index: usize, rho_gamma: f32) {
-        for i in 0..self.weak_rules_score.len() {
-            for j in 0..self.weak_rules_score[i].len() {
-                for k in 0..2 {
-                    self.weak_rules_score[i][j][index][k] = 0.0;
-                    self.sum_c[i][j][index][k]            = 0.0;
-                    self.sum_c_squared[i][j][index][k]    = 0.0;
+    fn reset_shrink(&mut self) {
+        for i in 0..self.bins.len() {
+            for j in 0..self.bins[i].len() {
+                for index in 0..self.num_candid {
+                    if self.is_active[index] {
+                        for k in 0..2 {
+                            self.weak_rules_score[i][j][index][k] = 0.0;
+                            self.sum_c[i][j][index][k]            = 0.0;
+                            self.sum_c_squared[i][j][index][k]    = 0.0;
+                        }
+                    }
                 }
             }
         }
-
-        self.sum_weights[index] = 0.0;
-        self.counts[index] = 0;
-        self.rho_gamma[index] = rho_gamma;
+        for index in 0..self.num_candid {
+            self.sum_weights[index] = 0.0;
+            self.counts[index] = 0;
+        }
+        self.total_count = 0;
     }
 
     fn setup(&mut self, index: usize) {
         let b = [0.0; 2];
-        while index >= self.sum_weights.len() {
+        while index >= self.num_candid {
             for i in 0..self.bins.len() {
-                let bin = &self.bins[i];
-                for j in 0..bin.len() {
+                for j in 0..self.bins[i].len() {
                     self.weak_rules_score[i][j].push(b);
                     self.sum_c[i][j].push(b);
                     self.sum_c_squared[i][j].push(b);
@@ -195,29 +199,39 @@ impl Learner {
             }
             self.sum_weights.push(0.0);
             self.counts.push(0);
-            self.rho_gamma.push(0.0);
             self.is_active.push(false);
+            self.num_candid += 1;
         }
-        self.num_candid = max(self.num_candid, index + 1);
-        self.rho_gamma[index] = self.default_gamma;
         self.is_active[index] = true;
+        self.rho_gamma = self.default_gamma;
     }
 
-    fn get_max_empirical_ratio(&self, index: usize) -> f32 {
-        self.weak_rules_score.iter().flat_map(|rules| {
-            rules.iter().flat_map(|candidate| {
-                candidate[index].iter().map(|s| s / self.sum_weights[index])
-            })
-        }).fold(0.0, max)
-    }
-
-    pub fn is_any_candidate_active(&self) -> bool {
-        for i in 0..self.num_candid {
-            if self.is_active[i] && self.rho_gamma[i] >= self.min_gamma {
-                return true;
+    fn get_max_empirical_ratio(&self) -> (f32, (usize, usize, usize, usize)) {
+        let indices: Vec<usize> = self.is_active.iter().enumerate()
+                                      .filter(|(_, is_active)| **is_active)
+                                      .map(|(index, _)| index)
+                                      .collect();
+        let mut max_ratio = 0.0;
+        let mut rule_id = None;
+        for i in 0..self.bins.len() {
+            for j in 0..self.bins[i].len() {
+                for index in indices.iter() {
+                    let sum_weight = self.sum_weights[*index];
+                    for k in 0..2 {
+                        let ratio = self.weak_rules_score[i][j][*index][k] / sum_weight;
+                        if ratio >= max_ratio {
+                            max_ratio = ratio;
+                            rule_id = Some((i, j, *index, k));
+                        }
+                    }
+                }
             }
         }
-        false
+        (max_ratio, rule_id.unwrap())
+    }
+
+    pub fn is_gamma_significant(&self) -> bool {
+        self.rho_gamma >= self.min_gamma
     }
 
     /// Update the statistics of all candidate weak rules using current batch of
@@ -228,7 +242,7 @@ impl Learner {
         self.total_count += data.len();
 
         // preprocess examples
-        let rho_gamma = self.rho_gamma.clone();
+        let rho_gamma = self.rho_gamma;
         let min_gamma = self.min_gamma;
         let data = {
             let mut data: Vec<(usize, f32, &Example, ([f32; 2], [f32; 2]), f32, f32)> =
@@ -236,11 +250,10 @@ impl Learner {
                     let example = &example.0;
                     let (index, pred) = self.tree.get_leaf_index_prediction(example);
                     let weight = weight * get_weight(example, pred);
-                    let gamma = rho_gamma[index];
-                    if gamma >= min_gamma {
+                    if rho_gamma >= min_gamma {
                         let labeled_weight = weight * (example.label as f32);
-                        let null_weight = 2.0 * gamma * weight;
-                        let c_sq = ((1.0 + 2.0 * gamma) * weight).powi(2);
+                        let null_weight = 2.0 * rho_gamma * weight;
+                        let c_sq = ((1.0 + 2.0 * rho_gamma) * weight).powi(2);
                         let left_score: Vec<_> =
                             LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
                         let right_score: Vec<_> =
@@ -262,26 +275,13 @@ impl Learner {
             self.sum_weights[*index] += weight;
             self.counts[*index] += 1;
         });
-        // Update gamma
-        let shrink_threshold = self.num_examples_before_shrink;
-        for k in 0..self.counts.len() {
-            if self.counts[k] >= shrink_threshold {
-                let old_rho_gamma = self.rho_gamma[k];
-                let max_empirical_gamma = self.get_max_empirical_ratio(k) / 2.0;
-                let new_rho_gamma = 0.9 * min(old_rho_gamma, max_empirical_gamma);
-                self.reset(k, new_rho_gamma);
-                debug!("shrink-gamma, {}, {}, {}, {}",
-                       k, old_rho_gamma, max_empirical_gamma, self.rho_gamma[k]);
-            }
-        }
 
         // update each weak rule
         let is_active = self.is_active.clone();
         let counts = self.counts.clone();
         let range_start = self.range_start;
-        let num_scanned = self.total_count;
         let num_candid = self.num_candid;
-        let tree_node = self.bins.par_iter().zip(
+        let valid_tree_node = self.bins.par_iter().zip(
             self.weak_rules_score.par_iter_mut()
         ).zip(
             self.sum_c.par_iter_mut()
@@ -300,15 +300,14 @@ impl Learner {
                             &(*labeled_weight).1
                         };
 
-                    let gamma = rho_gamma[index];
                     weak_rules_score[j][index][0] += labeled_weight[0];
                     weak_rules_score[j][index][1] += labeled_weight[1];
 
                     sum_c[j][index][0]            += labeled_weight[0] - null_weight;
                     sum_c[j][index][1]            += labeled_weight[1] - null_weight;
 
-                    sum_c_squared[j][index][0]    += (1.0 + 2.0 * gamma).powi(2) * c_sq;
-                    sum_c_squared[j][index][1]    += (1.0 + 2.0 * gamma).powi(2) * c_sq;
+                    sum_c_squared[j][index][0]    += (1.0 + 2.0 * rho_gamma).powi(2) * c_sq;
+                    sum_c_squared[j][index][1]    += (1.0 + 2.0 * rho_gamma).powi(2) * c_sq;
                 });
             });
 
@@ -327,8 +326,7 @@ impl Learner {
                         let sum_c_squared    = sum_c_squared[j][index][k];
                         let bound = get_bound(count, sum_c, sum_c_squared).unwrap_or(INFINITY);
                         if sum_c > bound {
-                            let gamma = rho_gamma[index];
-                            let base_pred = 0.5 * ((0.5 + gamma) / (0.5 - gamma)).ln();
+                            let base_pred = 0.5 * ((0.5 + rho_gamma) / (0.5 - rho_gamma)).ln();
                             valid_weak_rule = Some(
                                 TreeNode {
                                     tree_index:     index,
@@ -337,12 +335,13 @@ impl Learner {
                                     left_predict:   base_pred * LEFT_NODE[k],
                                     right_predict:  base_pred * RIGHT_NODE[k],
 
-                                    gamma:          gamma,
+                                    gamma:          rho_gamma,
                                     raw_martingale: weak_rules_score,
                                     sum_c:          sum_c,
                                     sum_c_squared:  sum_c_squared,
                                     bound:          bound,
-                                    num_scanned:    num_scanned,
+                                    num_scanned:    count,
+                                    fallback:       false,
                                 }
                             );
                         }
@@ -351,6 +350,49 @@ impl Learner {
             });
             valid_weak_rule
         }).find_any(|t| t.is_some()).unwrap_or(None);
+
+        let tree_node =
+            if valid_tree_node.is_some() || self.total_count <= self.num_examples_before_shrink {
+                valid_tree_node
+            } else {
+                // cannot find a valid weak rule, need to fallback and shrink gamma
+                let old_rho_gamma = self.rho_gamma;
+                let (empirical_gamma, (i, j, index, k)) = self.get_max_empirical_ratio();
+                let empirical_gamma = empirical_gamma / 2.0;
+                let bounded_empirical_gamma = min(0.25, empirical_gamma);
+                // Fallback prepare
+                let base_pred =
+                    0.5 * ((0.5 + bounded_empirical_gamma) / (0.5 - bounded_empirical_gamma)).ln();
+                let count          = self.counts[index];
+                let raw_martingale = self.weak_rules_score[i][j][index][k];
+                let sum_c          = self.sum_c[i][j][index][k];
+                let sum_c_squared  = self.sum_c_squared[i][j][index][k];
+                let bound = get_bound(count, sum_c, sum_c_squared).unwrap_or(INFINITY);
+                // shrink rho_gamma
+                self.rho_gamma = 0.9 * min(old_rho_gamma, empirical_gamma);
+                if self.is_active[0] {
+                    self.root_rho_gamma = self.rho_gamma;
+                }
+                self.reset_shrink();
+                debug!("shrink-gamma, {}, {}, {}",
+                        old_rho_gamma, empirical_gamma, self.rho_gamma);
+                // generate a fallback tree node
+                Some(TreeNode {
+                    tree_index:     index,
+                    feature:        i + range_start,
+                    threshold:      self.bins[i].get_vals()[j],
+                    left_predict:   base_pred * LEFT_NODE[k],
+                    right_predict:  base_pred * RIGHT_NODE[k],
+
+                    gamma:          old_rho_gamma,
+                    raw_martingale: raw_martingale,
+                    sum_c:          sum_c,
+                    sum_c_squared:  sum_c_squared,
+                    bound:          bound,
+                    num_scanned:    count,
+                    fallback:       true,
+                })
+            };
 
         let mut ret = None;
         if tree_node.is_some() {
