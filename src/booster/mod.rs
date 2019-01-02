@@ -200,7 +200,8 @@ impl Boosting {
             learner_timer.write_log("boosting-learning");
         }
         self.handle_persistent(iteration, global_timer.get_duration());
-        info!("Training is finished.");
+        info!("Training is finished. Model length: {}. Is gamma significant? {}.",
+              self.model.len(), self.learner.is_gamma_significant());
     }
 
     fn handle_network(&mut self) -> bool {

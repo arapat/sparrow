@@ -403,6 +403,7 @@ impl Learner {
                 tree_node.left_predict, tree_node.right_predict,
             );
             self.is_active[tree_node.tree_index] = false;
+            self.total_count = 0;
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 // A new tree is created
                 self.tree.release();
