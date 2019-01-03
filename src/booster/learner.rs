@@ -32,14 +32,16 @@ Each split corresponds to 2 types of predictions,
     2. Left -1, Right +1;
 */
 // [i][j][k][0,1] => bin i slot j node k
-type ScoreBoard = Vec<Vec<Vec<[f32; 2]>>>;
+const NUM_RULES: usize = 6;
+type ScoreBoard = Vec<Vec<Vec<[f32; NUM_RULES]>>>;
 
-const LEFT_NODE:  [f32; 2] = [1.0, -1.0];
-const RIGHT_NODE: [f32; 2] = [-1.0, 1.0];
+const LEFT_NODE:  [f32; NUM_RULES] = [1.0, -1.0, 1.0, -1.0, 0.0, 0.0];
+const RIGHT_NODE: [f32; NUM_RULES] = [-1.0, 1.0, 0.0, 0.0, 1.0, -1.0];
 
 /// A weak rule with an edge larger or equal to the targetting value of `gamma`
 struct TreeNode {
     tree_index: usize,
+    node_type: usize,
     feature: usize,
     threshold: f32,
     left_predict: f32,
@@ -57,8 +59,9 @@ struct TreeNode {
 impl TreeNode {
     pub fn write_log(&self) {
         info!(
-            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.tree_index,
+            self.node_type,
             self.feature,
             self.threshold,
             self.left_predict,
@@ -178,7 +181,7 @@ impl Learner {
             for j in 0..self.bins[i].len() {
                 for index in 0..self.num_candid {
                     if self.is_active[index] {
-                        for k in 0..2 {
+                        for k in 0..NUM_RULES {
                             self.weak_rules_score[i][j][index][k] = 0.0;
                             self.sum_c[i][j][index][k]            = 0.0;
                             self.sum_c_squared[i][j][index][k]    = 0.0;
@@ -196,7 +199,7 @@ impl Learner {
     }
 
     fn setup(&mut self, index: usize) {
-        let b = [0.0; 2];
+        let b = [0.0; NUM_RULES];
         while index >= self.num_candid {
             for i in 0..self.bins.len() {
                 for j in 0..self.bins[i].len() {
@@ -225,7 +228,7 @@ impl Learner {
         for i in 0..self.bins.len() {
             for j in 0..self.bins[i].len() {
                 for index in indices.iter() {
-                    for k in 0..2 {
+                    for k in 0..NUM_RULES {
                         // max ratio considers absent examples, actual ratio does not
                         let ratio = self.weak_rules_score[i][j][*index][k] / self.total_weight;
                         if ratio >= max_ratio {
@@ -255,7 +258,6 @@ impl Learner {
 
         // preprocess examples
         let rho_gamma = self.rho_gamma;
-        let min_gamma = self.min_gamma;
         let data = {
             let mut data: Vec<(usize, f32, &Example, ([f32; 2], [f32; 2]), f32, f32)> =
                 data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
@@ -328,7 +330,7 @@ impl Learner {
                         continue;
                     }
                     let count = counts[index];
-                    for k in 0..2 {
+                    for k in 0..NUM_RULES {
                         let weak_rules_score = weak_rules_score[j][index][k];
                         let sum_c            = sum_c[j][index][k];
                         let sum_c_squared    = sum_c_squared[j][index][k];
@@ -338,6 +340,7 @@ impl Learner {
                             valid_weak_rule = Some(
                                 TreeNode {
                                     tree_index:     index,
+                                    node_type:      k,
                                     feature:        i + range_start,
                                     threshold:      *threshold,
                                     left_predict:   base_pred * LEFT_NODE[k],
@@ -387,6 +390,7 @@ impl Learner {
                 // generate a fallback tree node
                 Some(TreeNode {
                     tree_index:     index,
+                    node_type:      k,
                     feature:        i + range_start,
                     threshold:      self.bins[i].get_vals()[j],
                     left_predict:   base_pred * LEFT_NODE[k],
