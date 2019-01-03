@@ -148,7 +148,8 @@ impl Boosting {
         global_timer.start();
 
         let mut iteration = 0;
-        while self.learner.is_gamma_significant() &&
+        let mut is_gamma_significant = true;
+        while is_gamma_significant &&
                 (self.num_iterations <= 0 || self.model.len() < self.num_iterations) {
             let (new_rule, batch_size) = {
                 let data = self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -166,6 +167,7 @@ impl Boosting {
                 // self.sum_gamma += new_rule.gamma.powi(2);
                 // post updates
                 self.try_send_model();
+                is_gamma_significant = self.learner.is_gamma_significant();
                 self.learner.reset_all();
                 info!("new-tree-info, {}", self.model.len());
                 if self.model.len() % self.save_interval == 0 {

@@ -10,6 +10,7 @@ use super::super::Example;
 
 use buffer_loader::BufferLoader;
 use commons::is_zero;
+use commons::max;
 use commons::min;
 use commons::get_bound;
 use commons::get_relative_weights;
@@ -88,6 +89,7 @@ pub struct Learner {
 
     rho_gamma: f32,
     root_rho_gamma: f32,
+    tree_max_rho_gamma: f32,
     counts: Vec<usize>,  // track the number of examples exposed to each splitting candidates
     sum_weights: Vec<f32>,
     is_active: Vec<bool>,
@@ -130,6 +132,7 @@ impl Learner {
             sum_weights: vec![],
             rho_gamma: default_gamma.clone(),
             root_rho_gamma: default_gamma.clone(),
+            tree_max_rho_gamma: 0.0,
             is_active: vec![],
 
             default_gamma: default_gamma,
@@ -164,6 +167,7 @@ impl Learner {
         self.total_weight = 0.0;
         self.num_candid = 0;
         self.setup(0);
+        self.tree_max_rho_gamma = 0.0;
         self.rho_gamma = self.root_rho_gamma;
     }
 
@@ -238,7 +242,7 @@ impl Learner {
     }
 
     pub fn is_gamma_significant(&self) -> bool {
-        self.rho_gamma >= self.min_gamma
+        self.tree_max_rho_gamma >= self.min_gamma
     }
 
     /// Update the statistics of all candidate weak rules using current batch of
@@ -258,22 +262,18 @@ impl Learner {
                     let example = &example.0;
                     let (index, pred) = self.tree.get_leaf_index_prediction(example);
                     let weight = weight * get_weight(example, pred);
-                    if rho_gamma >= min_gamma {
-                        let labeled_weight = weight * (example.label as f32);
-                        let null_weight = 2.0 * rho_gamma * weight;
-                        let c_sq = ((1.0 + 2.0 * rho_gamma) * weight).powi(2);
-                        let left_score: Vec<_> =
-                            LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
-                        let right_score: Vec<_> =
-                            RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
-                        let s_labeled_weight = (
-                            [left_score[0], left_score[1]], [right_score[0], right_score[1]],
-                        );
-                        Some((index, weight, example, s_labeled_weight, null_weight, c_sq))
-                    } else {
-                        None
-                    }
-                }).filter(|t| t.is_some()).map(|t| t.unwrap()).collect();
+                    let labeled_weight = weight * (example.label as f32);
+                    let null_weight = 2.0 * rho_gamma * weight;
+                    let c_sq = ((1.0 + 2.0 * rho_gamma) * weight).powi(2);
+                    let left_score: Vec<_> =
+                        LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
+                    let right_score: Vec<_> =
+                        RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
+                    let s_labeled_weight = (
+                        [left_score[0], left_score[1]], [right_score[0], right_score[1]],
+                    );
+                    (index, weight, example, s_labeled_weight, null_weight, c_sq)
+                }).collect();
             data.sort_by(|a, b| (a.0).cmp(&b.0));
             data
         };
@@ -392,7 +392,7 @@ impl Learner {
                     left_predict:   base_pred * LEFT_NODE[k],
                     right_predict:  base_pred * RIGHT_NODE[k],
 
-                    gamma:          old_rho_gamma,
+                    gamma:          empirical_gamma,
                     raw_martingale: raw_martingale,
                     sum_c:          sum_c,
                     sum_c_squared:  sum_c_squared,
@@ -411,6 +411,7 @@ impl Learner {
                 tree_node.left_predict, tree_node.right_predict,
             );
             self.is_active[tree_node.tree_index] = false;
+            self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_node.gamma);
             self.total_count = 0;
             self.total_weight = 0.0;
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
