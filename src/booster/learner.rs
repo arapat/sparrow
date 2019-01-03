@@ -32,11 +32,11 @@ Each split corresponds to 2 types of predictions,
     2. Left -1, Right +1;
 */
 // [i][j][k][0,1] => bin i slot j node k
-const NUM_RULES: usize = 6;
+const NUM_RULES: usize = 2;
 type ScoreBoard = Vec<Vec<Vec<[f32; NUM_RULES]>>>;
 
-const LEFT_NODE:  [f32; NUM_RULES] = [1.0, -1.0, 1.0, -1.0, 0.0, 0.0];
-const RIGHT_NODE: [f32; NUM_RULES] = [-1.0, 1.0, 0.0, 0.0, 1.0, -1.0];
+const LEFT_NODE:  [f32; NUM_RULES] = [1.0, -1.0];
+const RIGHT_NODE: [f32; NUM_RULES] = [-1.0, 1.0];
 
 /// A weak rule with an edge larger or equal to the targetting value of `gamma`
 struct TreeNode {
@@ -259,23 +259,23 @@ impl Learner {
         // preprocess examples
         let rho_gamma = self.rho_gamma;
         let data = {
-            let mut data: Vec<(usize, f32, &Example, ([f32; 2], [f32; 2]), f32, f32)> =
-                data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
-                    let example = &example.0;
-                    let (index, pred) = self.tree.get_leaf_index_prediction(example);
-                    let weight = weight * get_weight(example, pred);
-                    let labeled_weight = weight * (example.label as f32);
-                    let null_weight = 2.0 * rho_gamma * weight;
-                    let c_sq = ((1.0 + 2.0 * rho_gamma) * weight).powi(2);
-                    let left_score: Vec<_> =
-                        LEFT_NODE.iter().map(|sign| sign * labeled_weight).collect();
-                    let right_score: Vec<_> =
-                        RIGHT_NODE.iter().map(|sign| sign * labeled_weight).collect();
-                    let s_labeled_weight = (
-                        [left_score[0], left_score[1]], [right_score[0], right_score[1]],
-                    );
-                    (index, weight, example, s_labeled_weight, null_weight, c_sq)
-                }).collect();
+            let mut data: Vec<
+                (usize, f32, &Example, ([f32; NUM_RULES], [f32; NUM_RULES]), f32, f32)
+            > = data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
+                let example = &example.0;
+                let (index, pred) = self.tree.get_leaf_index_prediction(example);
+                let weight = weight * get_weight(example, pred);
+                let labeled_weight = weight * (example.label as f32);
+                let null_weight = 2.0 * rho_gamma * weight;
+                let c_sq = ((1.0 + 2.0 * rho_gamma) * weight).powi(2);
+                let mut left_score = [0.0; NUM_RULES];
+                let mut right_score = [0.0; NUM_RULES];
+                for i in 0..NUM_RULES {
+                    left_score[i]  = LEFT_NODE[i] * labeled_weight;
+                    right_score[i] = RIGHT_NODE[i] * labeled_weight;
+                }
+                (index, weight, example, (left_score, right_score), null_weight, c_sq)
+            }).collect();
             data.sort_by(|a, b| (a.0).cmp(&b.0));
             data
         };
@@ -309,15 +309,11 @@ impl Learner {
                         } else {
                             &(*labeled_weight).1
                         };
-
-                    weak_rules_score[j][index][0] += labeled_weight[0];
-                    weak_rules_score[j][index][1] += labeled_weight[1];
-
-                    sum_c[j][index][0]            += labeled_weight[0] - null_weight;
-                    sum_c[j][index][1]            += labeled_weight[1] - null_weight;
-
-                    sum_c_squared[j][index][0]    += (1.0 + 2.0 * rho_gamma).powi(2) * c_sq;
-                    sum_c_squared[j][index][1]    += (1.0 + 2.0 * rho_gamma).powi(2) * c_sq;
+                    labeled_weight.iter().enumerate().for_each(|(idx, val)| {
+                        weak_rules_score[j][index][idx] += val;
+                        sum_c[j][index][idx]            += val - null_weight;
+                        sum_c_squared[j][index][idx]    += (1.0 + 2.0 * rho_gamma).powi(2) * c_sq;
+                    });
                 });
             });
 
