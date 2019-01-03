@@ -13,7 +13,7 @@ range:
   end: 14
 positive: 1
 max_sample_size: 20000
-max_bin_size: 10
+max_bin_size: 64
 min_gamma: 0.00001
 default_gamma: 0.25
 min_ess: 0.5
