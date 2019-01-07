@@ -51,7 +51,7 @@ impl Bins {
     }
 
     pub fn get_split_index(&self, val: f32) -> usize {
-        if val <= self.vals[0] {
+        if self.vals.len() <= 0 || val <= self.vals[0] {
             return 0;
         }
         let mut left = 0;
