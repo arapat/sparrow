@@ -265,19 +265,27 @@ impl Learner {
 
         // preprocess examples
         let rho_gamma = self.rho_gamma;
-        let data: Vec<(usize, f32, &Example, f32, f32)> = {
+        let data: Vec<(usize, f32, &Example, Vec<Vec<(f32, f32, f32)>>)> = {
             data.par_iter().zip(weights.par_iter()).map(|(example, weight)| {
                 let example = &example.0;
                 let (index, pred) = self.tree.get_leaf_index_prediction(example);
                 let weight = weight * get_weight(example, pred);
                 let labeled_weight = weight * (example.label as f32);
                 let null_weight = 2.0 * rho_gamma * weight;
-                (index, weight, example, labeled_weight, null_weight)
+                let vals: Vec<Vec<(f32, f32, f32)>> =
+                    [&LEFT_NODE, &RIGHT_NODE].iter().map(|pred| {
+                        pred.iter().map(|pred_rule| {
+                            let abs_val = pred_rule * labeled_weight;
+                            let ci      = abs_val - null_weight;
+                            (abs_val, ci, ci * ci)
+                        }).collect()
+                    }).collect();
+                (index, weight, example, vals)
             }).collect()
         };
 
         // Update weights and counts
-        data.iter().for_each(|(index, weight, _, _, _)| {
+        data.iter().for_each(|(index, weight, _, _)| {
             self.sum_weights[*index] += weight;
             self.counts[*index] += 1;
         });
@@ -302,18 +310,19 @@ impl Learner {
         self.accum_vals.par_iter_mut()
             .zip(self.bins.par_iter())
             .enumerate().for_each(|(i, (bin_accum_vals, bin))| {
-                data.iter().for_each(|(index, _, example, labeled_weight, null_weight)| {
+                data.iter().for_each(|(index, _, example, vals)| {
                     // complexity: O(log N)
                     let flip_index = bin.get_split_index(example.feature[range_start + i]);
-                    for rule_idx in 0..NUM_RULES {
-                        for (j, pred) in [&LEFT_NODE, &RIGHT_NODE].iter().enumerate() {
-                            let abs_val = pred[rule_idx] * labeled_weight;
-                            let ci      = abs_val - null_weight;
-                            bin_accum_vals[flip_index][*index][rule_idx][j][0] += abs_val;
-                            bin_accum_vals[flip_index][*index][rule_idx][j][1] += ci;
-                            bin_accum_vals[flip_index][*index][rule_idx][j][2] += ci.powi(2);
-                        }
-                    }
+                    vals.iter().enumerate().for_each(|(j, vals)| {
+                        bin_accum_vals[flip_index][*index]
+                            .iter_mut()
+                            .zip(vals.iter())
+                            .for_each(|(accum, vals)| {
+                                accum[j][0] += vals.0;
+                                accum[j][1] += vals.1;
+                                accum[j][2] += vals.2;
+                            });
+                    });
                 });
             });
 
