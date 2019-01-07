@@ -49,6 +49,23 @@ impl Bins {
     pub fn get_vals(&self) -> &Vec<f32> {
         &self.vals
     }
+
+    pub fn get_split_index(&self, val: f32) -> usize {
+        if val <= self.vals[0] {
+            return 0;
+        }
+        let mut left = 0;
+        let mut right = self.size;
+        while left + 1 < right {
+            let medium = (left + right) / 2;
+            if val <= self.vals[medium] {
+                right = medium;
+            } else {
+                left = medium;
+            }
+        }
+        right
+    }
 }
 
 impl DistinctValues {
