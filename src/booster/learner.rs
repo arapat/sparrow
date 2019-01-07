@@ -88,6 +88,7 @@ pub struct Learner {
     weak_rules_score: ScoreBoard,
     sum_c:            ScoreBoard,
     sum_c_squared:    ScoreBoard,
+    accum_vals:       Vec<Vec<Vec<[[[f32; 3]; 2]; NUM_RULES]>>>,
 
     rho_gamma: f32,
     root_rho_gamma: f32,
@@ -129,6 +130,9 @@ impl Learner {
             weak_rules_score: bins.iter().map(|bin| vec![vec![]; bin.len()]).collect(),
             sum_c:            bins.iter().map(|bin| vec![vec![]; bin.len()]).collect(),
             sum_c_squared:    bins.iter().map(|bin| vec![vec![]; bin.len()]).collect(),
+            // the last element of `accum_vals` is for the examples that are larger
+            // than all split values
+            accum_vals:       bins.iter().map(|bin| vec![vec![]; bin.len() + 1]).collect(),
 
             counts: vec![],
             sum_weights: vec![],
@@ -160,7 +164,9 @@ impl Learner {
                 self.weak_rules_score[i][j].clear();
                 self.sum_c[i][j].clear();
                 self.sum_c_squared[i][j].clear();
+                self.accum_vals[i][j].clear();
             }
+            self.accum_vals[i][self.bins[i].len()].clear();
         }
         self.sum_weights.clear();
         self.counts.clear();
@@ -205,7 +211,9 @@ impl Learner {
                     self.weak_rules_score[i][j].push(b);
                     self.sum_c[i][j].push(b);
                     self.sum_c_squared[i][j].push(b);
+                    self.accum_vals[i][j].push([[[0.0; 3]; 2]; NUM_RULES])
                 }
+                self.accum_vals[i][self.bins[i].len()].push([[[0.0; 3]; 2]; NUM_RULES]);
             }
             self.sum_weights.push(0.0);
             self.counts.push(0);
@@ -278,10 +286,22 @@ impl Learner {
         let range_start = self.range_start;
         let num_candid = self.num_candid;
         // <Bin, Slot, NodeId, RuleId, LeftOrRight, stats>
-        let accum_vals: Vec<Vec<Vec<[[[f32; 3]; 2]; NUM_RULES]>>> = {
-            self.bins.par_iter().enumerate().map(|(i, bin)| {
-                // the last element is for the examples that are larger than all split values
-                let mut bin_accum_vals = vec![vec![[[[0.0; 3]; 2]; NUM_RULES]; num_candid]; bin.len() + 1];
+        self.accum_vals.par_iter_mut().for_each(|slots|
+            slots.iter_mut().for_each(|nodes|
+                nodes.iter_mut().for_each(|rules|
+                    rules.iter_mut().for_each(|dirs|
+                        dirs.iter_mut().for_each(|stats| {
+                            stats[0] = 0.0;
+                            stats[1] = 0.0;
+                            stats[2] = 0.0;
+                        })
+                    )
+                )
+            )
+        );
+        self.accum_vals.par_iter_mut()
+            .zip(self.bins.par_iter())
+            .enumerate().for_each(|(i, (bin_accum_vals, bin))| {
                 data.iter().for_each(|(index, _, example, labeled_weight, null_weight)| {
                     // complexity: O(log N)
                     let flip_index = bin.get_split_index(example.feature[range_start + i]);
@@ -295,88 +315,73 @@ impl Learner {
                         }
                     }
                 });
-                bin_accum_vals
-            }).collect()
-        };
+            });
 
         // Update each weak rule - Complexity: O(Candid * Bins * Splits)
         let counts = self.counts.clone();
+        let mut valid_tree_node = None;
         for index in 0..num_candid { // Splitting node candidate index
             if !self.is_active[index] {
                 continue;
             }
-            accum_vals.par_iter().zip(
-                self.weak_rules_score.par_iter_mut()
-            ).zip(
-                self.sum_c.par_iter_mut()
-            ).zip(
-                self.sum_c_squared.par_iter_mut()
-            ).for_each(|(((bin_accum_vals, weak_rules_score), sum_c), sum_c_squared)| {
-                let mut accum_left  = vec![[0.0; 3]; NUM_RULES];
-                let mut accum_right = vec![[0.0; 3]; NUM_RULES];
-                // Accumulate sum of the stats of all examples that go to the right child
-                for j in 0..bin_accum_vals.len() { // Split value
-                    for rule_idx in 0..NUM_RULES { // Types of rule
-                        for it in 0..3 { // different stats
-                            accum_right[rule_idx][it] += bin_accum_vals[j][index][rule_idx][1][it];
+            let tree_node = {
+                self.bins.par_iter().zip(
+                    self.accum_vals.par_iter()
+                ).zip(
+                    self.weak_rules_score.par_iter_mut()
+                ).zip(
+                    self.sum_c.par_iter_mut()
+                ).zip(
+                    self.sum_c_squared.par_iter_mut()
+                ).enumerate().map(|(i, zipped_values)| {
+                    let ((((bin, bin_accum_vals), weak_rules_score), sum_c), sum_c_squared) =
+                        zipped_values;
+                    let mut accum_left  = vec![[0.0; 3]; NUM_RULES];
+                    let mut accum_right = vec![[0.0; 3]; NUM_RULES];
+                    // Accumulate sum of the stats of all examples that go to the right child
+                    for j in 0..bin_accum_vals.len() { // Split value
+                        for rule_idx in 0..NUM_RULES { // Types of rule
+                            for it in 0..3 { // different stats
+                                accum_right[rule_idx][it] +=
+                                    bin_accum_vals[j][index][rule_idx][1][it];
+                            }
                         }
                     }
-                }
-                // Now update each splitting values of the bin
-                for j in 0..(bin_accum_vals.len() - 1) { // Split value
-                    // The last split value is just a placeholder and is ignored
-                    for rule_idx in 0..NUM_RULES { // Types of rule
-                        for it in 0..3 { // Move examples from the right to the left child
-                            accum_left[rule_idx][it]  += bin_accum_vals[j][index][rule_idx][0][it];
-                            accum_right[rule_idx][it] -= bin_accum_vals[j][index][rule_idx][1][it];
-                        }
-                        weak_rules_score[j][index][rule_idx] +=
-                            accum_left[rule_idx][0] + accum_right[rule_idx][0];
-                        sum_c[j][index][rule_idx]            +=
-                            accum_left[rule_idx][1] + accum_right[rule_idx][1];
-                        sum_c_squared[j][index][rule_idx]    +=
-                            accum_left[rule_idx][2] + accum_right[rule_idx][2];
-                    }
-                }
-            });
-        }
+                    // Now update each splitting values of the bin
+                    let mut valid_weak_rule = None;
+                    bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
+                        for rule_idx in 0..NUM_RULES { // Types of rule
+                            for it in 0..3 { // Move examples from the right to the left child
+                                accum_left[rule_idx][it]  +=
+                                    bin_accum_vals[j][index][rule_idx][0][it];
+                                accum_right[rule_idx][it] -=
+                                    bin_accum_vals[j][index][rule_idx][1][it];
+                            }
 
-        // Check stopping rule - Complexity: O(Candid * Bins * Splits)
-        let is_active = self.is_active.clone();
-        let valid_tree_node = {
-            self.bins.par_iter().zip(
-                self.weak_rules_score.par_iter()
-            ).zip(
-                self.sum_c.par_iter()
-            ).zip(
-                self.sum_c_squared.par_iter()
-            ).enumerate().map(|(i, (((bin, weak_rules_score), sum_c), sum_c_squared))| {
-                let mut valid_weak_rule = None;
-                bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
-                    for index in 0..num_candid {
-                        if !is_active[index] {
-                            continue;
-                        }
-                        let count = counts[index];
-                        for k in 0..NUM_RULES {
-                            let weak_rules_score = weak_rules_score[j][index][k];
-                            let sum_c            = sum_c[j][index][k];
-                            let sum_c_squared    = sum_c_squared[j][index][k];
-                            let bound = get_bound(count, sum_c, sum_c_squared).unwrap_or(INFINITY);
-                            if sum_c > bound {
+                            let weak_rules_score = &mut weak_rules_score[j][index][rule_idx];
+                            let sum_c            = &mut sum_c[j][index][rule_idx];
+                            let sum_c_squared    = &mut sum_c_squared[j][index][rule_idx];
+                            *weak_rules_score += accum_left[rule_idx][0] + accum_right[rule_idx][0];
+                            *sum_c            += accum_left[rule_idx][1] + accum_right[rule_idx][1];
+                            *sum_c_squared    += accum_left[rule_idx][2] + accum_right[rule_idx][2];
+                            // Check stopping rule
+                            let count = counts[index];
+                            let bound = get_bound(count, *sum_c, *sum_c_squared);
+                            let bound = bound.unwrap_or(INFINITY);
+                            if *sum_c > bound {
                                 let base_pred = 0.5 * ((0.5 + rho_gamma) / (0.5 - rho_gamma)).ln();
                                 valid_weak_rule = Some(
                                     TreeNode {
                                         tree_index:     index,
-                                        node_type:      k,
+                                        node_type:      rule_idx,
                                         feature:        i + range_start,
                                         threshold:      *threshold,
-                                        left_predict:   base_pred * LEFT_NODE[k],
-                                        right_predict:  base_pred * RIGHT_NODE[k],
+                                        left_predict:   base_pred * LEFT_NODE[rule_idx],
+                                        right_predict:  base_pred * RIGHT_NODE[rule_idx],
                                         gamma:          rho_gamma,
-                                        raw_martingale: weak_rules_score,
-                                        sum_c:          sum_c,
-                                        sum_c_squared:  sum_c_squared,
+                                        raw_martingale: *weak_rules_score,
+                                        sum_c:          *sum_c,
+                                        sum_c_squared:  *sum_c_squared,
                                         bound:          bound,
                                         num_scanned:    count,
                                         fallback:       false,
@@ -384,11 +389,14 @@ impl Learner {
                                 );
                             }
                         }
-                    }
-                });
-                valid_weak_rule
-            }).find_any(|t| t.is_some()).unwrap_or(None)
-        };
+                    });
+                    valid_weak_rule
+                }).find_any(|t| t.is_some()).unwrap_or(None)
+            };
+            if valid_tree_node.is_none() && tree_node.is_some() {
+                valid_tree_node = tree_node;
+            }
+        }
 
         let tree_node =
             if valid_tree_node.is_some() || self.total_count <= self.num_examples_before_shrink {
