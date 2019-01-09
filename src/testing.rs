@@ -97,16 +97,18 @@ pub fn validate(
                     mvalidate(&sorted_scores_labels, &eval_funcs).iter()
                                                                  .map(|t| t.to_string())
                                                                  .collect();
-                let meta_info = vec![filepath, ts.to_string(), model.len().to_string()];
+                let meta_info = vec![filepath.clone(), ts.to_string(), model.len().to_string()];
                 let output = format!("{},{}\n", meta_info.join(","), performance_scores.join(","));
                 out.write(output.as_bytes())
                    .expect("Failed to write the performance scores to file.");
+                info!("{}", output);
             },
             None => {
                 let outputpath = filepath.clone() + "_scores";
                 let preds: Vec<String> = scores.iter().map(|t| t.to_string()).collect();
                 write_all(&outputpath, &preds.join("\n")).expect(
                     &format!("Cannot write the predictions of the model `{}`", filepath));
+                info!("Processed {}", filepath);
             },
         }
 
