@@ -1,0 +1,42 @@
+---
+training_filename: /mnt/data/training/training.libsvm
+training_is_binary: false
+training_bytes_per_example: 0
+testing_filename: /mnt/data/testing/testing.libsvm
+testing_is_binary: false
+testing_bytes_per_example: 0
+num_examples: 6260507
+num_testing_examples: 83072992
+num_features: 15
+range:
+  start: 0
+  end: 14
+positive: 1
+max_sample_size: 500000
+max_bin_size: 64
+min_gamma: 0.00001
+default_gamma: 0.25
+min_ess: 0.5
+num_iterations: 400
+max_leaves: 4
+max_trials_before_shrink: 3000000
+channel_size: 8192
+buffer_size: 3000000
+batch_size: 1000
+serial_sampling: false
+sampler_num_threads: 1
+sampler_init_grid_size: 1.0
+sampler_average_window_size: 1000
+num_examples_per_block: 8192
+disk_buffer_filename: stratified.bin
+num_assigners: 1
+num_samplers: 3
+network: []
+port: 8888
+local_name: local_worker
+save_process: true
+debug_mode: false
+models_table_filename: ./models_table.txt
+incremental_testing: true
+testing_scores_only: false
+save_interval: 1
