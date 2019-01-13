@@ -1,11 +1,11 @@
 ---
-training_filename: /mnt/data/training/training.libsvm
+training_filename: /mnt/data/training/training-1p.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
 testing_filename: /mnt/data/testing/testing.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 574
-num_examples: 50000000
+num_examples: 500000
 num_testing_examples: 4627840
 num_features: 565
 range:
@@ -19,9 +19,9 @@ default_gamma: 0.25
 min_ess: 0.5
 num_iterations: 100
 max_leaves: 4
-max_trials_before_shrink: 1000000
+max_trials_before_shrink: 500000
 channel_size: 8192
-buffer_size: 1000000
+buffer_size: 500000
 batch_size: 1000
 serial_sampling: false
 sampler_num_threads: 1
