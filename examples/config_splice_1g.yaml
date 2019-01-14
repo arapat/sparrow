@@ -1,5 +1,5 @@
 ---
-training_filename: /mnt/data/training/training.libsvm
+training_filename: /mnt/data/training/training-1g.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
 testing_filename: /mnt/data/testing/testing.libsvm
