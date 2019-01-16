@@ -1,10 +1,10 @@
 ---
-# training_filename: /mnt/data/covtype/training.libsvm
-training_filename: /Users/arapat/workspace/research/workbox/data/covtype/training.libsvm
+training_filename: /mnt/data/covtype/training.libsvm
+# training_filename: /Users/arapat/workspace/research/workbox/data/covtype/training.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
-# testing_filename: /mnt/data/covtype/testing.libsvm
-testing_filename: /Users/arapat/workspace/research/workbox/data/covtype/testing.libsvm
+testing_filename: /mnt/data/covtype/testing.libsvm
+# testing_filename: /Users/arapat/workspace/research/workbox/data/covtype/testing.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 574
 num_examples: 435759
@@ -21,7 +21,7 @@ default_gamma: 0.25
 min_ess: 0.5
 num_iterations: 100
 max_leaves: 4
-max_trials_before_shrink: 100000
+max_trials_before_shrink: 30000
 channel_size: 8192
 buffer_size: 100000
 batch_size: 1000
