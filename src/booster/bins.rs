@@ -123,12 +123,7 @@ pub fn create_bins(
                                  .collect();
 
     // Logging
-    info!("Bins are created.");
-    ret.iter()
-       .enumerate()
-       .for_each(|(idx, bin)| {
-           info!("{} thresholds are generated for the feature {}.", bin.len(), start + idx);
-       });
-
+    let total_bins: usize = ret.iter().map(|t| t.len()).sum();
+    info!("Bins are created. {} Features. {} Bins.", ret.len(), total_bins);
     ret
 }
