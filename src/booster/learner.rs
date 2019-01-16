@@ -31,6 +31,7 @@ Each split corresponds to 2 types of predictions,
     2. Left -1, Right +1;
 */
 // [i][j][k][0,1] => bin i slot j node k
+const GAMMA_GAP: f32 = 0.0;
 const NUM_RULES: usize = 2;
 type ScoreBoard = Vec<Vec<Vec<[f32; NUM_RULES]>>>;
 
@@ -159,29 +160,18 @@ impl Learner {
     /// (except gamma, because the advantage of the root node is not likely to increase)
     /// Trigger when the model is changed (i.e. the weight distribution of examples)
     pub fn reset_all(&mut self) {
-        for i in 0..self.bins.len() {
-            for j in 0..self.bins[i].len() {
-                self.weak_rules_score[i][j].clear();
-                self.sum_c[i][j].clear();
-                self.sum_c_squared[i][j].clear();
-                self.accum_vals[i][j].clear();
-            }
-            self.accum_vals[i][self.bins[i].len()].clear();
-        }
-        self.sum_weights.clear();
-        self.counts.clear();
-        self.is_active.clear();
-        self.total_count = 0;
-        self.total_weight = 0.0;
+        self.reset_trackers();
+        self.is_active.iter_mut().for_each(|t| { *t = false; });
         self.num_candid = 0;
-        self.setup(0);
         self.tree_max_rho_gamma = 0.0;
+        self.setup(0);
         self.rho_gamma = self.root_rho_gamma;
+        debug!("reset-all, {}", self.rho_gamma);
     }
 
     /// Reset the statistics of the speicified candidate weak rules
-    /// Trigger when the gamma is changed
-    fn reset_shrink(&mut self) {
+    /// Trigger when the gamma is changed and new node is added
+    fn reset_trackers(&mut self) {
         for i in 0..self.bins.len() {
             for j in 0..self.bins[i].len() {
                 for index in 0..self.num_candid {
@@ -204,8 +194,12 @@ impl Learner {
     }
 
     fn setup(&mut self, index: usize) {
+        let mut is_cleared = false;
         let b = [0.0; NUM_RULES];
-        while index >= self.num_candid {
+        while index >= self.is_active.len() {
+            if self.is_active.len() == index {
+                is_cleared = true;
+            }
             for i in 0..self.bins.len() {
                 for j in 0..self.bins[i].len() {
                     self.weak_rules_score[i][j].push(b);
@@ -218,9 +212,22 @@ impl Learner {
             self.sum_weights.push(0.0);
             self.counts.push(0);
             self.is_active.push(false);
-            self.num_candid += 1;
+        }
+        if !is_cleared {
+            for i in 0..self.bins.len() {
+                for j in 0..self.bins[i].len() {
+                    for k in 0..NUM_RULES {
+                        self.weak_rules_score[i][j][index][k] = 0.0;
+                        self.sum_c[i][j][index][k]            = 0.0;
+                        self.sum_c_squared[i][j][index][k]    = 0.0;
+                    }
+                }
+            }
+            self.sum_weights[index] = 0.0;
+            self.counts[index] = 0;
         }
         self.is_active[index] = true;
+        self.num_candid = max(self.num_candid, index + 1);
         self.rho_gamma = self.default_gamma;
     }
 
@@ -378,7 +385,9 @@ impl Learner {
                             let bound = get_bound(count, *sum_c, *sum_c_squared);
                             let bound = bound.unwrap_or(INFINITY);
                             if *sum_c > bound {
-                                let base_pred = 0.5 * ((0.5 + rho_gamma) / (0.5 - rho_gamma)).ln();
+                                let base_pred = 0.5 * (
+                                    (0.5 + rho_gamma + GAMMA_GAP) / (0.5 - rho_gamma - GAMMA_GAP)
+                                ).ln();
                                 valid_weak_rule = Some(
                                     TreeNode {
                                         tree_index:     index,
@@ -404,6 +413,7 @@ impl Learner {
             };
             if valid_tree_node.is_none() && tree_node.is_some() {
                 valid_tree_node = tree_node;
+                break;
             }
         }
 
@@ -429,7 +439,7 @@ impl Learner {
                 if self.is_active[0] {
                     self.root_rho_gamma = self.rho_gamma;
                 }
-                self.reset_shrink();
+                // trackers will reset later
                 debug!("shrink-gamma, {}, {}, {}",
                         old_rho_gamma, empirical_gamma, self.rho_gamma);
                 // generate a fallback tree node
@@ -461,8 +471,8 @@ impl Learner {
             );
             self.is_active[tree_node.tree_index] = false;
             self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_node.gamma);
-            self.total_count = 0;
-            self.total_weight = 0.0;
+            self.default_gamma = min(self.tree_max_rho_gamma * 0.9, self.default_gamma);
+            self.reset_trackers();
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 // A new tree is created
                 self.tree.release();

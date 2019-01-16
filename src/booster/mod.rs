@@ -139,7 +139,7 @@ impl Boosting {
 
 
     /// Start training the boosting algorithm.
-    pub fn training(&mut self) {
+    pub fn training(&mut self, prep_time: f32) {
         info!("Start training.");
 
         let init_sampling_duration = self.training_loader.get_sampling_duration();
@@ -170,9 +170,10 @@ impl Boosting {
                 is_gamma_significant = self.learner.is_gamma_significant();
                 self.learner.reset_all();
                 info!("new-tree-info, {}", self.model.len());
-                if self.model.len() % self.save_interval == 0 {
-                    self.handle_persistent(iteration, global_timer.get_duration());
-                }
+                // TODO: Make periodic write models to disk a configure option
+                // if self.model.len() % self.save_interval == 0 {
+                //     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
+                // }
 
                 if self.debug_mode {
                     // TODO: tidy up this debugging code; support general loss function
@@ -194,14 +195,14 @@ impl Boosting {
             }
 
             iteration += 1;
-            self.handle_network();
+            // self.handle_network();
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
-        self.handle_persistent(iteration, global_timer.get_duration());
+        self.handle_persistent(iteration, prep_time + global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
               self.model.len(), self.learner.is_gamma_significant());
     }
@@ -267,9 +268,10 @@ impl Boosting {
     }
 
     fn try_send_model(&mut self) {
-        if let Some(ref mut network_sender) = self.network_sender {
-            network_sender.send((self.model.clone(), self.sum_gamma)).unwrap();
-        }
+        // TODO: Activate network later
+        // if let Some(ref mut network_sender) = self.network_sender {
+        //     network_sender.send((self.model.clone(), self.sum_gamma)).unwrap();
+        // }
         self.sampler_channel_s.try_send(self.model.clone());
     }
 }

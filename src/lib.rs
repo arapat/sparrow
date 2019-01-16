@@ -53,6 +53,7 @@ use testing::validate;
 
 use commons::channel;
 use commons::io::create_bufreader;
+use commons::performance_monitor::PerformanceMonitor;
 
 // Types
 // TODO: use generic types for specifing types
@@ -111,6 +112,9 @@ struct Config {
 
 
 pub fn training(config_file: String) {
+    let mut training_perf_mon = PerformanceMonitor::new();
+    training_perf_mon.start();
+
     // Load configurations
     let config: Config = serde_yaml::from_reader(
         create_bufreader(&config_file)
@@ -186,7 +190,7 @@ pub fn training(config_file: String) {
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);
     }
-    booster.training();
+    booster.training(training_perf_mon.get_duration());
 }
 
 
