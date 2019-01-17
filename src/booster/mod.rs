@@ -170,10 +170,9 @@ impl Boosting {
                 is_gamma_significant = self.learner.is_gamma_significant();
                 self.learner.reset_all();
                 info!("new-tree-info, {}", self.model.len());
-                // TODO: Make periodic write models to disk a configure option
-                // if self.model.len() % self.save_interval == 0 {
-                //     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
-                // }
+                if self.model.len() % self.save_interval == 0 {
+                    self.handle_persistent(iteration, prep_time + global_timer.get_duration());
+                }
 
                 if self.debug_mode {
                     // TODO: tidy up this debugging code; support general loss function
