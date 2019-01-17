@@ -161,7 +161,8 @@ impl BufferLoader {
                                             .into_iter()
                                             .map(|t| {
                                                 let (a, s) = t;
-                                                (a, s, s.clone())
+                                                let w = get_weight(&a, 0.0);
+                                                (a, (w, s.1))
                                             }).collect();
                 self.curr_example = 0;
                 debug!("switched-buffer, {}", self.examples.len());
@@ -179,11 +180,7 @@ impl BufferLoader {
     fn update_ess(&mut self) {
         let (sum_weights, sum_weight_squared) =
             self.examples.iter()
-                         .map(|(data, (base_score, _), (curr_score, _))| {
-                             let score = curr_score - base_score;
-                             let w = get_weight(data, score);
-                             (w, w * w)
-                         })
+                         .map(|(_, (w, _))| { (w, w * w) })
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
@@ -204,11 +201,12 @@ impl BufferLoader {
 fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
     let model_size = model.len();
     data.par_iter_mut().for_each(|example| {
-        let mut curr_score = (example.2).0;
-        for tree in model[((example.2).1)..model_size].iter() {
-            curr_score += tree.get_leaf_prediction(&example.0);
+        let curr_weight = (example.1).0;
+        let mut new_score = 0.0;
+        for tree in model[((example.1).1)..model_size].iter() {
+            new_score += tree.get_leaf_prediction(&example.0);
         }
-        (*example).2 = (curr_score, model_size);
+        (*example).1 = (curr_weight * get_weight(&example.0, new_score), model_size);
     });
 }
 

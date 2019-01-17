@@ -56,7 +56,7 @@ use commons::io::create_bufreader;
 use commons::performance_monitor::PerformanceMonitor;
 
 // Types
-// TODO: use generic types for specifing types
+// TODO: replace continous feature values with the bins
 use labeled_data::LabeledData;
 pub type TFeature = f32;
 pub type TLabel = i8;

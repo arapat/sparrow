@@ -8,7 +8,7 @@ use tree::Tree;
 
 use super::Example;
 
-pub type ExampleInSampleSet = (Example, (f32, usize), (f32, usize));
+pub type ExampleInSampleSet = (Example, (f32, usize));
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Vec<Tree>;
 pub type ModelScore = (Model, f32);
@@ -42,19 +42,6 @@ pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
         .collect()
 }
 
-#[allow(dead_code)]
-pub fn get_absolute_weights(data: &[ExampleInSampleSet]) -> Vec<f32> {
-    data.par_iter()
-        .map(|(d, _, (s, _))| get_weight(&d, *s))
-        .collect()
-}
-
-pub fn get_relative_weights(data: &[ExampleInSampleSet]) -> Vec<f32> {
-    data.par_iter()
-        .map(|(d, (s1, _), (s2, _))| get_weight(&d, s2 - s1))
-        .collect()
-}
-
 #[inline]
 pub fn get_bound(count: usize, sum_c: f32, sum_c_squared: f32) -> Option<f32> {
     // loglogv will be np.nan if conditons are not satisfied
@@ -63,6 +50,7 @@ pub fn get_bound(count: usize, sum_c: f32, sum_c_squared: f32) -> Option<f32> {
     // if sum_c_squared >= threshold {
     let threshold = 5000;
     if count >= threshold {
+        /*
         let log_log_term = 3.0 * sum_c_squared / 2.0 / sum_c.abs();
         // TODO: fix this hack that handles if log_log_term <= 1.0
         let log_log = {
@@ -72,6 +60,8 @@ pub fn get_bound(count: usize, sum_c: f32, sum_c_squared: f32) -> Option<f32> {
                 0.0
             }
         };
+        */
+        let log_log = 0.0;
         let sqrt_term = 3.0 * sum_c_squared * (2.0 * log_log + (2.0 / DELTA).ln());
         // if sqrt_term >= 0.0 {
         return Some(SHRINK * sqrt_term.sqrt());

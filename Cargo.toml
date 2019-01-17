@@ -28,4 +28,3 @@ tmsn = { path = "../tmsn" }
 metricslib = { path = "../metricslib" }
 
 [profile.release]
-debug = true
