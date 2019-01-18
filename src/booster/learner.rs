@@ -59,7 +59,7 @@ struct TreeNode {
 impl TreeNode {
     pub fn write_log(&self) {
         info!(
-            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.tree_index,
             self.node_type,
             self.feature,
@@ -72,6 +72,7 @@ impl TreeNode {
             self.sum_c,
             self.sum_c_squared,
             self.bound,
+            self.sum_c_squared / self.num_scanned as f32,
             self.fallback,
         );
     }
@@ -447,8 +448,11 @@ impl Learner {
                 tree_node.left_predict, tree_node.right_predict,
             );
             self.is_active[tree_node.tree_index] = false;
-            self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_node.gamma);
-            self.default_gamma = min(self.tree_max_rho_gamma * 0.9, self.default_gamma);
+            let tree_gamma = tree_node.gamma * {
+                if tree_node.fallback { 0.9 } else { 1.0 }
+            };
+            self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_gamma);
+            self.default_gamma = min(self.default_gamma, self.tree_max_rho_gamma);
             self.reset_trackers();
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 // A new tree is created

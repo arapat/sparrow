@@ -17,12 +17,12 @@ max_bin_size: 10
 min_gamma: 0.00001
 default_gamma: 0.25
 min_ess: 0.5
-num_iterations: 100
+num_iterations: 150
 max_leaves: 4
-max_trials_before_shrink: 1000000
+max_trials_before_shrink: 2000000
 channel_size: 8192
-buffer_size: 1000000
-batch_size: 1000
+buffer_size: 2000000
+batch_size: 2000
 serial_sampling: false
 sampler_num_threads: 1
 sampler_init_grid_size: 1.0

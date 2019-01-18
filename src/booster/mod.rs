@@ -169,7 +169,6 @@ impl Boosting {
                 self.try_send_model();
                 is_gamma_significant = self.learner.is_gamma_significant();
                 self.learner.reset_all();
-                info!("new-tree-info, {}", self.model.len());
                 if self.model.len() % self.save_interval == 0 {
                     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
                 }
@@ -191,6 +190,7 @@ impl Boosting {
                     }
                     debug!("Validation: {}", score / (k as f32));
                 }
+                info!("new-tree-info, {}", self.model.len());
             }
 
             iteration += 1;
