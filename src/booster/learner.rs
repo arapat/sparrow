@@ -413,13 +413,13 @@ impl Learner {
                 let sum_c_squared  = self.sum_c_squared[i][index][j][k];
                 let bound = get_bound(count, sum_c, sum_c_squared).unwrap_or(INFINITY);
                 // shrink rho_gamma
-                self.rho_gamma = 0.9 * min(old_rho_gamma, empirical_gamma);
+                // self.rho_gamma = 0.9 * min(old_rho_gamma, empirical_gamma);
                 if self.is_active[0] {
-                    self.root_rho_gamma = self.rho_gamma;
+                    self.root_rho_gamma = self.root_rho_gamma * 0.9;
                 }
                 // trackers will reset later
-                debug!("shrink-gamma, {}, {}, {}",
-                        old_rho_gamma, empirical_gamma, self.rho_gamma);
+                // debug!("shrink-gamma, {}, {}, {}",
+                //         old_rho_gamma, empirical_gamma, self.rho_gamma);
                 // generate a fallback tree node
                 Some(TreeNode {
                     tree_index:     index,
@@ -452,9 +452,10 @@ impl Learner {
                 if tree_node.fallback { 0.9 } else { 1.0 }
             };
             self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_gamma);
-            self.default_gamma = min(self.default_gamma, self.tree_max_rho_gamma);
             self.reset_trackers();
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
+                debug!("default-gamma, {}, {}", self.default_gamma, self.tree_max_rho_gamma * 0.9);
+                self.default_gamma = self.tree_max_rho_gamma;
                 // A new tree is created
                 self.tree.release();
                 ret = Some(self.tree.clone());
