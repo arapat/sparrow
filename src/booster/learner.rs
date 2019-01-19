@@ -317,7 +317,7 @@ impl Learner {
                     // the last element of is for the examples that are larger than all split values
                     let mut bin_accum_vals =
                         vec![vec![[[0.0; 2]; 3]; NUM_RULES]; bin.len() + 1];
-                    data.par_iter()
+                    data.iter()
                         .for_each(|(example, vals)| {
                             // complexity: O(log N)
                             let flip_index = bin.get_split_index(example.feature[range_start + i]);
