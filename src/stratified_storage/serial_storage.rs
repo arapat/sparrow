@@ -6,15 +6,19 @@ use std::fs::File;
 use std::io::BufReader;
 use std::io::BufWriter;
 
+use commons::bins::Bins;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::read_k_labeled_data;
 use commons::io::read_k_labeled_data_from_binary_file;
 use commons::io::write_to_binary_file;
 use commons::performance_monitor::PerformanceMonitor;
+use labeled_data::LabeledData;
 
 use super::super::Example;
+use super::super::RawExample;
 use super::super::TFeature;
+use super::super::RawTFeature;
 
 /// A naive file loader
 #[derive(Debug)]
@@ -31,6 +35,7 @@ pub struct SerialStorage {
     reader: BufReader<File>,
     memory_buffer: Vec<Example>,
     index: usize,
+    bins: Vec<Bins>,
 
     head: usize,
     tail: usize,
@@ -46,6 +51,7 @@ impl SerialStorage {
         bytes_per_example: Option<usize>,
         one_pass: bool,
         positive: String,
+        bins: Option<Vec<Bins>>,
     ) -> SerialStorage {
         assert!(!is_binary || bytes_per_example.is_some());
 
@@ -76,10 +82,29 @@ impl SerialStorage {
             reader: reader,
             memory_buffer: vec![],
             index: 0,
+            bins: bins.unwrap_or(vec![]),
 
             head: 0,
             tail: 0,
         }
+    }
+
+    pub fn read_raw(&mut self, batch_size: usize) -> Vec<RawExample> {
+        self.head = self.index;
+        self.tail = min(self.index + batch_size, self.size);
+        let true_batch_size = self.tail - self.head;
+
+        // Raw data always read from disk
+        let batch: Vec<RawExample> = {
+            read_k_labeled_data(
+                &mut self.reader, true_batch_size,
+                0 as RawTFeature, self.feature_size, &self.positive,
+            )
+        };
+
+        self.index = self.tail;
+        self.try_reset(false /* not forcing */);
+        batch
     }
 
     pub fn read(&mut self, batch_size: usize) -> Vec<Example> {
@@ -97,10 +122,19 @@ impl SerialStorage {
                 read_k_labeled_data_from_binary_file(
                     &mut self.reader, true_batch_size, self.bytes_per_example)
             } else {
-                read_k_labeled_data(
-                    &mut self.reader, true_batch_size,
-                    0 as TFeature, self.feature_size, &self.positive,
-                )
+                let batch: Vec<RawExample> =
+                    read_k_labeled_data(
+                        &mut self.reader, true_batch_size,
+                        0 as RawTFeature, self.feature_size, &self.positive,
+                    );
+                batch.into_iter().map(|data| {
+                    let features: Vec<TFeature> =
+                        self.bins.iter()
+                            .zip(data.feature.iter())
+                            .map(|(bin, val)| bin.get_split_index(*val))
+                            .collect();
+                    LabeledData::new(features, data.label)
+                }).collect()
             };
         if let Some(ref mut cons) = self.binary_cons {
             batch.iter().for_each(|data| {

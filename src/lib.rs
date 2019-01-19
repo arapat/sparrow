@@ -26,6 +26,7 @@ extern crate time;
 extern crate tmsn;
 extern crate metricslib;
 
+use std::io::Write;
 
 /// The class of the weak learner, namely a decision stump.
 mod tree;
@@ -51,15 +52,19 @@ use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
 
+use commons::bins::create_bins;
 use commons::channel;
 use commons::io::create_bufreader;
+use commons::io::create_bufwriter;
 use commons::performance_monitor::PerformanceMonitor;
 
 // Types
-// TODO: replace continous feature values with the bins
+// TODO: decide TFeature according to the bin size
 use labeled_data::LabeledData;
-pub type TFeature = f32;
+pub type RawTFeature = f32;
+pub type TFeature = u8;
 pub type TLabel = i8;
+pub type RawExample = LabeledData<RawTFeature, TLabel>;
 pub type Example = LabeledData<TFeature, TLabel>;
 
 
@@ -127,6 +132,24 @@ pub fn training(config_file: String) {
     // Booster -> Strata
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
 
+    info!("Creating bins.");
+    let mut serial_training_loader = SerialStorage::new(
+        config.training_filename.clone(),
+        config.num_examples,
+        config.num_features,
+        false,
+        None,
+        false,
+        config.positive.clone(),
+        None,
+    );
+    let bins = create_bins(
+        config.max_sample_size, config.max_bin_size, &config.range, &mut serial_training_loader);
+    {
+        let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
+        let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
+        file_buffer.write(json.as_ref()).unwrap();
+    }
     info!("Starting the stratified structure.");
     let stratified_structure = StratifiedStorage::new(
         config.num_examples,
@@ -149,6 +172,7 @@ pub fn training(config_file: String) {
         config.num_features,
         config.training_is_binary,
         Some(config.training_bytes_per_example),
+        bins.clone(),
     );
     info!("Starting the buffered loader.");
     let buffer_loader = BufferLoader::new(
@@ -160,16 +184,6 @@ pub fn training(config_file: String) {
         true,
         Some(config.min_ess),
     );
-    // This is for validation in the debugging mode
-    let serial_training_loader = SerialStorage::new(
-        config.training_filename.clone(),
-        config.num_examples,
-        config.num_features,
-        false,
-        None,
-        false,
-        config.positive.clone(),
-    );
     info!("Starting the booster.");
     let mut booster = Boosting::new(
         config.num_iterations,
@@ -177,10 +191,10 @@ pub fn training(config_file: String) {
         config.min_gamma,
         config.max_trials_before_shrink,
         buffer_loader,
-        serial_training_loader,
+        // serial_training_loader,
+        bins,
         config.range,
         config.max_sample_size,
-        config.max_bin_size,
         config.default_gamma,
         next_model_s,
         config.save_process,

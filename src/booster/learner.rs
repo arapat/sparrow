@@ -6,10 +6,10 @@ use std::ops::Range;
 
 use commons::ExampleInSampleSet;
 use tree::Tree;
-use super::bins::Bins;
 use super::super::Example;
 
 use buffer_loader::BufferLoader;
+use commons::bins::Bins;
 use commons::max;
 use commons::min;
 use commons::get_bound;
@@ -320,7 +320,7 @@ impl Learner {
                     data.iter()
                         .for_each(|(example, vals)| {
                             // complexity: O(log N)
-                            let flip_index = bin.get_split_index(example.feature[range_start + i]);
+                            let flip_index = example.feature[range_start + i] as usize;
                             let accums = &mut bin_accum_vals[flip_index];
                             for j in 0..NUM_RULES {
                                 for k in 0..3 {  // 3 trackers

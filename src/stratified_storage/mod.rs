@@ -11,6 +11,7 @@ use std::thread::sleep;
 use std::time::Duration;
 use evmap;
 use rand;
+use commons::bins::Bins;
 use commons::channel;
 use commons::channel::Receiver;
 use commons::channel::Sender;
@@ -18,7 +19,9 @@ use commons::get_sign;
 use commons::ExampleWithScore;
 use commons::Model;
 use commons::Signal;
+use labeled_data::LabeledData;
 use super::Example;
+use super::TFeature;
 
 use self::assigners::Assigners;
 use self::samplers::Samplers;
@@ -222,6 +225,7 @@ impl StratifiedStorage {
         feature_size: usize,
         is_binary: bool,
         bytes_per_example: Option<usize>,
+        bins: Vec<Bins>,
     ) {
         let mut reader = SerialStorage::new(
             filename.clone(),
@@ -231,13 +235,19 @@ impl StratifiedStorage {
             bytes_per_example,
             true,
             self.positive.clone(),
+            None,
         );
         let updated_examples_s = self.updated_examples_s.clone();
         spawn(move || {
             let mut index = 0;
             while index < size {
-                reader.read(batch_size).into_iter().for_each(|data| {
-                    updated_examples_s.send((data, (0.0, 0)));
+                reader.read_raw(batch_size).into_iter().for_each(|data| {
+                    let features: Vec<TFeature> =
+                        bins.iter().zip(data.feature.iter())
+                            .map(|(bin, val)| bin.get_split_index(*val))
+                            .collect();
+                    let mapped_data = LabeledData::new(features, data.label);
+                    updated_examples_s.send((mapped_data, (0.0, 0)));
                 });
                 index += batch_size;
             }

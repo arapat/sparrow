@@ -3,12 +3,14 @@ use ordered_float::NotNaN;
 use std::collections::BTreeMap;
 use std::ops::Range;
 
-use buffer_loader::BufferLoader;
+use stratified_storage::serial_storage::SerialStorage;
+use super::super::TFeature;
 
 
 // TODO: support NaN feature values
 /// The percentiles of a specific feature dimension,
 /// which would be used as the candidates weak rules on that dimension.
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Bins {
     size: usize,
     vals: Vec<f32>
@@ -50,7 +52,7 @@ impl Bins {
         &self.vals
     }
 
-    pub fn get_split_index(&self, val: f32) -> usize {
+    pub fn get_split_index(&self, val: f32) -> TFeature {
         if self.vals.len() <= 0 || val <= self.vals[0] {
             return 0;
         }
@@ -64,7 +66,7 @@ impl Bins {
                 left = medium;
             }
         }
-        right
+        right as TFeature
     }
 }
 
@@ -96,7 +98,7 @@ pub fn create_bins(
     max_sample_size: usize,
     max_bin_size: usize,
     range: &Range<usize>,
-    data_loader: &mut BufferLoader,
+    data_loader: &mut SerialStorage,
 ) -> Vec<Bins> {
     let start = range.start;
     let range_size = range.end - start;
@@ -107,9 +109,9 @@ pub fn create_bins(
         distinct.push(DistinctValues::new());
     }
     while remaining_reads > 0 {
-        let data = data_loader.get_next_batch(false /* no switch buffers */);
+        let data = data_loader.read_raw(1000);
         data.iter().for_each(|example| {
-            let feature = &(example.0.feature);
+            let feature = &(example.feature);
             distinct.iter_mut()
                     .enumerate()
                     .for_each(|(idx, mapper)| {

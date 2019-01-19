@@ -40,6 +40,8 @@ pub fn validate(
         }
     };
 
+    let bins = serde_json::from_str(&read_all(&"models/bins.json".to_string()))
+                        .expect(&format!("Cannot parse the bins in `{}`", "models/bins.json"));
     let mut models_list = create_bufreader(&models_table);
     let mut data = SerialStorage::new(
         testing_filename,
@@ -49,6 +51,7 @@ pub fn validate(
         None,
         false,
         positive,
+        Some(bins),
     );
     let mut scores = vec![0.0; num_examples];
     let mut labels: Vec<TLabel> = vec![0.0 as TLabel; num_examples];
