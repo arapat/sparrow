@@ -99,13 +99,14 @@ impl Samplers {
         let sampling_signal  = self.sampling_signal.clone();
         let stats_update_s   = self.stats_update_s.clone();
         let weights_table    = self.weights_table.clone();
-        spawn(move || {
-            while let Some(new_signal) = signal_channel.recv() {
-                debug!("updating sampling signal, {:?}", new_signal);
+        // TODO: This should be a feature only enable in the debugging mode
+        // spawn(move || {
+        //     while let Some(new_signal) = signal_channel.recv() {
+                // debug!("updating sampling signal, {:?}", new_signal);
                 let start = {
                     let mut signal = sampling_signal.write().unwrap();
-                    assert!(*signal != new_signal);
-                    *signal = new_signal;
+                    // assert!(*signal != new_signal);
+                    *signal = Signal::START;  // new_signal;
                     *signal == Signal::START
                 };
                 if start {
@@ -125,8 +126,8 @@ impl Samplers {
                         });
                     }
                 }
-            }
-        });
+        //     }
+        // });
     }
 }
 

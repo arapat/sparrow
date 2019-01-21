@@ -150,6 +150,8 @@ impl StratifiedStorage {
             });
         }
         // Monitor the distribution of strata
+        // TODO: set a flag to enable this feature
+        /*
         {
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
@@ -179,6 +181,7 @@ impl StratifiedStorage {
                 }
             });
         }
+        */
         let assigners = Assigners::new(
             updated_examples_r,
             strata.clone(),
