@@ -142,6 +142,7 @@ pub fn training(config_file: String) {
         true,
         config.positive.clone(),
         None,
+        config.range.clone(),
     );
     let bins = create_bins(
         config.max_sample_size, config.max_bin_size, &config.range, &mut serial_training_loader);

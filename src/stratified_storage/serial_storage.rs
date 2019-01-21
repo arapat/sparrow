@@ -36,6 +36,7 @@ pub struct SerialStorage {
     memory_buffer: Vec<Example>,
     index: usize,
     bins: Vec<Bins>,
+    range: std::ops::Range<usize>,
 
     head: usize,
     tail: usize,
@@ -52,6 +53,7 @@ impl SerialStorage {
         one_pass: bool,
         positive: String,
         bins: Option<Vec<Bins>>,
+        range: std::ops::Range<usize>,
     ) -> SerialStorage {
         assert!(!is_binary || bytes_per_example.is_some());
 
@@ -83,6 +85,7 @@ impl SerialStorage {
             memory_buffer: vec![],
             index: 0,
             bins: bins.unwrap_or(vec![]),
+            range: range,
 
             head: 0,
             tail: 0,
@@ -117,6 +120,7 @@ impl SerialStorage {
             return self.memory_buffer[self.head..self.tail].to_vec();
         }
         // Load from disk
+        let (start, end) = (self.range.start, self.range.end);
         let batch: Vec<Example> =
             if self.is_binary {
                 read_k_labeled_data_from_binary_file(
@@ -129,10 +133,14 @@ impl SerialStorage {
                     );
                 batch.into_iter().map(|data| {
                     let features: Vec<TFeature> =
-                        self.bins.iter()
-                            .zip(data.feature.iter())
-                            .map(|(bin, val)| bin.get_split_index(*val))
-                            .collect();
+                        data.feature.iter().enumerate()
+                            .map(|(idx, val)| {
+                                if start <= idx && idx < end {
+                                    self.bins[idx - start].get_split_index(*val)
+                                } else {
+                                    0
+                                }
+                            }).collect();
                     LabeledData::new(features, data.label)
                 }).collect()
             };

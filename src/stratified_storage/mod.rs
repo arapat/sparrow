@@ -238,6 +238,7 @@ impl StratifiedStorage {
             true,
             self.positive.clone(),
             None,
+            range.clone(),
         );
         let updated_examples_s = self.updated_examples_s.clone();
         spawn(move || {

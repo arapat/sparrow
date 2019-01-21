@@ -52,6 +52,7 @@ pub fn validate(
         false,
         positive,
         Some(bins),
+        0..num_features,
     );
     let mut scores = vec![0.0; num_examples];
     let mut labels: Vec<TLabel> = vec![0.0 as TLabel; num_examples];
