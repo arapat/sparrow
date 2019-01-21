@@ -98,12 +98,14 @@ impl Stratum {
                 } else {
                     sleep(Duration::from_millis(100));
                 }
+                /*
                 if pm.get_duration() >= 5.0 {
                     debug!("stratum-queries, {}, {}, {}", index, pm.get_counts(), num_stealed);
                     pm.reset();
                     pm.start();
                     num_stealed = 0;
                 }
+                */
             }
         });
 

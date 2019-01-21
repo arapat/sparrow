@@ -176,6 +176,9 @@ fn sampler(
             let read_strata = strata.read().unwrap();
             read_strata.get_out_queue(index)
         };
+        let receiver = existing_receiver.unwrap();
+        /*
+        TODO: validate this block is unnecessary
         let receiver = {
             if let Some(receiver) = existing_receiver {
                 receiver
@@ -185,6 +188,7 @@ fn sampler(
                 receiver
             }
         };
+        */
         // STEP 3: Sample one example using minimum variance sampling
         // meanwhile update the weights of all accessed examples
         let grid_size = {
@@ -278,11 +282,14 @@ fn sampler(
             pm_total.start();
         }
 
+        /*
+        TODO: set a flag to enable this block
         let signal = sampling_signal.read().unwrap();
         if *signal == Signal::STOP {
             break;
         }
         drop(signal);
+        */
     }
     debug!("sampler exits");
 }
