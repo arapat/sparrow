@@ -4,6 +4,7 @@ mod samplers;
 pub mod serial_storage;
 
 use std::cmp::max;
+use std::ops::Range;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
@@ -225,6 +226,7 @@ impl StratifiedStorage {
         feature_size: usize,
         is_binary: bool,
         bytes_per_example: Option<usize>,
+        range: Range<usize>,
         bins: Vec<Bins>,
     ) {
         let mut reader = SerialStorage::new(
@@ -243,9 +245,14 @@ impl StratifiedStorage {
             while index < size {
                 reader.read_raw(batch_size).into_iter().for_each(|data| {
                     let features: Vec<TFeature> =
-                        bins.iter().zip(data.feature.iter())
-                            .map(|(bin, val)| bin.get_split_index(*val))
-                            .collect();
+                        data.feature.iter().enumerate()
+                            .map(|(idx, val)| {
+                                if range.start <= idx && idx < range.end {
+                                    bins[idx - range.start].get_split_index(*val)
+                                } else {
+                                    0
+                                }
+                            }).collect();
                     let mapped_data = LabeledData::new(features, data.label);
                     updated_examples_s.send((mapped_data, (0.0, 0)));
                 });

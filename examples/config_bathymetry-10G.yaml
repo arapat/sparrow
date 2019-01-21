@@ -10,7 +10,7 @@ num_testing_examples: 83072992
 num_features: 15
 range:
   start: 0
-  end: 14
+  end: 15
 positive: 1
 max_sample_size: 1000000
 max_bin_size: 64

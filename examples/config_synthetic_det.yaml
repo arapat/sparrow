@@ -11,7 +11,7 @@ num_testing_examples: 10000
 num_features: 100
 range:
   start: 0
-  end: 99
+  end: 100
 max_sample_size: 100000
 max_bin_size: 10
 default_gamma: 0.25

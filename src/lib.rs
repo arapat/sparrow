@@ -139,7 +139,7 @@ pub fn training(config_file: String) {
         config.num_features,
         false,
         None,
-        false,
+        true,
         config.positive.clone(),
         None,
     );
@@ -172,6 +172,7 @@ pub fn training(config_file: String) {
         config.num_features,
         config.training_is_binary,
         Some(config.training_bytes_per_example),
+        config.range.clone(),
         bins.clone(),
     );
     info!("Starting the buffered loader.");
