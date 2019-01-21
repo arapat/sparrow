@@ -151,6 +151,50 @@ pub fn training(config_file: String) {
         let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
         file_buffer.write(json.as_ref()).unwrap();
     }
+    let validate_set1: Vec<Example> = {
+        if true {
+            let mut loader = SerialStorage::new(
+                config.testing_filename.clone(),
+                config.num_testing_examples,
+                config.num_features,
+                false,
+                None,
+                true,
+                config.positive.clone(),
+                Some(bins.clone()),
+                config.range.clone(),
+            );
+            let mut ret = Vec::with_capacity(config.num_testing_examples);
+            while ret.len() < config.num_testing_examples {
+                ret.extend(loader.read(config.batch_size));
+            }
+            ret
+        } else {
+            vec![]
+        }
+    };
+    let validate_set2: Vec<Example> = {
+        if true {
+            let mut loader = SerialStorage::new(
+                config.training_filename.clone(),
+                config.num_examples,
+                config.num_features,
+                false,
+                None,
+                true,
+                config.positive.clone(),
+                Some(bins.clone()),
+                config.range.clone(),
+            );
+            let mut ret = Vec::with_capacity(config.num_testing_examples);
+            while ret.len() < config.num_testing_examples {
+                ret.extend(loader.read(config.batch_size));
+            }
+            ret
+        } else {
+            vec![]
+        }
+    };
     info!("Starting the stratified structure.");
     let stratified_structure = StratifiedStorage::new(
         config.num_examples,
@@ -206,7 +250,7 @@ pub fn training(config_file: String) {
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);
     }
-    booster.training(training_perf_mon.get_duration());
+    booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
 }
 
 

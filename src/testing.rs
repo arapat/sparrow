@@ -105,7 +105,7 @@ pub fn validate(
                 let output = format!("{},{}\n", meta_info.join(","), performance_scores.join(","));
                 out.write(output.as_bytes())
                    .expect("Failed to write the performance scores to file.");
-                info!("{}", output);
+                info!("{}", output.trim());
             },
             None => {
                 let outputpath = filepath.clone() + "_scores";
