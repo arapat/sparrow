@@ -152,7 +152,7 @@ pub fn training(config_file: String) {
         file_buffer.write(json.as_ref()).unwrap();
     }
     let validate_set1: Vec<Example> = {
-        if true {
+        if false {
             let mut loader = SerialStorage::new(
                 config.testing_filename.clone(),
                 config.num_testing_examples,
@@ -174,7 +174,7 @@ pub fn training(config_file: String) {
         }
     };
     let validate_set2: Vec<Example> = {
-        if true {
+        if false {
             let mut loader = SerialStorage::new(
                 config.training_filename.clone(),
                 config.num_examples,
@@ -186,8 +186,8 @@ pub fn training(config_file: String) {
                 Some(bins.clone()),
                 config.range.clone(),
             );
-            let mut ret = Vec::with_capacity(config.num_testing_examples);
-            while ret.len() < config.num_testing_examples {
+            let mut ret = Vec::with_capacity(config.num_examples);
+            while ret.len() < config.num_examples {
                 ret.extend(loader.read(config.batch_size));
             }
             ret

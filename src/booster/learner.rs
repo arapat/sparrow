@@ -513,8 +513,8 @@ impl Learner {
             self.reset_trackers();
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 debug!("default-gamma, {}, {}", self.default_gamma, self.tree_max_rho_gamma * 0.9);
-                self.default_gamma = 0.25;
-                // self.default_gamma = self.tree_max_rho_gamma;
+                // self.default_gamma = 0.25;
+                self.default_gamma = self.tree_max_rho_gamma * 0.9;
                 // A new tree is created
                 self.tree.release();
                 ret = Some(self.tree.clone());
