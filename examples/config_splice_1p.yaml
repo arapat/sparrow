@@ -1,10 +1,10 @@
 ---
-# training_filename: /mnt/data/training/training-1p.libsvm
-training_filename: /Users/arapat/workspace/research/workbox/data/splice/training-1p.libsvm
+training_filename: /mnt/data/training/training-1p.libsvm
+# training_filename: /Users/arapat/workspace/research/workbox/data/splice/training-1p.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
-# testing_filename: /mnt/data/testing/testing.libsvm
-testing_filename: /Users/arapat/workspace/research/workbox/data/splice/testing.libsvm
+testing_filename: /mnt/data/testing/testing.libsvm
+# testing_filename: /Users/arapat/workspace/research/workbox/data/splice/testing.libsvm
 # testing_filename: /Users/arapat/workspace/research/workbox/data/splice/training-1p.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 574
@@ -21,7 +21,7 @@ max_bin_size: 10
 min_gamma: 0.00001
 default_gamma: 0.25
 min_ess: 0.5
-num_iterations: 50
+num_iterations: 400
 max_leaves: 4
 max_trials_before_shrink: 500000
 channel_size: 8
