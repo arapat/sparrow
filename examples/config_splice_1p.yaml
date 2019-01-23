@@ -21,7 +21,7 @@ max_bin_size: 10
 min_gamma: 0.00001
 default_gamma: 0.25
 min_ess: 0.5
-num_iterations: 400
+num_iterations: 100
 max_leaves: 4
 max_trials_before_shrink: 500000
 channel_size: 8
