@@ -420,7 +420,7 @@ impl Learner {
                 // shrink rho_gamma
                 // self.rho_gamma = 0.9 * min(old_rho_gamma, empirical_gamma);
                 if self.is_active[0] {
-                    self.root_rho_gamma = empirical_gamma * 0.6;
+                    self.root_rho_gamma = empirical_gamma * 0.8;
                 }
                 // trackers will reset later
                 // debug!("shrink-gamma, {}, {}, {}",
