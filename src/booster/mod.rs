@@ -1,5 +1,7 @@
 mod learner;
 
+use rayon::prelude::*;
+
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Seek;
@@ -17,8 +19,10 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 use commons::bins::Bins;
 use commons::channel::Sender;
+use commons::get_weight;
 use self::learner::get_base_tree;
 use self::learner::Learner;
+use super::Example;
 
 
 /// The boosting algorithm. It contains two functions, one for starting
@@ -90,7 +94,7 @@ impl Boosting {
                 Some(create_bufwriter(&String::from("model.json")))
             }
         };
-        Boosting {
+        let mut b = Boosting {
             num_iterations: num_iterations,
             training_loader: training_loader,
             // serial_training_loader: serial_training_loader,
@@ -111,7 +115,9 @@ impl Boosting {
 
             save_process: save_process,
             debug_mode: debug_mode,
-        }
+        };
+        b.try_send_model();
+        b
     }
 
 
@@ -135,7 +141,12 @@ impl Boosting {
 
 
     /// Start training the boosting algorithm.
-    pub fn training(&mut self, prep_time: f32) {
+    pub fn training(
+        &mut self,
+        prep_time: f32,
+        validate_set1: Vec<Example>,
+        validate_set2: Vec<Example>,
+    ) {
         info!("Start training.");
 
         let init_sampling_duration = self.training_loader.get_sampling_duration();
@@ -143,6 +154,18 @@ impl Boosting {
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
+        let mut validate_w1: Vec<f32> = {
+            validate_set1.iter()
+                        .map(|example| {
+                            get_weight(example, self.model[0].get_leaf_prediction(example))
+                        }).collect()
+        };
+        let mut validate_w2: Vec<f32> = {
+            validate_set2.iter()
+                        .map(|example| {
+                            get_weight(example, self.model[0].get_leaf_prediction(example))
+                        }).collect()
+        };
         let mut iteration = 0;
         let mut is_gamma_significant = true;
         while is_gamma_significant &&
@@ -150,7 +173,8 @@ impl Boosting {
             let (new_rule, batch_size) = {
                 let data = self.training_loader.get_next_batch_and_update(true, &self.model);
                 learner_timer.resume();
-                (self.learner.update(data), data.len())
+                (self.learner.update(
+                    data, &validate_set1, &validate_w1, &validate_set2, &validate_w2), data.len())
             };
             learner_timer.update(batch_size);
             global_timer.update(batch_size);
@@ -158,6 +182,19 @@ impl Boosting {
 
             if new_rule.is_some() {
                 let new_rule = new_rule.unwrap();
+                if validate_set1.len() > 0 {
+                    validate_w1.par_iter_mut()
+                              .zip(validate_set1.par_iter())
+                              .for_each(|(w, example)| {
+                                  *w *= get_weight(example, new_rule.get_leaf_prediction(example));
+                              });
+                    validate_w2.par_iter_mut()
+                              .zip(validate_set2.par_iter())
+                              .for_each(|(w, example)| {
+                                  *w *= get_weight(example, new_rule.get_leaf_prediction(example));
+                              });
+                }
+
                 self.model.push(new_rule);
                 // TODO: how to calculate sum_gamma in the case of trees?
                 // self.sum_gamma += new_rule.gamma.powi(2);
@@ -188,6 +225,7 @@ impl Boosting {
                     debug!("Validation: {}", score / (k as f32));
                 }
                 */
+
                 info!("new-tree-info, {}", self.model.len());
             }
 

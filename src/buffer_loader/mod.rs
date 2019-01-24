@@ -190,7 +190,7 @@ impl BufferLoader {
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
-        if self.serial_sampling || self.ess < self.min_ess {
+        if self.serial_sampling && self.ess < self.min_ess {
             debug!("serial (blocking) sampling started");
             self.force_switch();
             debug!("serial (blocking) sampling finished");

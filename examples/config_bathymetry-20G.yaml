@@ -5,7 +5,7 @@ training_bytes_per_example: 0
 testing_filename: /mnt/data/testing/testing.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 0
-num_examples: 623030697
+num_examples: 124606139
 num_testing_examples: 83072992
 num_features: 15
 range:

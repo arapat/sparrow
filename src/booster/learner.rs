@@ -1,7 +1,6 @@
 use rayon::prelude::*;
 
 use std::collections::HashMap;
-use std::f32::INFINITY;
 use std::ops::Range;
 
 use commons::ExampleInSampleSet;
@@ -253,12 +252,19 @@ impl Learner {
     }
 
     pub fn is_gamma_significant(&self) -> bool {
-        self.tree_max_rho_gamma >= self.min_gamma
+        self.tree_max_rho_gamma >= self.min_gamma || self.root_rho_gamma >= self.min_gamma
     }
 
     /// Update the statistics of all candidate weak rules using current batch of
     /// training examples. 
-    pub fn update(&mut self, data: &[ExampleInSampleSet]) -> Option<Tree> {
+    pub fn update(
+        &mut self,
+        data: &[ExampleInSampleSet],
+        validate_set1: &Vec<Example>,
+        validate_w1: &Vec<f32>,
+        validate_set2: &Vec<Example>,
+        validate_w2: &Vec<f32>,
+    ) -> Option<Tree> {
         // update global stats
         self.total_count += data.len();
         self.total_weight += data.par_iter().map(|t| (t.1).0).sum::<f32>();
@@ -361,7 +367,6 @@ impl Learner {
                             // Check stopping rule
                             let count = counts[index];
                             let bound = get_bound(count, *sum_c, *sum_c_squared);
-                            let bound = bound.unwrap_or(INFINITY);
                             if *sum_c > bound {
                                 let base_pred = 0.5 * (
                                     (0.5 + rho_gamma + GAMMA_GAP) / (0.5 - rho_gamma - GAMMA_GAP)
@@ -411,11 +416,11 @@ impl Learner {
                 let raw_martingale = self.weak_rules_score[i][index][j][k];
                 let sum_c          = self.sum_c[i][index][j][k];
                 let sum_c_squared  = self.sum_c_squared[i][index][j][k];
-                let bound = get_bound(count, sum_c, sum_c_squared).unwrap_or(INFINITY);
+                let bound = get_bound(count, sum_c, sum_c_squared);
                 // shrink rho_gamma
                 // self.rho_gamma = 0.9 * min(old_rho_gamma, empirical_gamma);
                 if self.is_active[0] {
-                    self.root_rho_gamma = self.root_rho_gamma * 0.9;
+                    self.root_rho_gamma = empirical_gamma * 0.8;
                 }
                 // trackers will reset later
                 // debug!("shrink-gamma, {}, {}, {}",
@@ -443,19 +448,73 @@ impl Learner {
         if tree_node.is_some() {
             let tree_node = tree_node.unwrap();
             tree_node.write_log();
+
+            if validate_set1.len() > 0 {
+                let (mart1, weight1): (f32, f32) = {
+                    validate_set1.par_iter().zip(
+                        validate_w1.par_iter()
+                    ).map(|(example, w)| {
+                        let (index, pred) = self.tree.get_leaf_index_prediction(example);
+                        if index != tree_node.tree_index {
+                            (0.0, 0.0)
+                        } else {
+                            let weight = w * get_weight(example, pred);
+                            let labeled_weight = weight * (example.label as f32);
+                            let mart = {
+                                if example.feature[tree_node.feature] <= tree_node.threshold {
+                                    RULES[tree_node.node_type][0] * labeled_weight
+                                } else {
+                                    RULES[tree_node.node_type][1] * labeled_weight
+                                }
+                            };
+                            (mart, weight)
+                        }
+                    }).reduce(|| (0.0, 0.0), |a, b| (a.0 + b.0, a.1 + b.1))
+                };
+                let (mart2, weight2): (f32, f32) = {
+                    validate_set2.par_iter().zip(
+                        validate_w2.par_iter()
+                    ).map(|(example, w)| {
+                        let (index, pred) = self.tree.get_leaf_index_prediction(example);
+                        if index != tree_node.tree_index {
+                            (0.0, 0.0)
+                        } else {
+                            let weight = w * get_weight(example, pred);
+                            let labeled_weight = weight * (example.label as f32);
+                            let mart = {
+                                if example.feature[tree_node.feature] <= tree_node.threshold {
+                                    RULES[tree_node.node_type][0] * labeled_weight
+                                } else {
+                                    RULES[tree_node.node_type][1] * labeled_weight
+                                }
+                            };
+                            (mart, weight)
+                        }
+                    }).reduce(|| (0.0, 0.0), |a, b| (a.0 + b.0, a.1 + b.1))
+                };
+                debug!("validate, {}, {}, {}, {}, {}, {}",
+                    tree_node.fallback, tree_node.num_scanned,
+                    tree_node.tree_index, tree_node.gamma,
+                    mart1 / weight1 / 2.0, mart2 / weight2 / 2.0);
+            }
+
             let (left_node, right_node) = self.tree.split(
                 tree_node.tree_index, tree_node.feature, tree_node.threshold,
                 tree_node.left_predict, tree_node.right_predict,
             );
             self.is_active[tree_node.tree_index] = false;
-            let tree_gamma = tree_node.gamma * {
-                if tree_node.fallback { 0.9 } else { 1.0 }
-            };
-            self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_gamma);
+            if tree_node.tree_index > 0 {
+                // This is not the root node
+                let tree_gamma = tree_node.gamma * {
+                    if tree_node.fallback { 0.9 } else { 1.0 }
+                };
+                self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_gamma);
+            }
             self.reset_trackers();
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 debug!("default-gamma, {}, {}", self.default_gamma, self.tree_max_rho_gamma * 0.9);
-                self.default_gamma = self.tree_max_rho_gamma;
+                // self.default_gamma = 0.25;
+                self.default_gamma = self.tree_max_rho_gamma * 0.9;
                 // A new tree is created
                 self.tree.release();
                 ret = Some(self.tree.clone());
