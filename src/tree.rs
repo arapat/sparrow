@@ -1,4 +1,5 @@
 use super::Example;
+use super::TFeature;
 
 use commons::is_zero;
 
@@ -19,7 +20,7 @@ pub struct Tree {
     left_child:     Vec<DimScaleType>,
     right_child:    Vec<DimScaleType>,
     split_feature:  Vec<Option<DimScaleType>>,
-    threshold:      Vec<f32>,
+    threshold:      Vec<TFeature>,
     leaf_value:     Vec<f32>,
     leaf_depth:     Vec<DimScaleType>
     // leaf_parent:    Vec<DimScaleType>,
@@ -74,7 +75,7 @@ impl Tree {
     }
 
     pub fn split(
-        &mut self, leaf: usize, feature: usize, threshold: f32,
+        &mut self, leaf: usize, feature: usize, threshold: TFeature,
         left_value: f32, right_value: f32,
     ) -> (u16, u16) {
         let leaf_value = self.leaf_value[leaf];
@@ -104,7 +105,7 @@ impl Tree {
         let mut node: usize = 0;
         let feature = &(data.feature);
         while let Some(split_feature) = self.split_feature[node] {
-            node = if feature[split_feature as usize] as f32 <= self.threshold[node] {
+            node = if feature[split_feature as usize] <= self.threshold[node] {
                 self.left_child[node]
             } else {
                 self.right_child[node]
@@ -122,7 +123,7 @@ impl Tree {
         self.left_child.push(0);
         self.right_child.push(0);
         self.split_feature.push(None);
-        self.threshold.push(0.0);
+        self.threshold.push(0);
         self.leaf_value.push(leaf_value);
         self.leaf_depth.push(depth);
     }
@@ -136,7 +137,7 @@ impl PartialEq for Tree {
            self.left_child[0..k] == other.left_child[0..k] &&
            self.right_child[0..k] == other.right_child[0..k] {
                for i in 0..k {
-                   if !is_zero(self.threshold[i] - other.threshold[i]) ||
+                   if self.threshold[i] != other.threshold[i] ||
                       !is_zero(self.leaf_value[i] - other.leaf_value[i]) {
                           return false;
                       }

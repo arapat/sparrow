@@ -83,10 +83,12 @@ impl BufferLoader {
         };
         if !buffer_loader.serial_sampling {
             buffer_loader.sampling_signal_channel.send(Signal::START);
-            buffer_loader.gatherer.run(false);
         }
         if init_block {
             buffer_loader.force_switch();
+        }
+        if !buffer_loader.serial_sampling {
+            buffer_loader.gatherer.run(false);
         }
         buffer_loader
     }
@@ -118,7 +120,8 @@ impl BufferLoader {
     }
 
     fn get_next_mut_batch(&mut self, allow_switch: bool) -> &mut [ExampleInSampleSet] {
-        if allow_switch && !self.serial_sampling {
+        // TODO: set min_ess to a config parameter
+        if self.ess <= 0.6 && allow_switch && !self.serial_sampling {
             self.try_switch();
         }
         self.curr_example += self.batch_size;
@@ -133,6 +136,7 @@ impl BufferLoader {
     }
 
     fn force_switch(&mut self) {
+        debug!("force-switch started.");
         self.sampling_pm.resume();
         if self.serial_sampling {
             self.sampling_signal_channel.send(Signal::START);
@@ -144,6 +148,7 @@ impl BufferLoader {
         self.sampling_pm.pause();
 
         assert_eq!(self.try_switch(), true);
+        debug!("force-switch quit.");
     }
 
     fn try_switch(&mut self) -> bool {
@@ -165,6 +170,7 @@ impl BufferLoader {
                                                 (a, (w, s.1))
                                             }).collect();
                 self.curr_example = 0;
+                self.update_ess();
                 debug!("switched-buffer, {}", self.examples.len());
                 true
             } else {
@@ -184,7 +190,7 @@ impl BufferLoader {
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
-        if self.serial_sampling && self.ess < self.min_ess {
+        if self.serial_sampling || self.ess < self.min_ess {
             debug!("serial (blocking) sampling started");
             self.force_switch();
             debug!("serial (blocking) sampling finished");

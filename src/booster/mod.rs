@@ -1,4 +1,3 @@
-mod bins;
 mod learner;
 
 use std::fs::File;
@@ -11,13 +10,12 @@ use std::ops::Range;
 use serde_json;
 use tmsn::network::start_network;
 
-use self::bins::create_bins;
 use commons::io::create_bufwriter;
 use buffer_loader::BufferLoader;
-use stratified_storage::serial_storage::SerialStorage;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
+use commons::bins::Bins;
 use commons::channel::Sender;
 use self::learner::get_base_tree;
 use self::learner::Learner;
@@ -28,7 +26,7 @@ use self::learner::Learner;
 pub struct Boosting {
     num_iterations: usize,
     training_loader: BufferLoader,
-    serial_training_loader: SerialStorage,
+    // serial_training_loader: SerialStorage,
     // max_trials_before_shrink: u32,
 
     learner: Learner,
@@ -59,7 +57,6 @@ impl Boosting {
     /// if the RustBoost is running on a single worker, `range` is equal to the `0..feature_size`; if it is running
     /// over multiple workers, it might be a subset of the full feature set.
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
-    /// * `max_bin_size`: the size of the percentiles to generate on each feature dimension.
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
         num_iterations: usize,
@@ -67,10 +64,10 @@ impl Boosting {
         min_gamma: f32,
         max_trials_before_shrink: u32,
         training_loader: BufferLoader,
-        serial_training_loader: SerialStorage,
+        // serial_training_loader: SerialStorage,
+        bins: Vec<Bins>,
         range: Range<usize>,
         max_sample_size: usize,
-        max_bin_size: usize,
         default_gamma: f32,
         sampler_channel_s: Sender<Model>,
         save_process: bool,
@@ -78,7 +75,6 @@ impl Boosting {
         debug_mode: bool,
     ) -> Boosting {
         let mut training_loader = training_loader;
-        let bins = create_bins(max_sample_size, max_bin_size, &range, &mut training_loader);
         let learner = Learner::new(
             max_leaves, min_gamma, default_gamma, max_trials_before_shrink, bins, &range);
 
@@ -97,7 +93,7 @@ impl Boosting {
         Boosting {
             num_iterations: num_iterations,
             training_loader: training_loader,
-            serial_training_loader: serial_training_loader,
+            // serial_training_loader: serial_training_loader,
             // max_trials_before_shrink: max_trials_before_shrink,
 
             learner: learner,
@@ -173,8 +169,9 @@ impl Boosting {
                     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
                 }
 
+                /*
+                // TODO: tidy up this debugging code; support general loss function
                 if self.debug_mode {
-                    // TODO: tidy up this debugging code; support general loss function
                     let mut k = 0;
                     let mut score: f32 = 0.0;
                     while k < self.serial_training_loader.size {
@@ -190,6 +187,7 @@ impl Boosting {
                     }
                     debug!("Validation: {}", score / (k as f32));
                 }
+                */
                 info!("new-tree-info, {}", self.model.len());
             }
 

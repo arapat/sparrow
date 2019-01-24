@@ -12,7 +12,7 @@ num_testing_examples: 145253
 num_features: 55
 range:
   start: 0
-  end: 54
+  end: 55
 positive: 1
 max_sample_size: 435759
 max_bin_size: 10
@@ -22,7 +22,7 @@ min_ess: 0.5
 num_iterations: 100
 max_leaves: 4
 max_trials_before_shrink: 435759
-channel_size: 8192
+channel_size: 8
 buffer_size: 435759
 batch_size: 1000
 serial_sampling: false
@@ -32,7 +32,7 @@ sampler_average_window_size: 1000
 num_examples_per_block: 8192
 disk_buffer_filename: stratified.bin
 num_assigners: 1
-num_samplers: 3
+num_samplers: 1
 network: []
 port: 8888
 local_name: local_worker

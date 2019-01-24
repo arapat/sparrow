@@ -28,6 +28,8 @@ pub struct ChannelMonitor {
 impl ChannelMonitor {
     fn new() -> ChannelMonitor {
         let (sender, receiver) = crossbeam_channel::unbounded();
+        // TODO: Do we need monitor channels?
+        /*
         {
             let receiver = receiver.clone();
             spawn(move || {
@@ -60,6 +62,7 @@ impl ChannelMonitor {
                 }
             });
         }
+        */
         ChannelMonitor {
             stats_sender: sender,
             stats_receiver: receiver,
@@ -88,23 +91,23 @@ impl<T> Sender<T> {
     }
 
     pub fn send(&self, t: T) {
-        self.stats_sender.send((self.name.clone(), StatType::Send, 1));
+        // self.stats_sender.send((self.name.clone(), StatType::Send, 1));
         select! {
             send(self.sender, t) => (),
             default => {
-                self.stats_sender.send((self.name.clone(), StatType::BlockedSend, 1));
+                // self.stats_sender.send((self.name.clone(), StatType::BlockedSend, 1));
                 self.sender.send(t);
             }
         }
     }
 
     pub fn try_send(&self, t: T) -> bool {
-        self.stats_sender.send((self.name.clone(), StatType::Send, 1));
+        // self.stats_sender.send((self.name.clone(), StatType::Send, 1));
         let mut succeed = true;
         select! {
             send(self.sender, t) => (),
             default => {
-                self.stats_sender.send((self.name.clone(), StatType::BlockedSend, 1));
+                // self.stats_sender.send((self.name.clone(), StatType::BlockedSend, 1));
                 succeed = false;
             }
         }
@@ -144,22 +147,22 @@ impl<T> Receiver<T> {
     }
 
     pub fn recv(&self) -> Option<T> {
-        self.stats_sender.send((self.name.clone(), StatType::Recv, 1));
+        // self.stats_sender.send((self.name.clone(), StatType::Recv, 1));
         select! {
             recv(self.receiver, t) => t,
             default => {
-                self.stats_sender.send((self.name.clone(), StatType::BlockedRecv, 1));
+                // self.stats_sender.send((self.name.clone(), StatType::BlockedRecv, 1));
                 self.receiver.recv()
             }
         }
     }
 
     pub fn try_recv(&self) -> Option<T> {
-        self.stats_sender.send((self.name.clone(), StatType::Recv, 1));
+        // self.stats_sender.send((self.name.clone(), StatType::Recv, 1));
         select! {
             recv(self.receiver, t) => t,
             default => {
-                self.stats_sender.send((self.name.clone(), StatType::BlockedRecv, 1));
+                // self.stats_sender.send((self.name.clone(), StatType::BlockedRecv, 1));
                 None
             }
         }

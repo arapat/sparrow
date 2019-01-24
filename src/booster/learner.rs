@@ -6,10 +6,11 @@ use std::ops::Range;
 
 use commons::ExampleInSampleSet;
 use tree::Tree;
-use super::bins::Bins;
 use super::super::Example;
+use super::super::TFeature;
 
 use buffer_loader::BufferLoader;
+use commons::bins::Bins;
 use commons::max;
 use commons::min;
 use commons::get_bound;
@@ -43,7 +44,7 @@ struct TreeNode {
     tree_index: usize,
     node_type: usize,
     feature: usize,
-    threshold: f32,
+    threshold: TFeature,
     left_predict: f32,
     right_predict: f32,
 
@@ -319,8 +320,7 @@ impl Learner {
                         vec![vec![[[0.0; 2]; 3]; NUM_RULES]; bin.len() + 1];
                     data.iter()
                         .for_each(|(example, vals)| {
-                            // complexity: O(log N)
-                            let flip_index = bin.get_split_index(example.feature[range_start + i]);
+                            let flip_index = example.feature[range_start + i] as usize;
                             let accums = &mut bin_accum_vals[flip_index];
                             for j in 0..NUM_RULES {
                                 for k in 0..3 {  // 3 trackers
@@ -371,7 +371,7 @@ impl Learner {
                                         tree_index:     index,
                                         node_type:      rule_idx,
                                         feature:        i + range_start,
-                                        threshold:      *threshold,
+                                        threshold:      j as TFeature,
                                         left_predict:   base_pred * RULES[rule_idx][0],
                                         right_predict:  base_pred * RULES[rule_idx][1],
                                         gamma:          rho_gamma,
@@ -425,7 +425,7 @@ impl Learner {
                     tree_index:     index,
                     node_type:      k,
                     feature:        i + range_start,
-                    threshold:      self.bins[i].get_vals()[j],
+                    threshold:      j as TFeature,
                     left_predict:   base_pred * RULES[k][0],
                     right_predict:  base_pred * RULES[k][1],
 
@@ -496,7 +496,7 @@ pub fn get_base_tree(max_sample_size: usize, data_loader: &mut BufferLoader) -> 
     let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();
     let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
     let mut tree = Tree::new(2);
-    tree.split(0, 0, 0.0, prediction, prediction);
+    tree.split(0, 0, 0, prediction, prediction);
     tree.release();
 
     info!("root-tree-info, {}, {}, {}, {}", 1, max_sample_size, gamma, gamma * gamma);
