@@ -76,7 +76,7 @@ impl BufferLoader {
             serial_sampling: serial_sampling,
             sampling_signal_channel: sampling_signal_channel,
 
-            ess: 1.0,
+            ess: 0.0,
             min_ess: min_ess.unwrap_or(0.0),
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
@@ -166,6 +166,7 @@ impl BufferLoader {
                                             .into_iter()
                                             .map(|t| {
                                                 let (a, s) = t;
+                                                // sampling weights are ignored
                                                 let w = get_weight(&a, 0.0);
                                                 (a, (w, s.1))
                                             }).collect();
@@ -227,6 +228,7 @@ mod tests {
     use commons::ExampleWithScore;
     use commons::Signal;
     use super::BufferLoader;
+    use ::TFeature;
 
 
     #[test]
@@ -235,30 +237,29 @@ mod tests {
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
         let mut buffer_loader = BufferLoader::new(100, 10, receiver, signal_s, false, false, None);
         assert_eq!(signal_r.recv().unwrap(), Signal::START);
-        sender.send((get_example(vec![0.0, 1.0, 2.0], 1.0), 100));
+        sender.send((get_example(vec![0, 1, 2], -1, 1.0), 100));
         sleep(Duration::from_millis(1000));
         for _ in 0..20 {
             let batch = buffer_loader.get_next_batch(true);
             assert_eq!(batch.len(), 10);
             assert_eq!((batch[0].1).0, 1.0);
-            assert_eq!((batch[0].2).0, 1.0);
+            assert_eq!((batch[0].0).label, -1);
             assert_eq!((batch[9].1).0, 1.0);
-            assert_eq!((batch[9].2).0, 1.0);
+            assert_eq!((batch[9].0).label, -1);
         }
-        sender.send((get_example(vec![0.0, 1.0, 2.0], 2.0), 100));
-        sleep(Duration::from_millis(1000));
+        sender.send((get_example(vec![0, 1, 2], 1, 2.0), 100));
+        buffer_loader.force_switch();
         for _ in 0..10 {
             let batch = buffer_loader.get_next_batch(true);
             assert_eq!(batch.len(), 10);
-            assert_eq!((batch[0].1).0, 2.0);
-            assert_eq!((batch[0].2).0, 2.0);
-            assert_eq!((batch[9].1).0, 2.0);
-            assert_eq!((batch[9].2).0, 2.0);
+            assert_eq!((batch[0].1).0, 1.0);
+            assert_eq!((batch[0].0).label, 1);
+            assert_eq!((batch[9].1).0, 1.0);
+            assert_eq!((batch[9].0).label, 1);
         }
     }
 
-    fn get_example(features: Vec<f32>, score: f32) -> ExampleWithScore {
-        let label: i8 = -1;
+    fn get_example(features: Vec<TFeature>, label: i8, score: f32) -> ExampleWithScore {
         let example = LabeledData::new(features, label);
         (example, (score, 0))
     }

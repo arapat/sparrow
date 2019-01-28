@@ -71,6 +71,7 @@ fn fill_buffer(
     let mut new_sample = Vec::with_capacity(new_sample_capacity);
     while new_sample.len() < new_sample_capacity {
         if let Some((example, mut c)) = gather_new_sample.recv() {
+            // `c` is the number of times this example should be put into the sample set
             while new_sample.len() < new_sample_capacity && c > 0 {
                 new_sample.push(example.clone());
                 c -= 1;
@@ -98,6 +99,7 @@ mod tests {
     use commons::ExampleWithScore;
     use labeled_data::LabeledData;
     use super::Gatherer;
+    use ::TFeature;
 
     #[test]
     fn test_sampler_nonblocking() {
@@ -108,7 +110,7 @@ mod tests {
 
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
-            let t = get_example(vec![i as f32, 1.0, 2.0], 0.0);
+            let t = get_example(vec![i as TFeature, 1, 2], 0.0);
             gather_sender.send((t.clone(), 1));
             examples.push(t);
         }
@@ -132,7 +134,7 @@ mod tests {
 
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
-            let t = get_example(vec![i as f32, 1.0, 2.0], 0.0);
+            let t = get_example(vec![i as TFeature, 1, 2], 0.0);
             gather_sender.send((t.clone(), 1));
             examples.push(t);
         }
@@ -148,7 +150,7 @@ mod tests {
         }
     }
 
-    fn get_example(features: Vec<f32>, score: f32) -> ExampleWithScore {
+    fn get_example(features: Vec<TFeature>, score: f32) -> ExampleWithScore {
         let label: i8 = -1;
         let example = LabeledData::new(features, label);
         (example, (score, 0))

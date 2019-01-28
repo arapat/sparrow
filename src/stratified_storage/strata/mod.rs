@@ -118,6 +118,7 @@ mod tests {
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use super::Strata;
+    use ::TFeature;
 
     #[test]
     fn test_strata() {
@@ -125,7 +126,7 @@ mod tests {
         let mut strata = Strata::new(1000, 3, 10, filename);
         for i in 0..100 {
             for k in 0..10 {
-                let t = get_example(vec![0.0, i as f32, k as f32]);
+                let t = get_example(vec![0 as TFeature, i as TFeature, k as TFeature]);
                 let mut sender = {
                     if let Some(t) = strata.get_in_queue(k as i8) {
                         t
@@ -140,13 +141,13 @@ mod tests {
         for _ in 0..100 {
             for k in 0..10 {
                 let retrieve = strata.get_out_queue(k as i8).unwrap().recv().unwrap();
-                assert_eq!(k as f32, retrieve.0.feature[2]);
+                assert_eq!(k as TFeature, retrieve.0.feature[2]);
             }
         }
         remove_file(filename).unwrap();
     }
 
-    fn get_example(features: Vec<f32>) -> ExampleWithScore {
+    fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
         let label: i8 = -1;
         let example = LabeledData::new(features, label);
         (example, (1.0, 0))

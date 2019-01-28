@@ -127,10 +127,11 @@ mod tests {
 
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
-    use super::super::get_disk_buffer;
     use super::Stratum;
     use super::InQueueSender;
     use super::OutQueueReceiver;
+    use super::super::get_disk_buffer;
+    use ::TFeature;
 
     #[test]
     fn test_stratum_one_by_one() {
@@ -138,7 +139,7 @@ mod tests {
         let (in_queue, out_queue) = get_in_out_queues(filename, 100);
 
         for i in 0..2 {
-            let t = get_example(vec![i as f32, 2.0, 3.0]);
+            let t = get_example(vec![i as TFeature, 2, 3]);
             in_queue.send(t.clone());
             let retrieve = out_queue.recv().unwrap();
             assert_eq!(retrieve, t);
@@ -152,7 +153,7 @@ mod tests {
         let (in_queue, out_queue) = get_in_out_queues(filename, 100);
         let mut examples = vec![];
         for i in 0..100 {
-            let t = get_example(vec![i as f32, 2.0, 3.0]);
+            let t = get_example(vec![i as TFeature, 2, 3]);
             in_queue.send(t.clone());
             examples.push(t);
         }
@@ -168,9 +169,9 @@ mod tests {
         remove_file(filename).unwrap();
     }
 
-    fn get_example(feature: Vec<f32>) -> ExampleWithScore {
+    fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
         let label: i8 = -1;
-        let example = LabeledData::new(feature, label);
+        let example = LabeledData::new(features, label);
         (example, (1.0, 0))
     }
 

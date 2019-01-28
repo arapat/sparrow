@@ -298,6 +298,7 @@ mod tests {
     use commons::Signal;
     use commons::performance_monitor::PerformanceMonitor;
     use super::StratifiedStorage;
+    use ::TFeature;
 
     #[test]
     fn test_mean() {
@@ -310,7 +311,8 @@ mod tests {
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
         signal_s.send(Signal::START);
         let stratified_storage = StratifiedStorage::new(
-            batch * 10, 1, 10000, filename, 4, 4, sampled_examples_send, signal_r, models_recv, 10
+            batch * 10, 1, "1".to_string(), 10000, filename, 4, 4,
+            sampled_examples_send, signal_r, models_recv, 10, false,
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
         let mut pm_load = PerformanceMonitor::new();
@@ -318,7 +320,7 @@ mod tests {
         let loading = spawn(move || {
             for _ in 0..batch {
                 for i in 1..11 {
-                    let t = get_example(vec![i as f32], i as f32);
+                    let t = get_example(vec![i as TFeature], i as f32);
                     updated_examples_send.send(t.clone());
                 }
             }
@@ -348,7 +350,7 @@ mod tests {
         remove_file(filename).unwrap();
     }
 
-    fn get_example(feature: Vec<f32>, weight: f32) -> ExampleWithScore {
+    fn get_example(feature: Vec<TFeature>, weight: f32) -> ExampleWithScore {
         let label: i8 = 1;
         let example = LabeledData::new(feature, label);
         let score = -weight.ln();

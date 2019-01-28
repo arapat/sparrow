@@ -155,8 +155,7 @@ mod tests {
         let label = -1;
         let feature = vec![0, 2, 0, 5, 10, 0];
         let labeled_data = LabeledData::new(feature, label);
-        let positive = "1".to_string();
-        assert_eq!(parse_libsvm_one_line(&raw_string, 0, 6, "1"), labeled_data, &positive);
+        assert_eq!(parse_libsvm_one_line(&raw_string, 0, 6, &"1".to_string()), labeled_data);
     }
 
     #[test]

@@ -38,6 +38,6 @@ mod tests {
         let label: i8 = -1;
         let data = LabeledData::new(feature, label);
         assert_eq!(&data.feature, &vec!(1.0, 2.0, 3.0));
-        assert_eq!(&data.label, &0i8);
+        assert_eq!(&data.label, &(-1));
     }
 }

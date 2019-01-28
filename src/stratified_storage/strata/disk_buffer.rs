@@ -91,13 +91,14 @@ mod tests {
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use super::super::get_disk_buffer;
+    use ::TFeature;
 
 
     #[test]
     fn test_disk_buffer_normal_write() {
         let filename = "unittest-diskbuffer1.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![1.0, 2.0, 3.0]);
+        let example = get_example(vec![1, 2, 3]);
         let data = serialize(&vec![example; 10]).unwrap();
         for _ in 0..5 {
             disk_buffer.write(&data);
@@ -108,7 +109,7 @@ mod tests {
     fn test_disk_buffer_rw_once() {
         let filename = "unittest-diskbuffer2.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![4.0, 5.0, 6.0]);
+        let example = get_example(vec![4, 5, 6]);
         let examples = vec![example; 10];
         let data = serialize(&examples).unwrap();
         let index = disk_buffer.write(&data);
@@ -123,7 +124,7 @@ mod tests {
         let filename = "unittest-diskbuffer3.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         for i in 0..5 {
-            let example = get_example(vec![1.0, 2.0, i as f32]);
+            let example = get_example(vec![1, 2, i as TFeature]);
             let examples = vec![example; 10];
             let data = serialize(&examples).unwrap();
             let index = disk_buffer.write(&data);
@@ -141,7 +142,7 @@ mod tests {
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
         let mut inputs = vec![];
         for i in 0..5 {
-            let example = get_example(vec![1.0, 2.0, i as f32]);
+            let example = get_example(vec![1, 2, i as TFeature]);
             let examples = vec![example; 10];
             let data = serialize(&examples).unwrap();
             let index = disk_buffer.write(&data);
@@ -169,7 +170,7 @@ mod tests {
     fn test_disk_buffer_write_disk_full_panic() {
         let filename = "unittest-diskbuffer6.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![1.0, 2.0, 3.0]);
+        let example = get_example(vec![1, 2, 3]);
         let data = serialize(&vec![example; 10]).unwrap();
         for _ in 0..6 {
             disk_buffer.write(&data);
@@ -181,12 +182,12 @@ mod tests {
     fn test_disk_buffer_write_feature_size_mismatch_panic() {
         let filename = "unittest-diskbuffer7.bin";
         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![1.0, 2.0, 3.0, 4.0]);
+        let example = get_example(vec![1, 2, 3, 4]);
         let data = serialize(&vec![example; 10]).unwrap();
         disk_buffer.write(&data);
     }
 
-    fn get_example(features: Vec<f32>) -> ExampleWithScore {
+    fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
         let label: i8 = -1;
         let example = LabeledData::new(features, label);
         (example, (1.0, 0))
