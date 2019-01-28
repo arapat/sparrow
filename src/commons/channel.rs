@@ -1,8 +1,3 @@
-use std::cmp::max;
-use std::thread::spawn;
-use std::thread::sleep;
-use std::collections::HashMap;
-use std::time::Duration;
 use crossbeam_channel;
 
 
@@ -12,10 +7,12 @@ lazy_static! {
 
 
 enum StatType {
+    /*
     Send,
     BlockedSend,
     Recv,
     BlockedRecv,
+    */
 }
 
 
@@ -28,8 +25,12 @@ pub struct ChannelMonitor {
 impl ChannelMonitor {
     fn new() -> ChannelMonitor {
         let (sender, receiver) = crossbeam_channel::unbounded();
-        // TODO: Do we need monitor channels?
         /*
+        use std::cmp::max;
+        use std::thread::spawn;
+        use std::thread::sleep;
+        use std::collections::HashMap;
+        use std::time::Duration;
         {
             let receiver = receiver.clone();
             spawn(move || {

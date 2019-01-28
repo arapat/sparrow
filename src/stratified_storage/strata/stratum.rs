@@ -67,7 +67,7 @@ impl Stratum {
         // Reading out data to outside
         spawn(move || {
             let mut pm = PerformanceMonitor::new();
-            let mut num_stealed = 0;
+            // let mut num_stealed = 0;
             let mut out_block_ptr = (vec![]).into_iter();
             pm.start();
             loop {
@@ -89,7 +89,7 @@ impl Stratum {
                         // they would stay in `in_queue` forever and never write to disk.
                         // We read from `in_queue` directly in this case.
                         example = in_queue_r.recv();
-                        num_stealed += 1;
+                        // num_stealed += 1;
                     }
                 }
                 if example.is_some() {

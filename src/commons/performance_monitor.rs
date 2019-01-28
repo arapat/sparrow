@@ -91,6 +91,7 @@ impl PerformanceMonitor {
         1e-6 * microseconds as f32 + self.duration_adjust
     }
 
+    #[allow(dead_code)]
     pub fn get_counts(&self) -> usize {
         self.counter
     }

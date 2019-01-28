@@ -30,8 +30,6 @@ use super::Example;
 pub struct Boosting {
     num_iterations: usize,
     training_loader: BufferLoader,
-    // serial_training_loader: SerialStorage,
-    // max_trials_before_shrink: u32,
 
     learner: Learner,
     model: Model,
@@ -47,7 +45,6 @@ pub struct Boosting {
     save_interval: usize,
 
     save_process: bool,
-    debug_mode: bool,
 }
 
 impl Boosting {
@@ -76,7 +73,6 @@ impl Boosting {
         sampler_channel_s: Sender<Model>,
         save_process: bool,
         save_interval: usize,
-        debug_mode: bool,
     ) -> Boosting {
         let mut training_loader = training_loader;
         let learner = Learner::new(
@@ -97,8 +93,6 @@ impl Boosting {
         let mut b = Boosting {
             num_iterations: num_iterations,
             training_loader: training_loader,
-            // serial_training_loader: serial_training_loader,
-            // max_trials_before_shrink: max_trials_before_shrink,
 
             learner: learner,
             model: model,
@@ -114,7 +108,6 @@ impl Boosting {
             save_interval: save_interval,
 
             save_process: save_process,
-            debug_mode: debug_mode,
         };
         b.try_send_model();
         b
@@ -206,31 +199,11 @@ impl Boosting {
                     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
                 }
 
-                /*
-                // TODO: tidy up this debugging code; support general loss function
-                if self.debug_mode {
-                    let mut k = 0;
-                    let mut score: f32 = 0.0;
-                    while k < self.serial_training_loader.size {
-                        let examples = self.serial_training_loader.read(1000);
-                        k += examples.len();
-                        let sum_scores: f32 = examples.iter().map(|example| {
-                            let pred: f32 = self.model.iter()
-                                           .map(|model| model.get_leaf_prediction(example)).sum();
-                            let label: f32 = example.label as f32;  // either +1 or -1
-                            (-label * pred).exp()
-                        }).sum();
-                        score += sum_scores;
-                    }
-                    debug!("Validation: {}", score / (k as f32));
-                }
-                */
-
                 info!("new-tree-info, {}", self.model.len());
             }
 
             iteration += 1;
-            // self.handle_network();
+            self.handle_network();
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);

@@ -349,7 +349,7 @@ impl Learner {
                     }
                     // Now update each splitting values of the bin
                     let mut valid_weak_rule = None;
-                    bin.get_vals().iter().enumerate().for_each(|(j, threshold)| {
+                    (0..bin.len()).for_each(|j| {
                         for rule_idx in 0..NUM_RULES { // Types of rule
                             for it in 0..3 { // Move examples from the right to the left child
                                 accum_left[rule_idx][it]  +=
@@ -366,7 +366,7 @@ impl Learner {
                             *sum_c_squared    += accum_left[rule_idx][2] + accum_right[rule_idx][2];
                             // Check stopping rule
                             let count = counts[index];
-                            let bound = get_bound(count, *sum_c, *sum_c_squared);
+                            let bound = get_bound(*sum_c, *sum_c_squared);
                             if *sum_c > bound {
                                 let base_pred = 0.5 * (
                                     (0.5 + rho_gamma + GAMMA_GAP) / (0.5 - rho_gamma - GAMMA_GAP)
@@ -405,7 +405,6 @@ impl Learner {
                 valid_tree_node
             } else {
                 // cannot find a valid weak rule, need to fallback and shrink gamma
-                let old_rho_gamma = self.rho_gamma;
                 let (empirical_gamma, (i, j, index, k)) = self.get_max_empirical_ratio();
                 let empirical_gamma = empirical_gamma / 2.0;
                 let bounded_empirical_gamma = min(0.25, empirical_gamma);
@@ -416,8 +415,9 @@ impl Learner {
                 let raw_martingale = self.weak_rules_score[i][index][j][k];
                 let sum_c          = self.sum_c[i][index][j][k];
                 let sum_c_squared  = self.sum_c_squared[i][index][j][k];
-                let bound = get_bound(count, sum_c, sum_c_squared);
+                let bound = get_bound(sum_c, sum_c_squared);
                 // shrink rho_gamma
+                // let old_rho_gamma = self.rho_gamma;
                 // self.rho_gamma = 0.9 * min(old_rho_gamma, empirical_gamma);
                 if self.is_active[0] {
                     self.root_rho_gamma = empirical_gamma * 0.8;

@@ -208,6 +208,7 @@ pub fn training(config_file: String) {
         sampling_signal_r,
         next_model_r,
         config.channel_size,
+        config.debug_mode,
     );
     info!("Initializing the stratified structure.");
     stratified_structure.init_stratified_from_file(
@@ -245,7 +246,6 @@ pub fn training(config_file: String) {
         next_model_s,
         config.save_process,
         config.save_interval,
-        config.debug_mode,
     );
     if config.network.len() > 0 {
         booster.enable_network(config.local_name, &config.network, config.port);

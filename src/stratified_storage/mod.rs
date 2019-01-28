@@ -121,6 +121,7 @@ impl StratifiedStorage {
         sampling_signal: Receiver<Signal>,
         models: Receiver<Model>,
         channel_size: usize,
+        debug_mode: bool,
     ) -> StratifiedStorage {
         let strata = Strata::new(num_examples, feature_size, num_examples_per_block,
                                  disk_buffer_filename);
@@ -150,9 +151,7 @@ impl StratifiedStorage {
             });
         }
         // Monitor the distribution of strata
-        // TODO: set a flag to enable this feature
-        /*
-        {
+        if debug_mode {
             let counts_table_r = counts_table_r.clone();
             let weights_table_r = weights_table_r.clone();
             spawn(move || {
@@ -181,7 +180,6 @@ impl StratifiedStorage {
                 }
             });
         }
-        */
         let assigners = Assigners::new(
             updated_examples_r,
             strata.clone(),

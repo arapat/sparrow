@@ -48,6 +48,7 @@ impl Bins {
     }
 
     /// Return the vector of thresholds.
+    #[allow(dead_code)]
     pub fn get_vals(&self) -> &Vec<f32> {
         &self.vals
     }

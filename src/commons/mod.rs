@@ -46,7 +46,7 @@ pub fn get_weights(data: &Vec<Example>, scores: &[f32]) -> Vec<f32> {
 }
 
 #[inline]
-pub fn get_bound(count: usize, sum_c: f32, sum_c_squared: f32) -> f32 {
+pub fn get_bound(sum_c: f32, sum_c_squared: f32) -> f32 {
     let threshold: f32 = THRESHOLD_FACTOR * 173.0 * (4.0 / DELTA).ln();
     if sum_c_squared >= threshold {
         let log_log_term = 3.0 * sum_c_squared / 2.0 / sum_c.abs();

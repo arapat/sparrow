@@ -44,7 +44,7 @@ pub struct Samplers {
     sampling_signal: Arc<RwLock<Signal>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
-    sampling_signal_channel: Receiver<Signal>,
+    // sampling_signal_channel: Receiver<Signal>,
     num_threads: usize,
 }
 
@@ -59,7 +59,7 @@ impl Samplers {
         next_model: Receiver<Model>,
         stats_update_s: Sender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
-        sampling_signal_channel: Receiver<Signal>,
+        _sampling_signal_channel: Receiver<Signal>,
         num_threads: usize,
     ) -> Samplers {
         Samplers {
@@ -71,7 +71,7 @@ impl Samplers {
             sampling_signal: Arc::new(RwLock::new(Signal::STOP)),
             stats_update_s: stats_update_s,
             weights_table: weights_table,
-            sampling_signal_channel: sampling_signal_channel,
+            // sampling_signal_channel: sampling_signal_channel,
             num_threads: num_threads,
         }
     }
@@ -90,7 +90,7 @@ impl Samplers {
             }
         });
 
-        let signal_channel   = self.sampling_signal_channel.clone();
+        // let signal_channel   = self.sampling_signal_channel.clone();
         let num_threads      = self.num_threads;
         let strata           = self.strata.clone();
         let sampled_examples = self.sampled_examples.clone();
@@ -137,7 +137,8 @@ fn sampler(
     sampled_examples: Sender<(ExampleWithScore, u32)>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
-    sampling_signal: Arc<RwLock<Signal>>,
+    // TODO: remove sampling signal if serial sampling is removed
+    _sampling_signal: Arc<RwLock<Signal>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
 ) {
@@ -284,12 +285,13 @@ fn sampler(
 
         /*
         TODO: set a flag to enable this block
-        let signal = sampling_signal.read().unwrap();
-        if *signal == Signal::STOP {
-            break;
+        {
+            let signal = sampling_signal.read().unwrap();
+            if *signal == Signal::STOP {
+                debug!("sampler exits");
+                break;
+            }
         }
-        drop(signal);
         */
     }
-    debug!("sampler exits");
 }
