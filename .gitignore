@@ -19,5 +19,3 @@ neighbors.txt
 *_bin
 model-*.json
 .vscode
-
-*.html
