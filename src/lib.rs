@@ -1,13 +1,13 @@
 /*!
-RustBoost is an implementation of TMSN for boosting.
+Sparrow is an implementation of TMSN for boosting.
 
-From a high level, RustBoost consists of three components,
+From a high level, Sparrow consists of three components,
 (1) stratified storage,
 (2) sampler, and
 (3) scanner.
 The components communicates via channels, which can be seens as shared FIFO queues.
 
-![System Design](https://www.lucidchart.com/publicSegments/view/23e1b351-c8b8-4cd9-a41f-3698a2b7df42/image.png)
+![System Design](https://www.lucidchart.com/publicSegments/view/b6ebfe77-33fe-4937-94e2-8a91175e355f/image.png)
 */
 #[macro_use] extern crate crossbeam_channel;
 #[macro_use] extern crate lazy_static;
