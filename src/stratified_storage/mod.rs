@@ -225,8 +225,6 @@ impl StratifiedStorage {
         size: usize,
         batch_size: usize,
         feature_size: usize,
-        is_binary: bool,
-        bytes_per_example: Option<usize>,
         range: Range<usize>,
         bins: Vec<Bins>,
     ) {
@@ -234,8 +232,6 @@ impl StratifiedStorage {
             filename.clone(),
             size,
             feature_size,
-            is_binary,
-            bytes_per_example,
             true,
             self.positive.clone(),
             None,

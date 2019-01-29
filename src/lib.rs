@@ -68,50 +68,80 @@ pub type RawExample = LabeledData<RawTFeature, TLabel>;
 pub type Example = LabeledData<TFeature, TLabel>;
 
 
-/// Configuration for training with Sparrow
+/// Configuration for training and testing with Sparrow
 #[derive(Serialize, Deserialize)]
-struct Config {
+pub struct Config {
+    /// File path to the training data
     pub training_filename: String,
-    pub training_is_binary: bool,
-    pub training_bytes_per_example: usize,
-    pub positive: String,
-
+    /// Number of training examples
     pub num_examples: usize,
+    /// Number of features
     pub num_features: usize,
+    /// Range of the features for creating weak rules
     pub range: std::ops::Range<usize>, 
+    /// Label for positive examples
+    pub positive: String,
+    /// File path to the testing data
+    pub testing_filename: String,
+    /// Number of testing examples
+    pub num_testing_examples: usize,
+
+    /// Number of examples to scan for generating heuristic used in Sparrow
     pub max_sample_size: usize, 
+    /// Maximum number of bins for discretizing continous feature values
     pub max_bin_size: usize, 
+    /// Minimum value of the \gamma of the generated tree nodes
     pub min_gamma: f32,
+    /// Default maximum value of the \gamma for generating tree nodes
     pub default_gamma: f32,
+    /// Maximum number of examples to scan before shrinking the value of \gamma
+    pub max_trials_before_shrink: u32,
+    /// Minimum effective sample size for triggering resample
     pub min_ess: f32,
 
+    /// Number of boosting iterations
     pub num_iterations: usize,
+    /// Maximum number of tree leaves in each boosted tree
     pub max_leaves: usize,
-    pub max_trials_before_shrink: u32,
 
+    /// Maximum number of elements in the channel connecting scanner and sampler
     pub channel_size: usize,
+    /// Number of examples in the sample set that needs to be loaded into memory
     pub buffer_size: usize,
+    /// Number of examples to process in each weak rule updates
     pub batch_size: usize,
+    /// Set to true to stop running sampler in the background of the scanner
     pub serial_sampling: bool,
 
+    /// Number of examples in a block on the stratified binary file
     pub num_examples_per_block: usize,
+    /// File name for the stratified binary file
     pub disk_buffer_filename: String,
+    /// Number of threads for putting examples back to correct strata
     pub num_assigners: usize,
+    /// Number of threads for sampling examples from strata
     pub num_samplers: usize,
 
+    /// IP addresses of other machines in the network
     pub network: Vec<String>,
+    /// The network port used for parallel training
     pub port: u16,
+    /// Identifier for the local machine
     pub local_name: String,
+
+    /// Flag for keeping all intermediate models during training (for debugging purpose)
     pub save_process: bool,
+    /// Number of iterations between persisting models on disk
     pub save_interval: usize,
+    /// Flag for activating debug mode
     pub debug_mode: bool,
 
-    pub testing_filename: String,
-    pub testing_is_binary: bool,
-    pub testing_bytes_per_example: usize,
-    pub num_testing_examples: usize,
+    /// (for validation only) the file names of the models to run the validation
     pub models_table_filename: String,
+    /// Flag indicating if models are trained incrementally
     pub incremental_testing: bool,
+    /// Flag for validation mode, set to true to output raw scores of testing examples,
+    /// and set to false for printing the validation scores but not raw scores
     pub testing_scores_only: bool,
 }
 
@@ -137,8 +167,6 @@ pub fn training(config_file: String) {
         config.training_filename.clone(),
         config.num_examples,
         config.num_features,
-        false,
-        None,
         true,
         config.positive.clone(),
         None,
@@ -157,8 +185,6 @@ pub fn training(config_file: String) {
                 config.testing_filename.clone(),
                 config.num_testing_examples,
                 config.num_features,
-                false,
-                None,
                 true,
                 config.positive.clone(),
                 Some(bins.clone()),
@@ -179,8 +205,6 @@ pub fn training(config_file: String) {
                 config.training_filename.clone(),
                 config.num_examples,
                 config.num_features,
-                false,
-                None,
                 true,
                 config.positive.clone(),
                 Some(bins.clone()),
@@ -216,8 +240,6 @@ pub fn training(config_file: String) {
         config.num_examples,
         config.batch_size,
         config.num_features,
-        config.training_is_binary,
-        Some(config.training_bytes_per_example),
         config.range.clone(),
         bins.clone(),
     );

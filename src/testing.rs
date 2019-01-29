@@ -48,8 +48,6 @@ pub fn validate(
         num_examples,
         num_features,
         false,
-        None,
-        false,
         positive,
         Some(bins),
         0..num_features,

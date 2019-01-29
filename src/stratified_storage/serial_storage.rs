@@ -48,38 +48,28 @@ impl SerialStorage {
         filename: String,
         size: usize,
         feature_size: usize,
-        is_binary: bool,
-        bytes_per_example: Option<usize>,
         one_pass: bool,
         positive: String,
         bins: Option<Vec<Bins>>,
         range: std::ops::Range<usize>,
     ) -> SerialStorage {
-        assert!(!is_binary || bytes_per_example.is_some());
-
         let reader = create_bufreader(&filename);
-        let binary_cons = if is_binary || one_pass {
+        let binary_cons = if one_pass {
             None
         } else {
             Some(TextToBinHelper::new(&filename))
         };
-        let unwrap_bytes_per_example =
-            if let Some(t) = bytes_per_example {
-                t
-            } else {
-                0
-            };
         debug!("Created a serial storage object for {}, capacity {}, feature size {}",
                filename, size, feature_size);
         SerialStorage {
             filename: filename,
             size: size.clone(),
             feature_size: feature_size,
-            is_binary: is_binary,
+            is_binary: false,
             in_memory: false,
             positive: positive,
+            bytes_per_example: 0,
 
-            bytes_per_example: unwrap_bytes_per_example,
             binary_cons: binary_cons,
             reader: reader,
             memory_buffer: vec![],
