@@ -1,6 +1,12 @@
+# Sparrow
 
+Sparrow is an impementation of boosting that is optimized for training on very large datasets, as well as training in limited memory settings. The opimizations involve two technologies: early stopping and selective sampling. Please read [our paper](https://arxiv.org/abs/1901.09047) for more details.
 
-## Fields in the Config File
+## Usage
+
+Sparrow is written as a Rust library. It also supports running as a binary. The sparrow binary reads configuration from a specified configuration file. Many examples of the configuration files can be found in the [examples/](examples) directory.
+
+### Fields in the Config File
 
 <dl>
 
