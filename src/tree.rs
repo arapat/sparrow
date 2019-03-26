@@ -71,7 +71,7 @@ impl Tree {
         let index = self.size;
         let depth = {
             if parent == 0 {
-                0
+                1
             } else {
                 self.leaf_depth[parent] + 1
             }

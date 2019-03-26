@@ -33,6 +33,7 @@ const NUM_RULES: usize = 2 * NUM_PREDS;  // i.e., false (0), true (1)
 const PREDS: [f32; NUM_PREDS] = [-1.0, 1.0];
 // (pred1, false), (pred1, true), (pred2, false), (pred2, true)
 type ScoreBoard = Vec<Vec<Vec<[f32; NUM_RULES]>>>;
+type RuleStats = [[f32; 2]; NUM_PREDS];
 
 
 /// A weak rule with an edge larger or equal to the targetting value of `gamma`
@@ -93,9 +94,9 @@ pub struct Learner {
     // global trackers
     pub total_count:  usize,
     total_weight:     f32,
+    total_weight_sq:  f32,
     // trackers for each candidate
     weak_rules_score: ScoreBoard,
-    sum_c:            ScoreBoard,
     sum_c_squared:    ScoreBoard,
     // track the number of examples exposed to each splitting candidates
     counts:           HashMap<usize, usize>,
@@ -126,13 +127,13 @@ impl Learner {
             _default_gamma: default_gamma.clone(),
             min_gamma: min_gamma,
 
-            rho_gamma:  default_gamma.clone(),
-            alist:      Vec::with_capacity(num_candid),
-            alist_tail: 0,
-            total_count: 0,
-            total_weight: 0.0,
+            rho_gamma:        default_gamma.clone(),
+            alist:            Vec::with_capacity(num_candid),
+            alist_tail:       0,
+            total_count:      0,
+            total_weight:     0.0,
+            total_weight_sq:  0.0,
             weak_rules_score: vec![],
-            sum_c:            vec![],
             sum_c_squared:    vec![],
             counts:           HashMap::new(),
             sum_weights:      HashMap::new(),
@@ -141,7 +142,6 @@ impl Learner {
         for i in 0..learner.bins.len() {
             let size = learner.bins[i].len();
             learner.weak_rules_score.push(vec![vec![[0.0; NUM_RULES]; size]; num_candid]);
-            learner.sum_c.push(vec![vec![[0.0; NUM_RULES]; size]; num_candid]);
             learner.sum_c_squared.push(vec![vec![[0.0; NUM_RULES]; size]; num_candid]);
         }
         learner
@@ -156,7 +156,6 @@ impl Learner {
                 for j in 0..self.bins[i].len() {
                     for k in 0..NUM_RULES {
                         self.weak_rules_score[i][index][j][k] = 0.0;
-                        self.sum_c[i][index][j][k]            = 0.0;
                         self.sum_c_squared[i][index][j][k]    = 0.0;
                     }
                 }
@@ -166,6 +165,7 @@ impl Learner {
         self.counts.clear();
         self.total_count = 0;
         self.total_weight = 0.0;
+        self.total_weight_sq = 0.0;
     }
 
     fn setup(&mut self, index: usize, c_idx: usize) {
@@ -173,7 +173,6 @@ impl Learner {
             for j in 0..self.bins[i].len() {
                 for k in 0..NUM_RULES {
                     self.weak_rules_score[i][c_idx][j][k] = 0.0;
-                    self.sum_c[i][c_idx][j][k]            = 0.0;
                     self.sum_c_squared[i][c_idx][j][k]    = 0.0;
                 }
             }
@@ -195,8 +194,8 @@ impl Learner {
                         let ratio = self.weak_rules_score[i][c_idx][j][k] / self.total_weight;
                         if ratio >= max_ratio {
                             max_ratio = ratio;
-                            actual_ratio =
-                                self.weak_rules_score[i][c_idx][j][k] / self.sum_weights[index];
+                            actual_ratio = ratio;
+                            //    self.weak_rules_score[i][c_idx][j][k] / self.sum_weights[index];
                             rule_id = (i, j, c_idx, *index, k);
                         }
                     }
@@ -224,6 +223,7 @@ impl Learner {
                 c_idx
             }
         };
+        debug!("push-active, {}, {:?}, {}", c_idx, deactive, index);
         self.setup(index, c_idx);
         deactive
     }
@@ -239,22 +239,22 @@ impl Learner {
     ) -> Option<TreeNode> {
         // update global stats
         self.total_count += data.len();
-        self.total_weight += data.par_iter().map(|t| (t.1).0).sum::<f32>();
+        self.total_weight      += data.par_iter().map(|t| (t.1).0).sum::<f32>();
+        self.total_weight_sq   += data.par_iter().map(|t| ((t.1).0) * ((t.1).0)).sum::<f32>();
 
         // preprocess examples - Complexity: O(Examples * NumRules)
         let rho_gamma = self.rho_gamma;
-        type RuleStats = [[f32; 3]; NUM_PREDS];
         let data: Vec<(Vec<usize>, f32, (&Example, RuleStats))> = {
             data.par_iter().map(|(example, (weight, _))| {
                 let labeled_weight = weight * (example.label as f32);
+                // let null_weight = 2.0 * rho_gamma * weight;
                 let null_weight = 2.0 * rho_gamma * weight;
-                let mut vals = [[0.0; 3]; NUM_PREDS];
+                let mut vals: RuleStats = [[0.0; 2]; NUM_PREDS];
                 PREDS.iter().enumerate().for_each(|(i, pred)| {
                     let abs_val = pred * labeled_weight;
                     let ci      = abs_val - null_weight;
                     vals[i][0]  = abs_val;
-                    vals[i][1]  = ci;
-                    vals[i][2]  = ci * ci;
+                    vals[i][1]  = ci * ci - null_weight * null_weight;
                 });
                 (tree.get_active_nodes(example), *weight, (example, vals))
             }).collect()
@@ -273,6 +273,8 @@ impl Learner {
         // Update each weak rule - Complexity: O(Candid * Bins * Splits)
         let range_start = self.range_start;
         let counts = self.counts.clone();
+        let total_weight = self.total_weight;
+        let total_weight_sq = self.total_weight_sq;
         let mut valid_tree_node = None;
         let alist = self.alist.clone();
         alist.iter().enumerate()
@@ -284,33 +286,31 @@ impl Learner {
                      self.bins.par_iter().zip(
                          self.weak_rules_score.par_iter_mut()
                      ).zip(
-                         self.sum_c.par_iter_mut()
-                     ).zip(
                          self.sum_c_squared.par_iter_mut()
                      ).enumerate().map(|(i, zipped_values)| {
-                         let (((bin, weak_rules_score), sum_c), sum_c_squared) = zipped_values;
+                         let ((bin, weak_rules_score), sum_c_squared) = zipped_values;
 
                          // <Split, NodeId, RuleId, stats, LeftOrRight>
                          // the last element of is for the examples that are larger than all split values
-                         let mut bin_accum_vals =
-                             vec![vec![[0.0; 3]; NUM_PREDS]; bin.len() + 1];
+                         let mut bin_accum_vals: Vec<RuleStats> =
+                             vec![[[0.0; 2]; NUM_PREDS]; bin.len() + 1];
                          data.iter()
                              .for_each(|(example, vals)| {
                                  let flip_index = example.feature[range_start + i] as usize;
                                  let t = &mut bin_accum_vals[flip_index];
                                  for j in 0..NUM_PREDS {
-                                     for k in 0..3 {  // 3 trackers
+                                     for k in 0..t[j].len() {
                                          t[j][k] += vals[j][k];
                                      }
                                  }
                              });
 
-                         let mut accum_left  = vec![[0.0; 3]; NUM_PREDS];
-                         let mut accum_right = vec![[0.0; 3]; NUM_PREDS];
+                         let mut accum_left:  RuleStats = [[0.0; 2]; NUM_PREDS];
+                         let mut accum_right: RuleStats = [[0.0; 2]; NUM_PREDS];
                          // Accumulate sum of the stats of all examples that go to the right child
                          for j in 0..bin.len() { // Split value
                              for pred_idx in 0..NUM_PREDS { // Types of rule
-                                 for it in 0..3 {  // 3 trackers
+                                 for it in 0..accum_right[pred_idx].len() {
                                      accum_right[pred_idx][it] +=
                                          bin_accum_vals[j][pred_idx][it];
                                  }
@@ -320,7 +320,8 @@ impl Learner {
                          let mut valid_weak_rule = None;
                          (0..bin.len()).for_each(|j| {
                              for pred_idx in 0..NUM_PREDS { // Types of rule
-                                 for it in 0..3 { // Move examples from the right to the left child
+                                 // Move examples from the right to the left child
+                                 for it in 0..accum_left[pred_idx].len() {
                                      accum_left[pred_idx][it]  +=
                                          bin_accum_vals[j][pred_idx][it];
                                      accum_right[pred_idx][it] -=
@@ -331,16 +332,18 @@ impl Learner {
                                  let accums = [&accum_right[pred_idx], &accum_left[pred_idx]];
                                  for (eval_idx, accum) in accums.iter().enumerate() {
                                      let rule_idx = pred_idx * 2 + eval_idx;
-                                     let weak_rules_score = &mut weak_rules_score[c_idx][j][rule_idx];
-                                     let sum_c            = &mut sum_c[c_idx][j][rule_idx];
+                                     let weak_rules_score =
+                                            &mut weak_rules_score[c_idx][j][rule_idx];
                                      let sum_c_squared    = &mut sum_c_squared[c_idx][j][rule_idx];
                                      *weak_rules_score   += accum[0];
-                                     *sum_c              += accum[1];
-                                     *sum_c_squared      += accum[2];
+                                     *sum_c_squared      += accum[1];
                                      // Check stopping rule
                                      let count = counts[index];
-                                     let bound = get_bound(*sum_c, *sum_c_squared);
-                                     if *sum_c > bound {
+                                     let sum_c = *weak_rules_score - 2.0 * rho_gamma * total_weight;
+                                     let sum_c_squared = *sum_c_squared +
+                                            4.0 * rho_gamma * rho_gamma * total_weight_sq;
+                                     let bound = get_bound(sum_c, sum_c_squared);
+                                     if sum_c > bound {
                                          let base_pred = 0.5 * (
                                              (0.5 + rho_gamma) / (0.5 - rho_gamma)
                                          ).ln();
@@ -354,8 +357,8 @@ impl Learner {
 
                                                  gamma:          rho_gamma,
                                                  raw_martingale: *weak_rules_score,
-                                                 sum_c:          *sum_c,
-                                                 sum_c_squared:  *sum_c_squared,
+                                                 sum_c:          sum_c,
+                                                 sum_c_squared:  sum_c_squared,
                                                  bound:          bound,
                                                  num_scanned:    count,
                                                  fallback:       false,
@@ -387,8 +390,10 @@ impl Learner {
                 0.5 * ((0.5 + bounded_empirical_gamma) / (0.5 - bounded_empirical_gamma)).ln();
             let count          = self.counts[&index];
             let raw_martingale = self.weak_rules_score[i][c_idx][j][k];
-            let sum_c          = self.sum_c[i][c_idx][j][k];
             let sum_c_squared  = self.sum_c_squared[i][c_idx][j][k];
+            let sum_c          = raw_martingale - 2.0 * self.rho_gamma * self.total_weight;
+            let sum_c_squared  = sum_c_squared +
+                    4.0 * self.rho_gamma * self.rho_gamma * self.total_weight_sq;
             let bound          = get_bound(sum_c, sum_c_squared);
             // shrink rho_gamma	
             let old_rho_gamma = self.rho_gamma;	
