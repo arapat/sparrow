@@ -13,6 +13,7 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
 use commons::Model;
 use commons::Signal;
+use tree::Tree;
 use super::Strata;
 use super::WeightTableRead;
 use super::SPEED_TEST;
@@ -67,7 +68,7 @@ impl Samplers {
             sampled_examples: sampled_examples,
             updated_examples: updated_examples,
             next_model: next_model,
-            model: Arc::new(RwLock::new(vec![])),
+            model: Arc::new(RwLock::new(Tree::new(1, 0.0))),
             sampling_signal: Arc::new(RwLock::new(Signal::STOP)),
             stats_update_s: stats_update_s,
             weights_table: weights_table,
@@ -81,7 +82,7 @@ impl Samplers {
         let model = self.model.clone();
         spawn(move || {
             while let Some(new_model) = next_model.recv() {
-                let model_len = new_model.len();
+                let model_len = new_model.size;
                 {
                     let mut model = model.write().unwrap();
                     *model = new_model;
@@ -223,17 +224,12 @@ fn sampler(
             let (example, (score, version)) = recv.unwrap();
             let (updated_score, model_size) = {
                 pm2.resume();
-                let trees = model.read().unwrap();
+                let latest_model = model.read().unwrap();
                 pm2.pause();
                 pm3.resume();
-                let model_size = trees.len();
                 pm3.pause();
                 pm4.resume();
-                let inc_score: f32 = {
-                    trees[version..model_size].iter().map(|tree| {
-                        tree.get_leaf_prediction(&example)
-                    }).sum()
-                };
+                let (inc_score, (model_size, _)) = latest_model.get_prediction(&example, version);
                 pm4.pause();
                 (score + inc_score, model_size)
             };

@@ -20,7 +20,8 @@ use commons::ModelScore;
 use commons::bins::Bins;
 use commons::channel::Sender;
 use commons::get_weight;
-use self::learner::get_base_tree;
+use tree::Tree;
+use self::learner::get_base_node;
 use self::learner::Learner;
 use super::Example;
 
@@ -76,12 +77,12 @@ impl Boosting {
     ) -> Boosting {
         let mut training_loader = training_loader;
         let learner = Learner::new(
-            max_leaves, min_gamma, default_gamma, max_trials_before_shrink, bins, &range);
+            max_leaves, min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range); // TODO: make num_cadid a paramter
 
         // add root node for balancing labels
-        let (base_tree, gamma) = get_base_tree(max_sample_size, &mut training_loader);
+        let (gamma, base_pred) = get_base_node(max_sample_size, &mut training_loader);
         let gamma_squared = gamma.powi(2);
-        let model = vec![base_tree];
+        let model = Tree::new(max_leaves, base_pred);
 
         let persist_file_buffer = {
             if save_process {
@@ -147,6 +148,7 @@ impl Boosting {
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
+        /*
         let mut validate_w1: Vec<f32> = {
             validate_set1.iter()
                         .map(|example| {
@@ -159,15 +161,15 @@ impl Boosting {
                             get_weight(example, self.model[0].get_leaf_prediction(example))
                         }).collect()
         };
+        */
         let mut iteration = 0;
         let mut is_gamma_significant = true;
         while is_gamma_significant &&
-                (self.num_iterations <= 0 || self.model.len() < self.num_iterations) {
+                (self.num_iterations <= 0 || self.model.size < self.num_iterations) {
             let (new_rule, batch_size) = {
                 let data = self.training_loader.get_next_batch_and_update(true, &self.model);
                 learner_timer.resume();
-                (self.learner.update(
-                    data, &validate_set1, &validate_w1, &validate_set2, &validate_w2), data.len())
+                (self.learner.update(&self.model, &data), data.len())
             };
             learner_timer.update(batch_size);
             global_timer.update(batch_size);
@@ -175,6 +177,7 @@ impl Boosting {
 
             if new_rule.is_some() {
                 let new_rule = new_rule.unwrap();
+                /*
                 if validate_set1.len() > 0 {
                     validate_w1.par_iter_mut()
                               .zip(validate_set1.par_iter())
@@ -187,19 +190,27 @@ impl Boosting {
                                   *w *= get_weight(example, new_rule.get_leaf_prediction(example));
                               });
                 }
+                */
+                let index = self.model.add_node(
+                    new_rule.prt_index,
+                    new_rule.feature,
+                    new_rule.threshold,
+                    new_rule.evaluation,
+                    new_rule.predict,
+                );
+                self.learner.push_active(index);
 
-                self.model.push(new_rule);
                 // TODO: how to calculate sum_gamma in the case of trees?
                 // self.sum_gamma += new_rule.gamma.powi(2);
                 // post updates
                 self.try_send_model();
                 is_gamma_significant = self.learner.is_gamma_significant();
-                self.learner.reset_all();
-                if self.model.len() % self.save_interval == 0 {
+                self.learner.reset();
+                if self.model.size % self.save_interval == 0 {
                     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
                 }
 
-                info!("new-tree-info, {}", self.model.len());
+                info!("new-tree-info, {}", self.model.size);
             }
 
             iteration += 1;
@@ -212,7 +223,7 @@ impl Boosting {
         }
         self.handle_persistent(iteration, prep_time + global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
-              self.model.len(), self.learner.is_gamma_significant());
+              self.model.size, self.learner.is_gamma_significant());
     }
 
     fn handle_network(&mut self) -> bool {
@@ -234,13 +245,13 @@ impl Boosting {
         );
         let replace = model.is_some();
         if replace {
-            let (old_size, old_score) = (self.model.len(), self.sum_gamma);
+            let (old_size, old_score) = (self.model.size, self.sum_gamma);
             self.model = model.unwrap();
             self.sum_gamma = score;
             self.remote_sum_gamma = self.sum_gamma;
-            self.learner.reset_all();
+            self.learner.reset();
             debug!("model-replaced, {}, {}, {}, {}",
-                    self.sum_gamma, old_score, self.model.len(), old_size);
+                    self.sum_gamma, old_score, self.model.size, old_size);
         }
 
         // handle sending
@@ -266,7 +277,7 @@ impl Boosting {
         self.persist_id += 1;
         if self.save_process {
             let mut file_buffer = create_bufwriter(
-                &format!("models/model_{}-v{}.json", self.model.len(), self.persist_id));
+                &format!("models/model_{}-v{}.json", self.model.size, self.persist_id));
             file_buffer.write(json.as_ref()).unwrap();
         } else {
             let buf = self.persist_file_buffer.as_mut().unwrap();

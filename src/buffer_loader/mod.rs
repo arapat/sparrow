@@ -205,14 +205,11 @@ impl BufferLoader {
 
 /// Update the scores of the examples using `model`
 fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
-    let model_size = model.len();
+    let model_size = model.size;
     data.par_iter_mut().for_each(|example| {
-        let curr_weight = (example.1).0;
-        let mut new_score = 0.0;
-        for tree in model[((example.1).1)..model_size].iter() {
-            new_score += tree.get_leaf_prediction(&example.0);
-        }
-        (*example).1 = (curr_weight * get_weight(&example.0, new_score), model_size);
+        let (curr_weight, curr_version) = example.1;
+        let (new_score, (new_version, _)) = model.get_prediction(&example.0, curr_version);
+        (*example).1 = (curr_weight * get_weight(&example.0, new_score), new_version);
     });
 }
 
