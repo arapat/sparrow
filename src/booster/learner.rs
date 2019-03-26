@@ -118,7 +118,6 @@ impl Learner {
         bins: Vec<Bins>,
         range: &Range<usize>,
     ) -> Learner {
-        let binsize = bins.len();
         let mut learner = Learner {
             bins: bins,
             range_start: range.start,
@@ -132,9 +131,9 @@ impl Learner {
             alist_tail: 0,
             total_count: 0,
             total_weight: 0.0,
-            weak_rules_score: vec![vec![]; binsize],
-            sum_c:            vec![vec![]; binsize],
-            sum_c_squared:    vec![vec![]; binsize],
+            weak_rules_score: vec![],
+            sum_c:            vec![],
+            sum_c_squared:    vec![],
             counts:           HashMap::new(),
             sum_weights:      HashMap::new(),
         };
@@ -181,6 +180,7 @@ impl Learner {
         }
         *self.sum_weights.entry(index).or_insert(0.0) = 0.0;
         *self.counts.entry(index).or_insert(0) = 0;
+        debug!("setup, {}, {}", index, c_idx);
     }
 
     fn get_max_empirical_ratio(&self) -> (f32, (usize, usize, usize, usize, usize)) {
@@ -368,16 +368,17 @@ impl Learner {
                          valid_weak_rule
                      }).find_any(|t| t.is_some()).unwrap_or(None)
                  };
-                if valid_tree_node.is_none() && tree_node.is_some() {
-                    valid_tree_node = tree_node;
-                }
-            });
+                 if valid_tree_node.is_none() && tree_node.is_some() {
+                     valid_tree_node = tree_node;
+                 }
+             });
 
         if valid_tree_node.is_some() || self.total_count <= self.num_examples_before_shrink {
             valid_tree_node
         } else {
             // cannot find a valid weak rule, need to fallback and shrink gamma
             let (empirical_gamma, (i, j, c_idx, index, k)) = self.get_max_empirical_ratio();
+            debug!("fallback, {}, {}, {}, {}, {}, {}", empirical_gamma, i, j, c_idx, index, k);
             let (pred_idx, eval_idx) = (k / 2, k % 2);
             let empirical_gamma = empirical_gamma / 2.0;
             let bounded_empirical_gamma = min(0.25, empirical_gamma);
@@ -389,6 +390,10 @@ impl Learner {
             let sum_c          = self.sum_c[i][c_idx][j][k];
             let sum_c_squared  = self.sum_c_squared[i][c_idx][j][k];
             let bound          = get_bound(sum_c, sum_c_squared);
+            // shrink rho_gamma	
+            let old_rho_gamma = self.rho_gamma;	
+            self.rho_gamma = 0.9 * min(old_rho_gamma, empirical_gamma);
+            debug!("shrink-gamma, {}, {}, {}", old_rho_gamma, empirical_gamma, self.rho_gamma);
             // generate a fallback tree node
             Some(TreeNode {
                 prt_index:     index,

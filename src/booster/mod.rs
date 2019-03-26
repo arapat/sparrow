@@ -106,6 +106,8 @@ impl Boosting {
 
             save_process: save_process,
         };
+        b.learner.push_active(0);
+        b.model.mark_active(0);
         b.try_send_model();
         b
     }

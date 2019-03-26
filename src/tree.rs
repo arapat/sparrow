@@ -95,6 +95,8 @@ impl Tree {
             ancestor = self.parent[ancestor];
             self.latest_child[ancestor] = index;
         }
+        debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}",
+               index, parent, depth, feature, threshold, evaluation, pred_value);
         index
     }
 
