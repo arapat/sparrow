@@ -1,7 +1,5 @@
 mod learner;
 
-use rayon::prelude::*;
-
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Seek;
@@ -19,7 +17,6 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelScore;
 use commons::bins::Bins;
 use commons::channel::Sender;
-use commons::get_weight;
 use tree::Tree;
 use self::learner::get_base_node;
 use self::learner::Learner;
@@ -62,7 +59,6 @@ impl Boosting {
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
         num_iterations: usize,
-        max_leaves: usize,
         min_gamma: f32,
         max_trials_before_shrink: u32,
         training_loader: BufferLoader,
@@ -77,12 +73,12 @@ impl Boosting {
     ) -> Boosting {
         let mut training_loader = training_loader;
         let learner = Learner::new(
-            max_leaves, min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range); // TODO: make num_cadid a paramter
+            min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range); // TODO: make num_cadid a paramter
 
         // add root node for balancing labels
         let (gamma, base_pred) = get_base_node(max_sample_size, &mut training_loader);
         let gamma_squared = gamma.powi(2);
-        let model = Tree::new(max_leaves, base_pred);
+        let model = Tree::new(num_iterations + 1, base_pred);
 
         let persist_file_buffer = {
             if save_process {
@@ -138,8 +134,8 @@ impl Boosting {
     pub fn training(
         &mut self,
         prep_time: f32,
-        validate_set1: Vec<Example>,
-        validate_set2: Vec<Example>,
+        _validate_set1: Vec<Example>,
+        _validate_set2: Vec<Example>,
     ) {
         info!("Start training.");
 
@@ -191,6 +187,7 @@ impl Boosting {
                               });
                 }
                 */
+                new_rule.write_log();
                 let index = self.model.add_node(
                     new_rule.prt_index,
                     new_rule.feature,
@@ -198,7 +195,11 @@ impl Boosting {
                     new_rule.evaluation,
                     new_rule.predict,
                 );
-                self.learner.push_active(index);
+                let deactive = self.learner.push_active(index);
+                if deactive.is_some() {
+                    self.model.unmark_active(deactive.unwrap());
+                }
+                self.model.mark_active(index);
 
                 // TODO: how to calculate sum_gamma in the case of trees?
                 // self.sum_gamma += new_rule.gamma.powi(2);

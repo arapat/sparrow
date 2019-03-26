@@ -13,7 +13,6 @@ Why JSON but not binary?
 */
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tree {
-    max_leaves:     usize,
     pub size: usize,
     parent:         Vec<usize>,
     children:       Vec<Vec<usize>>,
@@ -30,7 +29,6 @@ pub struct Tree {
 impl Clone for Tree {
     fn clone(&self) -> Tree {
         Tree {
-            max_leaves:     self.max_leaves,
             size:     self.size,
             parent:         self.parent.clone(),
             children:       self.children.clone(),
@@ -47,21 +45,19 @@ impl Clone for Tree {
 }
 
 impl Tree {
-    pub fn new(max_leaves: usize, base_pred: f32) -> Tree {
-        let max_nodes = max_leaves * 2;
+    pub fn new(max_nodes: usize, base_pred: f32) -> Tree {
         let mut tree = Tree {
-            max_leaves:     max_leaves,
             size:           0,
-            parent:         Vec::with_capacity(max_nodes as usize),
-            children:       Vec::with_capacity(max_nodes as usize),
-            split_feature:  Vec::with_capacity(max_nodes as usize),
-            threshold:      Vec::with_capacity(max_nodes as usize),
-            evaluation:     Vec::with_capacity(max_nodes as usize),
-            predicts:       Vec::with_capacity(max_nodes as usize),
-            leaf_depth:     Vec::with_capacity(max_nodes as usize),
-            latest_child:   Vec::with_capacity(max_nodes as usize),
-            is_active:      Vec::with_capacity(max_nodes as usize),
-            num_active:     Vec::with_capacity(max_nodes as usize),
+            parent:         Vec::with_capacity(max_nodes),
+            children:       Vec::with_capacity(max_nodes),
+            split_feature:  Vec::with_capacity(max_nodes),
+            threshold:      Vec::with_capacity(max_nodes),
+            evaluation:     Vec::with_capacity(max_nodes),
+            predicts:       Vec::with_capacity(max_nodes),
+            leaf_depth:     Vec::with_capacity(max_nodes),
+            latest_child:   Vec::with_capacity(max_nodes),
+            is_active:      Vec::with_capacity(max_nodes),
+            num_active:     Vec::with_capacity(max_nodes),
         };
         tree.add_node(0, 0, 0, false, base_pred);
         tree

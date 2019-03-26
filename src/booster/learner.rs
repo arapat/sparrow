@@ -1,7 +1,6 @@
 use rayon::prelude::*;
 
 use std::collections::HashMap;
-use std::collections::VecDeque;
 use std::ops::Range;
 
 use commons::ExampleInSampleSet;
@@ -10,10 +9,8 @@ use super::super::TFeature;
 
 use buffer_loader::BufferLoader;
 use commons::bins::Bins;
-use commons::max;
 use commons::min;
 use commons::get_bound;
-use commons::get_weight;
 use commons::Model;
 
 // TODO: The tree generation and score updates are for AdaBoost only,
@@ -87,8 +84,7 @@ pub struct Learner {
     range_start: usize,
     num_candid:  usize,
     num_examples_before_shrink: usize,
-    max_leaves: usize,
-    default_gamma: f32,
+    _default_gamma: f32,
     min_gamma: f32,
 
     rho_gamma:        f32,
@@ -115,7 +111,6 @@ impl Learner {
     /// if the algorithm is running on a single worker, `range` is 0..`num_of_features`;
     /// if the algorithm is running on multiple workers, `range` is a subset of the feature set.
     pub fn new(
-        max_leaves: usize,
         min_gamma: f32,
         default_gamma: f32,
         num_examples_before_shrink: u32,
@@ -129,8 +124,7 @@ impl Learner {
             range_start: range.start,
             num_candid:  num_candid.clone(),
             num_examples_before_shrink: num_examples_before_shrink as usize,
-            max_leaves: max_leaves,
-            default_gamma: default_gamma.clone(),
+            _default_gamma: default_gamma.clone(),
             min_gamma: min_gamma,
 
             rho_gamma:  default_gamma.clone(),
@@ -216,7 +210,8 @@ impl Learner {
         self.rho_gamma >= self.min_gamma
     }
 
-    pub fn push_active(&mut self, index: usize) {
+    pub fn push_active(&mut self, index: usize) -> Option<usize> {
+        let mut deactive = None;
         let c_idx = {
             if self.alist.len() < self.num_candid {
                 self.alist.push(index);
@@ -224,11 +219,13 @@ impl Learner {
             } else {
                 let c_idx = self.alist_tail;
                 self.alist_tail = (self.alist_tail + 1) % self.num_candid;
+                deactive = Some(self.alist[c_idx]);
                 self.alist[c_idx] = index;
                 c_idx
             }
         };
         self.setup(index, c_idx);
+        deactive
     }
 
     /// Update the statistics of all candidate weak rules using current batch of
@@ -246,8 +243,8 @@ impl Learner {
 
         // preprocess examples - Complexity: O(Examples * NumRules)
         let rho_gamma = self.rho_gamma;
-        type RULE_STATS = [[f32; 3]; NUM_PREDS];
-        let data: Vec<(Vec<usize>, f32, (&Example, RULE_STATS))> = {
+        type RuleStats = [[f32; 3]; NUM_PREDS];
+        let data: Vec<(Vec<usize>, f32, (&Example, RuleStats))> = {
             data.par_iter().map(|(example, (weight, _))| {
                 let labeled_weight = weight * (example.label as f32);
                 let null_weight = 2.0 * rho_gamma * weight;
@@ -263,7 +260,7 @@ impl Learner {
             }).collect()
         };
         // Sort examples - Complexity: O(Examples)
-        let mut data_by_node: HashMap<usize, Vec<&(&Example, RULE_STATS)>> = HashMap::new();
+        let mut data_by_node: HashMap<usize, Vec<&(&Example, RuleStats)>> = HashMap::new();
         data.iter().for_each(|(indices, weight, value)| {
             // Update weights and counts
             indices.iter().for_each(|index| {
@@ -275,7 +272,6 @@ impl Learner {
 
         // Update each weak rule - Complexity: O(Candid * Bins * Splits)
         let range_start = self.range_start;
-        let num_candid = self.num_candid;
         let counts = self.counts.clone();
         let mut valid_tree_node = None;
         let alist = self.alist.clone();

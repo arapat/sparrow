@@ -256,7 +256,6 @@ pub fn training(config_file: String) {
     info!("Starting the booster.");
     let mut booster = Boosting::new(
         config.num_iterations,
-        config.max_leaves,
         config.min_gamma,
         config.max_trials_before_shrink,
         buffer_loader,

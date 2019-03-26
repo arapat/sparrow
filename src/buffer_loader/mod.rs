@@ -205,7 +205,6 @@ impl BufferLoader {
 
 /// Update the scores of the examples using `model`
 fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
-    let model_size = model.size;
     data.par_iter_mut().for_each(|example| {
         let (curr_weight, curr_version) = example.1;
         let (new_score, (new_version, _)) = model.get_prediction(&example.0, curr_version);
