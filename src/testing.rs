@@ -105,7 +105,7 @@ pub fn validate(
             None => {
                 let outputpath = filepath.clone() + "_scores";
                 let preds: Vec<String> = scores.iter().map(|t| t.to_string()).collect();
-                write_all(&outputpath, &preds.join("\n")).expect(
+                write_all(&outputpath, &preds.join("\n").as_bytes()).expect(
                     &format!("Cannot write the predictions of the model `{}`", filepath));
                 info!("Processed {}", filepath);
             },

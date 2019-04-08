@@ -1,11 +1,16 @@
 mod gatherer;
+mod io;
+mod loader;
 
 use rayon::prelude::*;
 
 use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::thread::sleep;
+use std::time::Duration;
 
+use commons::channel;
 use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_weight;
@@ -15,6 +20,18 @@ use commons::ExampleWithScore;
 use commons::Model;
 use commons::Signal;
 use self::gatherer::Gatherer;
+use self::loader::Loader;
+
+
+pub type LockedBuffer = Arc<RwLock<Vec<ExampleWithScore>>>;
+
+
+#[derive(Debug, PartialEq)]
+pub enum SampleMode {
+    MEMORY,
+    LOCAL,
+    S3,
+}
 
 
 /// Double-buffered sample set. It consists of two buffers stores in memory. One of the
@@ -31,10 +48,10 @@ pub struct BufferLoader {
     num_batch: usize,
 
     examples: Vec<ExampleInSampleSet>,
-    new_examples: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
+    new_examples: LockedBuffer,
     gatherer: Gatherer,
-    serial_sampling: bool,
     sampling_signal_channel: Sender<Signal>,
+    sample_set_sender: Sender<String>,
 
     ess: f32,
     min_ess: f32,
@@ -56,15 +73,29 @@ impl BufferLoader {
     pub fn new(
         size: usize,
         batch_size: usize,
+        sampling_mode: String,
         gather_new_sample: Receiver<(ExampleWithScore, u32)>,
         sampling_signal_channel: Sender<Signal>,
-        serial_sampling: bool,
         init_block: bool,
         min_ess: Option<f32>,
     ) -> BufferLoader {
-        let new_examples = Arc::new(RwLock::new(None));
+        let new_examples = Arc::new(RwLock::new(vec![]));
         let num_batch = (size + batch_size - 1) / batch_size;
-        let gatherer = Gatherer::new(gather_new_sample, new_examples.clone(), size.clone());
+        let sample_mode = {
+            match sampling_mode.to_lowercase().as_str() {
+                "memory" => SampleMode::MEMORY,
+                "local"  => SampleMode::LOCAL,
+                "s3"     => SampleMode::S3,
+                _        => {
+                    error!("Unrecognized sampling mode");
+                    SampleMode::MEMORY
+                }
+            }
+        };
+        let (sample_set_s, sample_set_r) = channel::bounded(10, "sample-set-ready");
+        let gatherer = Gatherer::new(
+            gather_new_sample, size.clone(), sample_set_s.clone(), new_examples.clone());
+        let loader = Loader::new(new_examples.clone(), sample_set_r);
         let mut buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
@@ -73,24 +104,24 @@ impl BufferLoader {
             examples: vec![],
             new_examples: new_examples,
             gatherer: gatherer,
-            serial_sampling: serial_sampling,
             sampling_signal_channel: sampling_signal_channel,
+            sample_set_sender: sample_set_s,
 
             ess: 0.0,
             min_ess: min_ess.unwrap_or(0.0),
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
-        if !buffer_loader.serial_sampling {
-            buffer_loader.sampling_signal_channel.send(Signal::START);
+        buffer_loader.sampling_signal_channel.send(Signal::START);
+        while init_block && !buffer_loader.try_switch() {
+            sleep(Duration::from_millis(2000));
         }
-        if init_block {
-            buffer_loader.force_switch();
-        }
-        if !buffer_loader.serial_sampling {
-            buffer_loader.gatherer.run(false);
-        }
+        buffer_loader.gatherer.run(sample_mode);
         buffer_loader
+    }
+
+    pub fn get_sample_set_sender(&self) -> Sender<String> {
+        self.sample_set_sender.clone()
     }
 
     /// Return the number of batches (i.e. the number of function calls to `get_next_batch`)
@@ -120,7 +151,7 @@ impl BufferLoader {
     }
 
     fn get_next_mut_batch(&mut self, allow_switch: bool) -> &mut [ExampleInSampleSet] {
-        if self.ess <= self.min_ess && allow_switch && !self.serial_sampling {
+        if self.ess <= self.min_ess && allow_switch {
             self.try_switch();
         }
         self.curr_example += self.batch_size;
@@ -134,49 +165,27 @@ impl BufferLoader {
         &mut self.examples[self.curr_example..tail]
     }
 
-    fn force_switch(&mut self) {
-        debug!("force-switch started.");
-        self.sampling_pm.resume();
-        if self.serial_sampling {
-            self.sampling_signal_channel.send(Signal::START);
-        }
-        self.gatherer.run(true);
-        if self.serial_sampling {
-            self.sampling_signal_channel.send(Signal::STOP);
-        }
-        self.sampling_pm.pause();
-
-        assert_eq!(self.try_switch(), true);
-        debug!("force-switch quit.");
-    }
-
     fn try_switch(&mut self) -> bool {
         self.sampling_pm.resume();
-        let new_examples = {
-            if let Ok(mut new_examples) = self.new_examples.try_write() {
-                new_examples.take()
-            } else {
-                None
-            }
-        };
         let switched = {
-            if new_examples.is_some() {
-                self.examples = new_examples.unwrap()
-                                            .into_iter()
+            if let Ok(mut new_examples) = self.new_examples.try_write() {
+                self.examples = new_examples.iter()
                                             .map(|t| {
                                                 let (a, s) = t;
                                                 // sampling weights are ignored
                                                 let w = get_weight(&a, 0.0);
-                                                (a, (w, s.1))
+                                                (a.clone(), (w, s.1))
                                             }).collect();
                 self.curr_example = 0;
-                self.update_ess();
                 debug!("switched-buffer, {}", self.examples.len());
                 true
             } else {
                 false
             }
         };
+        if switched {
+            self.update_ess();
+        }
         self.sampling_pm.pause();
         switched
     }
@@ -190,11 +199,6 @@ impl BufferLoader {
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
-        if self.serial_sampling && self.ess < self.min_ess {
-            debug!("serial (blocking) sampling started");
-            self.force_switch();
-            debug!("serial (blocking) sampling finished");
-        }
     }
 
     pub fn get_sampling_duration(&self) -> f32 {

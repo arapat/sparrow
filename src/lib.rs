@@ -19,6 +19,7 @@ extern crate evmap;
 extern crate ordered_float;
 extern crate rand;
 extern crate rayon;
+extern crate s3;
 extern crate serde_json;
 extern crate serde_yaml;
 extern crate threadpool;
@@ -112,6 +113,8 @@ pub struct Config {
     pub batch_size: usize,
     /// Set to true to stop running sampler in the background of the scanner
     pub serial_sampling: bool,
+    /// Sampling mode: Read/write from memory/local disk/S3
+    pub sampling_mode: String,
 
     /// Number of examples in a block on the stratified binary file
     pub num_examples_per_block: usize,
@@ -247,9 +250,9 @@ pub fn training(config_file: String) {
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
+        config.sampling_mode,
         sampled_examples_r,
         sampling_signal_s,
-        config.serial_sampling,
         true,
         Some(config.min_ess),
     );

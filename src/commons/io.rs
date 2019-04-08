@@ -27,6 +27,7 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
     BufWriter::new(f)
 }
 
+// TODO: create buffer for the file handler
 pub fn read_all(filename: &String) -> String {
     let mut file = File::open(filename).expect(
         &format!("File `{}` does not exist or cannot be read.", filename));
@@ -35,10 +36,11 @@ pub fn read_all(filename: &String) -> String {
     contents
 }
 
-pub fn write_all(filename: &String, content: &String) -> Result<()> {
+// TODO: create buffer for the file handler
+pub fn write_all(filename: &String, content: &[u8]) -> Result<()> {
     let mut file = File::create(filename).expect(
         &format!("File `{}` does not exist or cannot be read.", filename));
-    file.write_all(content.as_bytes())
+    file.write_all(content)
 }
 
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {

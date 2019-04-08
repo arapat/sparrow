@@ -1,20 +1,26 @@
 
-use std::sync::Arc;
-use std::sync::RwLock;
 use rand::Rng;
 
 use std::thread::spawn;
 use rand::thread_rng;
 
 use commons::channel::Receiver;
+use commons::channel::Sender;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 
+use super::LockedBuffer;
+use super::SampleMode;
+use super::io::write_memory;
+use super::io::write_local;
+use super::io::write_s3;
+
 
 pub struct Gatherer {
-    gather_new_sample: Receiver<(ExampleWithScore, u32)>,
-    new_sample_buffer: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
+    gather_new_sample:   Receiver<(ExampleWithScore, u32)>,
     new_sample_capacity: usize,
+    signal_channel:      Sender<String>,
+    new_sample_buffer:   LockedBuffer,
 }
 
 
@@ -22,47 +28,67 @@ impl Gatherer {
     /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
     /// * `new_sample_capacity`: the size of the memory buffer of the buffer loader
     pub fn new(
-        gather_new_sample: Receiver<(ExampleWithScore, u32)>,
-        new_sample_buffer: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
+        gather_new_sample:   Receiver<(ExampleWithScore, u32)>,
         new_sample_capacity: usize,
+        signal_channel:      Sender<String>,
+        new_sample_buffer:   LockedBuffer,
     ) -> Gatherer {
         Gatherer {
-            gather_new_sample: gather_new_sample,
-            new_sample_buffer: new_sample_buffer,
+            gather_new_sample:   gather_new_sample,
             new_sample_capacity: new_sample_capacity,
+            signal_channel:      signal_channel,
+            new_sample_buffer:   new_sample_buffer,
         }
     }
 
     /// Start the gatherer.
     ///
     /// Fill the alternate memory buffer of the buffer loader
-    pub fn run(&self, blocking: bool) {
+    pub fn run(&self, mode: SampleMode) {
+        let signal_channel = self.signal_channel.clone();
         let new_sample_capacity = self.new_sample_capacity;
-        let new_sample_buffer = self.new_sample_buffer.clone();
         let gather_new_sample = self.gather_new_sample.clone();
-        if blocking {
-            info!("Starting blocking gatherer");
-            fill_buffer(new_sample_capacity, new_sample_buffer, gather_new_sample);
-        } else {
-            info!("Starting non-blocking gatherer");
-            spawn(move || {
-                loop {
-                    fill_buffer(
-                        new_sample_capacity.clone(),
-                        new_sample_buffer.clone(),
-                        gather_new_sample.clone(),
-                    );
+        let new_sample_buffer = self.new_sample_buffer.clone();
+        info!("Starting non-blocking gatherer");
+        spawn(move || {
+            loop {
+                match mode {
+                    SampleMode::MEMORY => {
+                        gather(
+                            new_sample_capacity,
+                            new_sample_buffer.clone(),
+                            gather_new_sample.clone(),
+                            &write_memory,
+                        );
+                    },
+                    SampleMode::LOCAL => {
+                        gather(
+                            new_sample_capacity,
+                            new_sample_buffer.clone(),
+                            gather_new_sample.clone(),
+                            &write_local,
+                        );
+                    },
+                    SampleMode::S3 => {
+                        gather(
+                            new_sample_capacity,
+                            new_sample_buffer.clone(),
+                            gather_new_sample.clone(),
+                            &write_s3,
+                        );
+                    },
                 }
-            });
-        }
+            }
+        });
     }
 }
 
 
-fn fill_buffer(
+fn gather(
     new_sample_capacity: usize,
-    new_sample_buffer: Arc<RwLock<Option<Vec<ExampleWithScore>>>>,
+    new_sample_buffer: LockedBuffer,
     gather_new_sample: Receiver<(ExampleWithScore, u32)>,
+    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer) -> (),
 ) {
     debug!("start filling the alternate buffer");
     let mut pm = PerformanceMonitor::new();
@@ -79,11 +105,9 @@ fn fill_buffer(
         }
     }
     thread_rng().shuffle(&mut new_sample);
-    {
-        let new_sample_lock = new_sample_buffer.write();
-        *(new_sample_lock.unwrap()) = Some(new_sample);
-    }
-    debug!("new-sample, {}", new_sample_capacity as f32 / pm.get_duration());
+    handler(new_sample, new_sample_buffer);
+    let duration = pm.get_duration();
+    debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
 }
 
 
