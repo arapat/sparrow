@@ -1,45 +1,19 @@
-
-
-/*
-use std::str;
-
+use std::fs::rename;
 use s3::bucket::Bucket;
 use s3::credentials::Credentials;
-use s3::error::S3Result;
 
-const REGION: &str = "us-east-1";
-const BUCKET: &str = "drazen-test-bucket-2";
-
-pub fn main() -> S3Result<()> {
-    let region = REGION.parse()?;
-//     Create Bucket in REGION for BUCKET
-    let credentials = Credentials::default();
-    let bucket = Bucket::new(BUCKET, region, credentials)?;
-
-    // Make sure that our "test_file" doesn't exist, delete it if it does.
-    bucket.delete("test_file")?;
-
-    // Put a "test_file" with the contents of MESSAGE at the root of the
-    // bucket.
-    let (_, code) = bucket.put("test_file", MESSAGE.as_bytes(), "text/plain")?;
-    assert_eq!(200, code);
-
-    // Get the "test_file" contents and make sure that the returned message
-    // matches what we sent.
-    let (data, code) = bucket.get("test_file")?;
-    let string = str::from_utf8(&data).unwrap();
-    assert_eq!(200, code);
-    assert_eq!(MESSAGE, string);
-}
-*/
-
+use bincode::deserialize;
 use bincode::serialize;
 use commons::ExampleWithScore;
+use commons::io::read_all;
 use commons::io::write_all;
 use super::LockedBuffer;
 
 
-pub static FILENAME: &str = "sample.bin";
+const FILENAME: &str = "sample.bin";
+const REGION:   &str = "us-west-1";
+const BUCKET:   &str = "tmsn-cache";
+const S3_PATH:  &str = "samples/";
 
 
 // For gatherer
@@ -55,37 +29,61 @@ pub fn write_memory(
 
 pub fn write_local(
     new_sample: Vec<ExampleWithScore>,
-    new_sample_buffer: LockedBuffer,
+    _new_sample_buffer: LockedBuffer,
 ) {
-    let filename = FILENAME.to_string();
-    write_all(&filename, &serialize(&new_sample).unwrap());
-    // signal_channel.send(filename);
+    let filename = FILENAME.to_string() + "_WRITING";
+    write_all(&filename, &serialize(&new_sample).unwrap())
+        .expect("Failed to write the sample set to file");
+    rename(filename, FILENAME.to_string()).unwrap();
 }
 
 
 pub fn write_s3(
     new_sample: Vec<ExampleWithScore>,
-    new_sample_buffer: LockedBuffer,
+    _new_sample_buffer: LockedBuffer,
 ) {
-    // TODO: upload S3 and send out S3 info
+    let region = REGION.parse().unwrap();
+    // TODO: Add support to read credentials from the config file
+    // Read credentials from the environment variables
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(BUCKET, region, credentials).unwrap();
+    let filename = S3_PATH.to_string() + FILENAME;
+
+    // In case the file exists, delete it
+    let (_, _) = bucket.delete(&filename).unwrap();
+    let (_, code) = bucket.put(
+        &filename, &serialize(&new_sample).unwrap(), "application/octet-stream").unwrap();
+    assert_eq!(200, code);
 }
 
 
 // For loader
 
 pub fn load_local(
-    filename: String,
-    new_sample_lock: LockedBuffer,
+    new_sample_buffer: LockedBuffer,
 ) {
-    // let new_sample_lock = new_sample_buffer.write();
-    // *(new_sample_lock.unwrap()) = Some(new_sample);
+    let filename = FILENAME.to_string();
+    let new_sample: Vec<ExampleWithScore> = deserialize(read_all(&filename).as_ref()).unwrap();
+    let new_sample_lock = new_sample_buffer.write();
+    *(new_sample_lock.unwrap()) = new_sample;
 }
 
 
 
 pub fn load_s3(
-    s3_info: String,
-    new_sample_lock: LockedBuffer,
+    new_sample_buffer: LockedBuffer,
 ) {
-    // TODO: Load from S3
+    let region = REGION.parse().unwrap();
+    // TODO: Add support to read credentials from the config file
+    // Read credentials from the environment variables
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(BUCKET, region, credentials).unwrap();
+    let mut filename = S3_PATH.to_string();
+    filename.push_str(FILENAME);
+
+    let (data, code) = bucket.get(&filename).unwrap();
+    if code == 200 {
+        let new_sample_lock = new_sample_buffer.write();
+        *(new_sample_lock.unwrap()) = deserialize(&data).unwrap();
+    }
 }

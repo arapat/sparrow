@@ -28,12 +28,21 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
 }
 
 // TODO: create buffer for the file handler
-pub fn read_all(filename: &String) -> String {
+pub fn raw_read_all(filename: &String) -> String {
     let mut file = File::open(filename).expect(
         &format!("File `{}` does not exist or cannot be read.", filename));
     let mut contents = String::new();
     file.read_to_string(&mut contents).expect(&format!("Cannot read `{}`", filename));
     contents
+}
+
+// TODO: create buffer for the file handler
+pub fn read_all(filename: &String) -> Vec<u8> {
+    let mut content = Vec::new();
+    let mut file = File::create(filename).expect(
+        &format!("File `{}` does not exist or cannot be read.", filename));
+    file.read_to_end(&mut content).unwrap();
+    content
 }
 
 // TODO: create buffer for the file handler

@@ -10,7 +10,6 @@ use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
 
-use commons::channel;
 use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_weight;
@@ -26,7 +25,7 @@ use self::loader::Loader;
 pub type LockedBuffer = Arc<RwLock<Vec<ExampleWithScore>>>;
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum SampleMode {
     MEMORY,
     LOCAL,
@@ -50,8 +49,8 @@ pub struct BufferLoader {
     examples: Vec<ExampleInSampleSet>,
     new_examples: LockedBuffer,
     gatherer: Gatherer,
+    loader: Loader,
     sampling_signal_channel: Sender<Signal>,
-    sample_set_sender: Sender<String>,
 
     ess: f32,
     min_ess: f32,
@@ -92,10 +91,9 @@ impl BufferLoader {
                 }
             }
         };
-        let (sample_set_s, sample_set_r) = channel::bounded(10, "sample-set-ready");
         let gatherer = Gatherer::new(
-            gather_new_sample, size.clone(), sample_set_s.clone(), new_examples.clone());
-        let loader = Loader::new(new_examples.clone(), sample_set_r);
+            gather_new_sample, size.clone(), new_examples.clone());
+        let loader = Loader::new(new_examples.clone());
         let mut buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
@@ -104,8 +102,8 @@ impl BufferLoader {
             examples: vec![],
             new_examples: new_examples,
             gatherer: gatherer,
+            loader: loader,
             sampling_signal_channel: sampling_signal_channel,
-            sample_set_sender: sample_set_s,
 
             ess: 0.0,
             min_ess: min_ess.unwrap_or(0.0),
@@ -116,12 +114,9 @@ impl BufferLoader {
         while init_block && !buffer_loader.try_switch() {
             sleep(Duration::from_millis(2000));
         }
+        buffer_loader.loader.run(sample_mode.clone());
         buffer_loader.gatherer.run(sample_mode);
         buffer_loader
-    }
-
-    pub fn get_sample_set_sender(&self) -> Sender<String> {
-        self.sample_set_sender.clone()
     }
 
     /// Return the number of batches (i.e. the number of function calls to `get_next_batch`)

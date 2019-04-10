@@ -7,7 +7,7 @@ use std::io::BufRead;
 use std::io::Write;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
-use commons::io::read_all;
+use commons::io::raw_read_all;
 use commons::io::write_all;
 use commons::Model;
 use stratified_storage::serial_storage::SerialStorage;
@@ -40,7 +40,7 @@ pub fn validate(
         }
     };
 
-    let bins = serde_json::from_str(&read_all(&"models/bins.json".to_string()))
+    let bins = serde_json::from_str(&raw_read_all(&"models/bins.json".to_string()))
                         .expect(&format!("Cannot parse the bins in `{}`", "models/bins.json"));
     let mut models_list = create_bufreader(&models_table);
     let mut data = SerialStorage::new(
@@ -64,7 +64,7 @@ pub fn validate(
         line.clear();
         // validate model
         let (ts, _, model): (f32, usize, Model) =
-            serde_json::from_str(&read_all(&filepath))
+            serde_json::from_str(&raw_read_all(&filepath))
                        .expect(&format!("Cannot parse the model in `{}`", filepath));
         let mut index = 0;
         while index < num_examples {

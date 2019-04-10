@@ -5,7 +5,6 @@ use std::thread::spawn;
 use rand::thread_rng;
 
 use commons::channel::Receiver;
-use commons::channel::Sender;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 
@@ -19,7 +18,6 @@ use super::io::write_s3;
 pub struct Gatherer {
     gather_new_sample:   Receiver<(ExampleWithScore, u32)>,
     new_sample_capacity: usize,
-    signal_channel:      Sender<String>,
     new_sample_buffer:   LockedBuffer,
 }
 
@@ -30,13 +28,11 @@ impl Gatherer {
     pub fn new(
         gather_new_sample:   Receiver<(ExampleWithScore, u32)>,
         new_sample_capacity: usize,
-        signal_channel:      Sender<String>,
         new_sample_buffer:   LockedBuffer,
     ) -> Gatherer {
         Gatherer {
             gather_new_sample:   gather_new_sample,
             new_sample_capacity: new_sample_capacity,
-            signal_channel:      signal_channel,
             new_sample_buffer:   new_sample_buffer,
         }
     }
@@ -45,7 +41,6 @@ impl Gatherer {
     ///
     /// Fill the alternate memory buffer of the buffer loader
     pub fn run(&self, mode: SampleMode) {
-        let signal_channel = self.signal_channel.clone();
         let new_sample_capacity = self.new_sample_capacity;
         let gather_new_sample = self.gather_new_sample.clone();
         let new_sample_buffer = self.new_sample_buffer.clone();
@@ -88,7 +83,7 @@ fn gather(
     new_sample_capacity: usize,
     new_sample_buffer: LockedBuffer,
     gather_new_sample: Receiver<(ExampleWithScore, u32)>,
-    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer) -> (),
+    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer),
 ) {
     debug!("start filling the alternate buffer");
     let mut pm = PerformanceMonitor::new();
