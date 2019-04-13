@@ -23,7 +23,7 @@ pub fn write_memory(
     new_sample_buffer: LockedBuffer,
 ) {
     let new_sample_lock = new_sample_buffer.write();
-    *(new_sample_lock.unwrap()) = new_sample;
+    *(new_sample_lock.unwrap()) = Some(new_sample);
 }
 
 
@@ -65,7 +65,7 @@ pub fn load_local(
     let filename = FILENAME.to_string();
     let new_sample: Vec<ExampleWithScore> = deserialize(read_all(&filename).as_ref()).unwrap();
     let new_sample_lock = new_sample_buffer.write();
-    *(new_sample_lock.unwrap()) = new_sample;
+    *(new_sample_lock.unwrap()) = Some(new_sample);
 }
 
 
@@ -84,6 +84,6 @@ pub fn load_s3(
     let (data, code) = bucket.get(&filename).unwrap();
     if code == 200 {
         let new_sample_lock = new_sample_buffer.write();
-        *(new_sample_lock.unwrap()) = deserialize(&data).unwrap();
+        *(new_sample_lock.unwrap()) = Some(deserialize(&data).unwrap());
     }
 }

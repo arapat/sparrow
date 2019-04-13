@@ -118,14 +118,15 @@ mod tests {
     use commons::ExampleWithScore;
     use labeled_data::LabeledData;
     use super::Gatherer;
+    use super::super::SampleMode;
     use ::TFeature;
 
     #[test]
     fn test_sampler_nonblocking() {
         let (gather_sender, gather_receiver) = channel::bounded(10, "gather-samples");
         let mem_buffer = Arc::new(RwLock::new(None));
-        let gatherer = Gatherer::new(gather_receiver, mem_buffer.clone(), 100);
-        gatherer.run(false);
+        let gatherer = Gatherer::new(gather_receiver, 100, mem_buffer.clone());
+        gatherer.run(SampleMode::MEMORY);
 
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
@@ -134,11 +135,7 @@ mod tests {
             examples.push(t);
         }
         sleep(Duration::from_millis(1000));  // wait for the gatherer releasing the new sample
-        let mut all_sampled = {
-            let mut mem_buffer = mem_buffer.write().unwrap();
-            assert!(mem_buffer.is_some());  // will poison the lock if this fails
-            mem_buffer.take().unwrap()
-        };
+        let mut all_sampled: Vec<_> = mem_buffer.write().unwrap().take().unwrap();
         all_sampled.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
         for (input, output) in examples.iter().zip(all_sampled.iter()) {
             assert_eq!(*input, *output);
@@ -149,7 +146,7 @@ mod tests {
     fn test_sampler_blocking() {
         let (gather_sender, gather_receiver) = channel::bounded(200, "gather-samples");
         let mem_buffer = Arc::new(RwLock::new(None));
-        let gatherer = Gatherer::new(gather_receiver, mem_buffer.clone(), 100);
+        let gatherer = Gatherer::new(gather_receiver, 100, mem_buffer.clone());
 
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
@@ -157,12 +154,8 @@ mod tests {
             gather_sender.send((t.clone(), 1));
             examples.push(t);
         }
-        gatherer.run(true);
-        let mut all_sampled = {
-            let mut mem_buffer = mem_buffer.write().unwrap();
-            assert!(mem_buffer.is_some());  // will poison the lock if this fails
-            mem_buffer.take().unwrap()
-        };
+        gatherer.run(SampleMode::MEMORY);
+        let mut all_sampled: Vec<_> = mem_buffer.write().unwrap().take().unwrap();
         all_sampled.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
         for (input, output) in examples.iter().zip(all_sampled.iter()) {
             assert_eq!(*input, *output);

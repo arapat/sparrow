@@ -22,7 +22,8 @@ use self::gatherer::Gatherer;
 use self::loader::Loader;
 
 
-pub type LockedBuffer = Arc<RwLock<Vec<ExampleWithScore>>>;
+// LockedBuffer is set to None once it is read by the receiver
+pub type LockedBuffer = Arc<RwLock<Option<Vec<ExampleWithScore>>>>;
 
 
 #[derive(Clone, Debug, PartialEq)]
@@ -78,7 +79,7 @@ impl BufferLoader {
         init_block: bool,
         min_ess: Option<f32>,
     ) -> BufferLoader {
-        let new_examples = Arc::new(RwLock::new(vec![]));
+        let new_examples = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
         let sample_mode = {
             match sampling_mode.to_lowercase().as_str() {
@@ -164,16 +165,21 @@ impl BufferLoader {
         self.sampling_pm.resume();
         let switched = {
             if let Ok(mut new_examples) = self.new_examples.try_write() {
-                self.examples = new_examples.iter()
-                                            .map(|t| {
-                                                let (a, s) = t;
-                                                // sampling weights are ignored
-                                                let w = get_weight(&a, 0.0);
-                                                (a.clone(), (w, s.1))
-                                            }).collect();
-                self.curr_example = 0;
-                debug!("switched-buffer, {}", self.examples.len());
-                true
+                if new_examples.is_none() {
+                    false
+                } else {
+                    let new_examples: Vec<_> = new_examples.take().unwrap();
+                    self.examples = new_examples.iter()
+                                                .map(|t| {
+                                                    let (a, s) = t;
+                                                    // sampling weights are ignored
+                                                    let w = get_weight(&a, 0.0);
+                                                    (a.clone(), (w, s.1))
+                                                }).collect();
+                    self.curr_example = 0;
+                    debug!("switched-buffer, {}", self.examples.len());
+                    true
+                }
             } else {
                 false
             }
@@ -229,7 +235,8 @@ mod tests {
     fn test_buffer_loader() {
         let (sender, receiver) = channel::bounded(10, "gather-samples");
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
-        let mut buffer_loader = BufferLoader::new(100, 10, receiver, signal_s, false, false, None);
+        let mut buffer_loader = BufferLoader::new(
+            100, 10, "memory".to_string(), receiver, signal_s, false, None);
         assert_eq!(signal_r.recv().unwrap(), Signal::START);
         sender.send((get_example(vec![0, 1, 2], -1, 1.0), 100));
         sleep(Duration::from_millis(1000));
@@ -242,7 +249,9 @@ mod tests {
             assert_eq!((batch[9].0).label, -1);
         }
         sender.send((get_example(vec![0, 1, 2], 1, 2.0), 100));
-        buffer_loader.force_switch();
+        while !buffer_loader.try_switch() {
+            sleep(Duration::from_millis(1000));
+        }
         for _ in 0..10 {
             let batch = buffer_loader.get_next_batch(true);
             assert_eq!(batch.len(), 10);
