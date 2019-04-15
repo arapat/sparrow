@@ -19,6 +19,7 @@ const S3_PATH:  &str = "samples/";
 
 // For gatherer
 
+// also do the job of `load_memory`
 pub fn write_memory(
     new_sample: Vec<ExampleWithScore>,
     new_sample_buffer: LockedBuffer,
@@ -72,7 +73,6 @@ pub fn load_local(
         remove_file(filename).unwrap();
     }
 }
-
 
 
 pub fn load_s3(
