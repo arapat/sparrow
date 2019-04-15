@@ -1,4 +1,5 @@
 use std::fs::rename;
+use std::fs::remove_file;
 use s3::bucket::Bucket;
 use s3::credentials::Credentials;
 
@@ -62,10 +63,14 @@ pub fn write_s3(
 pub fn load_local(
     new_sample_buffer: LockedBuffer,
 ) {
-    let filename = FILENAME.to_string();
-    let new_sample: Vec<ExampleWithScore> = deserialize(read_all(&filename).as_ref()).unwrap();
-    let new_sample_lock = new_sample_buffer.write();
-    *(new_sample_lock.unwrap()) = Some(new_sample);
+    let ori_filename = FILENAME.to_string();
+    let filename = ori_filename.clone() + "_READING";
+    if rename(ori_filename, filename.clone()).is_ok() {
+        let new_sample: Vec<ExampleWithScore> = deserialize(read_all(&filename).as_ref()).unwrap();
+        let new_sample_lock = new_sample_buffer.write();
+        *(new_sample_lock.unwrap()) = Some(new_sample);
+        remove_file(filename).unwrap();
+    }
 }
 
 

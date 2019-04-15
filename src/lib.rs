@@ -115,6 +115,8 @@ pub struct Config {
     pub serial_sampling: bool,
     /// Sampling mode: Read/write from memory/local disk/S3
     pub sampling_mode: String,
+    /// Sleep duration: the frequency of loading disk from memory/local disk/S3
+    pub sleep_duration: usize,
 
     /// Number of examples in a block on the stratified binary file
     pub num_examples_per_block: usize,
@@ -253,6 +255,7 @@ pub fn training(config_file: String) {
         config.sampling_mode,
         sampled_examples_r,
         sampling_signal_s,
+        config.sleep_duration,
         true,
         Some(config.min_ess),
     );

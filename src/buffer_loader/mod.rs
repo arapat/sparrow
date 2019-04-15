@@ -76,6 +76,7 @@ impl BufferLoader {
         sampling_mode: String,
         gather_new_sample: Receiver<(ExampleWithScore, u32)>,
         sampling_signal_channel: Sender<Signal>,
+        sleep_duration: usize,
         init_block: bool,
         min_ess: Option<f32>,
     ) -> BufferLoader {
@@ -94,7 +95,7 @@ impl BufferLoader {
         };
         let gatherer = Gatherer::new(
             gather_new_sample, size.clone(), new_examples.clone());
-        let loader = Loader::new(new_examples.clone());
+        let loader = Loader::new(new_examples.clone(), sleep_duration);
         let mut buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
@@ -232,14 +233,25 @@ mod tests {
 
 
     #[test]
-    fn test_buffer_loader() {
+    fn test_buffer_loader_memory() {
+        test_buffer_loader("memory");
+    }
+
+    #[test]
+    fn test_buffer_loader_local() {
+        test_buffer_loader("local");
+    }
+
+    fn test_buffer_loader(mode: &str) {
         let (sender, receiver) = channel::bounded(10, "gather-samples");
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
         let mut buffer_loader = BufferLoader::new(
-            100, 10, "memory".to_string(), receiver, signal_s, false, None);
+            100, 10, mode.to_string(), receiver, signal_s, 1, false, None);
         assert_eq!(signal_r.recv().unwrap(), Signal::START);
         sender.send((get_example(vec![0, 1, 2], -1, 1.0), 100));
-        sleep(Duration::from_millis(1000));
+        while !buffer_loader.try_switch() {
+            sleep(Duration::from_millis(1000));
+        }
         for _ in 0..20 {
             let batch = buffer_loader.get_next_batch(true);
             assert_eq!(batch.len(), 10);

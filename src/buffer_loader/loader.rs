@@ -13,6 +13,7 @@ use super::io::load_s3;
 
 pub struct Loader {
     new_sample_buffer: LockedBuffer,
+    sleep_duration:    u64,
 }
 
 
@@ -20,9 +21,11 @@ impl Loader {
     /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
     pub fn new(
         new_sample_buffer: LockedBuffer,
+        sleep_duration: usize,
     ) -> Loader {
         Loader {
             new_sample_buffer: new_sample_buffer,
+            sleep_duration:    sleep_duration as u64,
         }
     }
 
@@ -31,6 +34,7 @@ impl Loader {
     /// Fill the alternate memory buffer of the buffer loader
     pub fn run(&self, mode: SampleMode) {
         let buffer: LockedBuffer = self.new_sample_buffer.clone();
+        let sleep_duration = self.sleep_duration;
         info!("Starting non-blocking loader");
         spawn(move || {
             loop {
@@ -51,7 +55,7 @@ impl Loader {
                     SampleMode::MEMORY => {
                     },
                 }
-                sleep(Duration::from_secs(300));
+                sleep(Duration::from_secs(sleep_duration));
             }
         });
     }

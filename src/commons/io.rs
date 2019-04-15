@@ -39,7 +39,7 @@ pub fn raw_read_all(filename: &String) -> String {
 // TODO: create buffer for the file handler
 pub fn read_all(filename: &String) -> Vec<u8> {
     let mut content = Vec::new();
-    let mut file = File::create(filename).expect(
+    let mut file = File::open(filename).expect(
         &format!("File `{}` does not exist or cannot be read.", filename));
     file.read_to_end(&mut content).unwrap();
     content
