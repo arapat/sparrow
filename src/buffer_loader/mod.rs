@@ -242,6 +242,11 @@ mod tests {
         test_buffer_loader("local");
     }
 
+    #[test]
+    fn test_buffer_loader_s3() {
+        test_buffer_loader("s3");
+    }
+
     fn test_buffer_loader(mode: &str) {
         let (sender, receiver) = channel::bounded(10, "gather-samples");
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
