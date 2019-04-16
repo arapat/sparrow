@@ -114,9 +114,6 @@ impl BufferLoader {
             sampling_pm: PerformanceMonitor::new(),
         };
         buffer_loader.sampling_signal_channel.send(Signal::START);
-        while init_block && !buffer_loader.try_switch() {
-            sleep(Duration::from_millis(2000));
-        }
         match sampler_scanner.to_lowercase().as_str() {
             "sampler" => {
                 buffer_loader.gatherer.run(sample_mode.clone());
@@ -129,6 +126,9 @@ impl BufferLoader {
                 buffer_loader.gatherer.run(sample_mode.clone());
                 buffer_loader.loader.run(sample_mode.clone());
             }
+        }
+        while init_block && !buffer_loader.try_switch() {
+            sleep(Duration::from_millis(2000));
         }
         buffer_loader
     }
