@@ -115,6 +115,8 @@ pub struct Config {
     pub serial_sampling: bool,
     /// Sampling mode: Read/write from memory/local disk/S3
     pub sampling_mode: String,
+    /// Worker mode: could be "scanner", "sampler", or "both"
+    pub sampler_scanner: String,
     /// Sleep duration: the frequency of loading disk from memory/local disk/S3
     pub sleep_duration: usize,
 
@@ -258,26 +260,29 @@ pub fn training(config_file: String) {
         config.sleep_duration,
         true,
         Some(config.min_ess),
+        config.sampler_scanner.clone(),
     );
-    info!("Starting the booster.");
-    let mut booster = Boosting::new(
-        config.num_iterations,
-        config.min_gamma,
-        config.max_trials_before_shrink,
-        buffer_loader,
-        // serial_training_loader,
-        bins,
-        config.range,
-        config.max_sample_size,
-        config.default_gamma,
-        next_model_s,
-        config.save_process,
-        config.save_interval,
-    );
-    if config.network.len() > 0 {
-        booster.enable_network(config.local_name, &config.network, config.port);
+    if config.sampler_scanner != "sampler" {
+        info!("Starting the booster.");
+        let mut booster = Boosting::new(
+            config.num_iterations,
+            config.min_gamma,
+            config.max_trials_before_shrink,
+            buffer_loader,
+            // serial_training_loader,
+            bins,
+            config.range,
+            config.max_sample_size,
+            config.default_gamma,
+            next_model_s,
+            config.save_process,
+            config.save_interval,
+        );
+        if config.network.len() > 0 {
+            booster.enable_network(config.local_name, &config.network, config.port);
+        }
+        booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
     }
-    booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
 }
 
 

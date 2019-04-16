@@ -79,6 +79,7 @@ impl BufferLoader {
         sleep_duration: usize,
         init_block: bool,
         min_ess: Option<f32>,
+        sampler_scanner: String,
     ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
@@ -116,8 +117,19 @@ impl BufferLoader {
         while init_block && !buffer_loader.try_switch() {
             sleep(Duration::from_millis(2000));
         }
-        buffer_loader.loader.run(sample_mode.clone());
-        buffer_loader.gatherer.run(sample_mode);
+        match sampler_scanner.to_lowercase().as_str() {
+            "sampler" => {
+                buffer_loader.gatherer.run(sample_mode.clone());
+            },
+            "scanner" => {
+                buffer_loader.loader.run(sample_mode.clone());
+            },
+            // "both"
+            _ => {
+                buffer_loader.gatherer.run(sample_mode.clone());
+                buffer_loader.loader.run(sample_mode.clone());
+            }
+        }
         buffer_loader
     }
 
