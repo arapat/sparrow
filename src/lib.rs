@@ -47,6 +47,9 @@ mod stratified_storage;
 /// Validating models
 mod testing;
 
+use std::thread::sleep;
+use std::time::Duration;
+
 use booster::Boosting;
 use buffer_loader::BufferLoader;
 use stratified_storage::StratifiedStorage;
@@ -260,7 +263,7 @@ pub fn training(config_file: String) {
         sampled_examples_r,
         sampling_signal_s,
         config.sleep_duration,
-        true,
+        config.sampler_scanner != "sampler",
         Some(config.min_ess),
         config.sampler_scanner.clone(),
     );
@@ -284,6 +287,10 @@ pub fn training(config_file: String) {
             booster.enable_network(config.local_name, &config.network, config.port);
         }
         booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
+    } else {
+        loop {
+            sleep(Duration::from_secs(600));
+        }
     }
 }
 

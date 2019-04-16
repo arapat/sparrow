@@ -45,5 +45,5 @@ incremental_testing: true
 testing_scores_only: false
 save_interval: 1
 sampling_mode: s3
-sampler_scanner: scanner
+sampler_scanner: sampler
 sleep_duration: 5
