@@ -46,7 +46,9 @@ impl Gatherer {
         let new_sample_buffer = self.new_sample_buffer.clone();
         info!("Starting non-blocking gatherer");
         spawn(move || {
+            let mut version = 0;
             loop {
+                version += 1;
                 match mode {
                     SampleMode::MEMORY => {
                         gather(
@@ -54,6 +56,7 @@ impl Gatherer {
                             new_sample_buffer.clone(),
                             gather_new_sample.clone(),
                             &write_memory,
+                            version,
                         );
                     },
                     SampleMode::LOCAL => {
@@ -62,6 +65,7 @@ impl Gatherer {
                             new_sample_buffer.clone(),
                             gather_new_sample.clone(),
                             &write_local,
+                            version,
                         );
                     },
                     SampleMode::S3 => {
@@ -70,6 +74,7 @@ impl Gatherer {
                             new_sample_buffer.clone(),
                             gather_new_sample.clone(),
                             &write_s3,
+                            version,
                         );
                     },
                 }
@@ -83,7 +88,8 @@ fn gather(
     new_sample_capacity: usize,
     new_sample_buffer: LockedBuffer,
     gather_new_sample: Receiver<(ExampleWithScore, u32)>,
-    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer),
+    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer, usize),
+    version: usize,
 ) {
     debug!("start filling the alternate buffer");
     let mut pm = PerformanceMonitor::new();
@@ -100,7 +106,7 @@ fn gather(
         }
     }
     thread_rng().shuffle(&mut new_sample);
-    handler(new_sample, new_sample_buffer);
+    handler(new_sample, new_sample_buffer, version);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
 }

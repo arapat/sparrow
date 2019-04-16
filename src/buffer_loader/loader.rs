@@ -37,24 +37,28 @@ impl Loader {
         let sleep_duration = self.sleep_duration;
         info!("Starting non-blocking loader");
         spawn(move || {
+            let mut last_version: usize = 0;
             loop {
-                match mode {
+                last_version = match mode {
                     SampleMode::LOCAL => {
                         loader(
                             buffer.clone(),
                             &load_local,
-                        );
+                            last_version,
+                        )
                     },
                     SampleMode::S3 => {
                         loader(
                             buffer.clone(),
                             &load_s3,
-                        );
+                            last_version,
+                        )
                     },
                     // SampleMode.MEMORY should be handled by `gatherer`
                     SampleMode::MEMORY => {
+                        last_version
                     },
-                }
+                };
                 sleep(Duration::from_secs(sleep_duration));
             }
         });
@@ -64,10 +68,12 @@ impl Loader {
 
 fn loader(
     new_sample_buffer: LockedBuffer,
-    handler: &Fn(LockedBuffer) -> (),
-) {
+    handler: &Fn(LockedBuffer, usize) -> usize,
+    last_version: usize,
+) -> usize {
     let mut pm = PerformanceMonitor::new();
     pm.start();
-    handler(new_sample_buffer);
-    debug!("sample-loader, {}", pm.get_duration());
+    let version = handler(new_sample_buffer, last_version);
+    debug!("sample-loader, {}, {}", version, pm.get_duration());
+    version
 }
