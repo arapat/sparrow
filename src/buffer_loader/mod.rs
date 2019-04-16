@@ -234,6 +234,8 @@ fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
 #[cfg(test)]
 mod tests {
     use std::thread::sleep;
+    use s3::bucket::Bucket;
+    use s3::credentials::Credentials;
     use commons::channel;
 
     use std::time::Duration;
@@ -256,6 +258,7 @@ mod tests {
 
     #[test]
     fn test_buffer_loader_s3() {
+        clear_s3();
         test_buffer_loader("s3");
     }
 
@@ -263,7 +266,7 @@ mod tests {
         let (sender, receiver) = channel::bounded(10, "gather-samples");
         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
         let mut buffer_loader = BufferLoader::new(
-            100, 10, mode.to_string(), receiver, signal_s, 1, false, None);
+            100, 10, mode.to_string(), receiver, signal_s, 1, false, None, "both".to_string());
         assert_eq!(signal_r.recv().unwrap(), Signal::START);
         sender.send((get_example(vec![0, 1, 2], -1, 1.0), 100));
         while !buffer_loader.try_switch() {
@@ -294,5 +297,20 @@ mod tests {
     fn get_example(features: Vec<TFeature>, label: i8, score: f32) -> ExampleWithScore {
         let example = LabeledData::new(features, label);
         (example, (score, 0))
+    }
+
+    fn clear_s3() -> bool {
+        const FILENAME: &str = "sample.bin";
+        const REGION:   &str = "us-west-1";
+        const BUCKET:   &str = "tmsn-cache";
+        const S3_PATH:  &str = "samples/";
+        let region = REGION.parse().unwrap();
+        // TODO: Add support to read credentials from the config file
+        // Read credentials from the environment variables
+        let credentials = Credentials::default();
+        let bucket = Bucket::new(BUCKET, region, credentials).unwrap();
+        let filename = S3_PATH.to_string() + FILENAME;
+
+        bucket.delete(&filename).is_ok()
     }
 }

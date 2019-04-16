@@ -59,11 +59,19 @@ pub fn write_s3(
     let filename = S3_PATH.to_string() + FILENAME;
 
     // In case the file exists, delete it
-    let (_, _) = bucket.delete(&filename).unwrap();
+    // let (_, _) = bucket.delete(&filename).unwrap();
     let data: VersionedSample = (version, new_sample);
-    let (_, code) = bucket.put(
-        &filename, &serialize(&data).unwrap(), "application/octet-stream").unwrap();
-    assert_eq!(200, code);
+    let mut code = 0;
+    while code != 200 {
+        let ret = bucket.put(
+            &filename, &serialize(&data).unwrap(), "application/octet-stream");
+        if ret.is_ok() {
+            code = ret.unwrap().1;
+            debug!("Uploaded new sample to S3, return code {}", code);
+        } else {
+            error!("Uploaded new sample to S3 failed. Will try again.");
+        }
+    }
 }
 
 
@@ -101,7 +109,11 @@ pub fn load_s3(
     let mut filename = S3_PATH.to_string();
     filename.push_str(FILENAME);
 
-    let (data, code) = bucket.get(&filename).unwrap();
+    let ret = bucket.get(&filename);
+    if ret.is_err() {
+        return last_version;
+    }
+    let (data, code) = ret.unwrap();
     if code == 200 {
         let new_sample_lock = new_sample_buffer.write();
         let (version, data) = deserialize(&data).unwrap();
