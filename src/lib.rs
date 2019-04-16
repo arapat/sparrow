@@ -226,30 +226,32 @@ pub fn training(config_file: String) {
             vec![]
         }
     };
-    info!("Starting the stratified structure.");
-    let stratified_structure = StratifiedStorage::new(
-        config.num_examples,
-        config.num_features,
-        config.positive.clone(),
-        config.num_examples_per_block,
-        config.disk_buffer_filename.as_ref(),
-        config.num_assigners,
-        config.num_samplers,
-        sampled_examples_s,
-        sampling_signal_r,
-        next_model_r,
-        config.channel_size,
-        config.debug_mode,
-    );
-    info!("Initializing the stratified structure.");
-    stratified_structure.init_stratified_from_file(
-        config.training_filename.clone(),
-        config.num_examples,
-        config.batch_size,
-        config.num_features,
-        config.range.clone(),
-        bins.clone(),
-    );
+    if config.sampler_scanner != "scanner" {
+        info!("Starting the stratified structure.");
+        let stratified_structure = StratifiedStorage::new(
+            config.num_examples,
+            config.num_features,
+            config.positive.clone(),
+            config.num_examples_per_block,
+            config.disk_buffer_filename.as_ref(),
+            config.num_assigners,
+            config.num_samplers,
+            sampled_examples_s,
+            sampling_signal_r,
+            next_model_r,
+            config.channel_size,
+            config.debug_mode,
+        );
+        info!("Initializing the stratified structure.");
+        stratified_structure.init_stratified_from_file(
+            config.training_filename.clone(),
+            config.num_examples,
+            config.batch_size,
+            config.num_features,
+            config.range.clone(),
+            bins.clone(),
+        );
+    }
     info!("Starting the buffered loader.");
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
