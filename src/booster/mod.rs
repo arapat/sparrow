@@ -94,7 +94,6 @@ impl Boosting {
 
             learner: learner,
             model: model,
-            // TODO: set default model sig on S3
             model_sig: "".to_string(),
 
             network_sender: None,

@@ -64,7 +64,6 @@ impl Tree {
         tree
     }
 
-    // TODO: replace split func with add_node
     pub fn add_node(
         &mut self, parent: usize,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32,

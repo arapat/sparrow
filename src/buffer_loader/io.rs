@@ -94,6 +94,8 @@ pub fn load_s3(
             *(new_sample_lock.unwrap()) = Some(data);
             return version;
         }
+    } else {
+        debug!("Loading sample from S3 returns {}", code);
     }
     last_version
 }

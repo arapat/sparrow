@@ -29,7 +29,6 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
     BufWriter::new(f)
 }
 
-// TODO: create buffer for the file handler
 pub fn raw_read_all(filename: &String) -> String {
     let mut contents = String::new();
     create_bufreader(filename)
@@ -38,14 +37,12 @@ pub fn raw_read_all(filename: &String) -> String {
     contents
 }
 
-// TODO: create buffer for the file handler
 pub fn read_all(filename: &String) -> Vec<u8> {
     let mut content = Vec::new();
     create_bufreader(filename).read_to_end(&mut content).unwrap();
     content
 }
 
-// TODO: create buffer for the file handler
 pub fn write_all(filename: &String, content: &[u8]) -> Result<()> {
     create_bufwriter(filename).write_all(content)
 }
@@ -148,7 +145,7 @@ pub fn load_s3(
     let mut filepath = s3_path.to_string();
     filepath.push_str(filename);
 
-    let ret = bucket.get(&filename);
+    let ret = bucket.get(&filepath);
     if ret.is_err() {
         None
     } else {
