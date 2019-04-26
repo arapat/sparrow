@@ -46,12 +46,15 @@ mod labeled_data;
 mod stratified_storage;
 /// Validating models
 mod testing;
+/// Syncing model to S3
+mod model_sync;
 
 use std::thread::sleep;
 use std::time::Duration;
 
 use booster::Boosting;
 use buffer_loader::BufferLoader;
+use model_sync::start_model_sync;
 use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
@@ -284,10 +287,12 @@ pub fn training(config_file: String) {
             config.save_interval,
         );
         if config.network.len() > 0 {
-            booster.enable_network(config.local_name, &config.network, config.port);
+            booster.enable_network(config.local_name, config.port);
         }
         booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
     } else {
+        start_model_sync(
+            config.num_iterations, config.local_name, &config.network, config.port, next_model_s);
         loop {
             sleep(Duration::from_secs(600));
         }

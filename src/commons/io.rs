@@ -1,6 +1,8 @@
 use bincode::serialize;
 use bincode::deserialize;
 use rayon::prelude::*;
+use s3::bucket::Bucket;
+use s3::credentials::Credentials;
 
 use std::str::FromStr;
 use std::fmt::Debug;
@@ -133,6 +135,59 @@ where
     });
     LabeledData::new(feature, label)
 }
+
+
+// Return data and return_code
+pub fn load_s3(
+    region: &str, bucket: &str, s3_path: &str, filename: &str,
+) -> Option<(Vec<u8>, u32)> {
+    // TODO: Add support to read credentials from the config file
+    // Read credentials from the environment variables
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(bucket, region.parse().unwrap(), credentials).unwrap();
+    let mut filepath = s3_path.to_string();
+    filepath.push_str(filename);
+
+    let ret = bucket.get(&filename);
+    if ret.is_err() {
+        None
+    } else {
+        Some(ret.unwrap())
+    }
+}
+
+
+pub fn write_s3(
+    region: &str, bucket: &str, s3_path: &str, filename: &str, data: &[u8],
+) -> bool {
+    // TODO: Add support to read credentials from the config file
+    // Read credentials from the environment variables
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(bucket, region.parse().unwrap(), credentials).unwrap();
+    let mut filepath = s3_path.to_string();
+    filepath.push_str(filename);
+
+    // In case the file exists, delete it
+    // let (_, _) = bucket.delete(&filename).unwrap();
+    let mut code = 0;
+    for i in 0..3 {
+        let ret = bucket.put(&filepath, data, "application/octet-stream");
+        if ret.is_ok() {
+            code = ret.unwrap().1;
+            debug!("Uploaded new sample to S3, return code {}", code);
+            if code == 200 {
+                break;
+            }
+        } else {
+            error!("Uploading new sample to S3 trial {} failed.", (i + 1));
+        }
+    }
+    if code != 200 {
+        error!("Uploading new sample to S3 failed. Gave up retrying.");
+    }
+    code == 200
+}
+
 
 fn parse_libsvm<TFeature, TLabel>(
     raw_strings: &Vec<String>,

@@ -1,13 +1,13 @@
 use std::fs::rename;
 use std::fs::remove_file;
-use s3::bucket::Bucket;
-use s3::credentials::Credentials;
 
 use bincode::deserialize;
 use bincode::serialize;
 use commons::ExampleWithScore;
 use commons::io::read_all;
 use commons::io::write_all;
+use commons::io::load_s3 as io_load_s3;
+use commons::io::write_s3 as io_write_s3;
 use super::LockedBuffer;
 
 
@@ -17,7 +17,7 @@ type VersionedSample = (usize, Vec<ExampleWithScore>);
 const FILENAME: &str = "sample.bin";
 const REGION:   &str = "us-west-1";
 const BUCKET:   &str = "tmsn-cache";
-const S3_PATH:  &str = "samples/";
+const S3_PATH:  &str = "sparrow-samples/";
 
 
 // For gatherer
@@ -51,27 +51,8 @@ pub fn write_s3(
     _new_sample_buffer: LockedBuffer,
     version: usize,
 ) {
-    let region = REGION.parse().unwrap();
-    // TODO: Add support to read credentials from the config file
-    // Read credentials from the environment variables
-    let credentials = Credentials::default();
-    let bucket = Bucket::new(BUCKET, region, credentials).unwrap();
-    let filename = S3_PATH.to_string() + FILENAME;
-
-    // In case the file exists, delete it
-    // let (_, _) = bucket.delete(&filename).unwrap();
     let data: VersionedSample = (version, new_sample);
-    let mut code = 0;
-    while code != 200 {
-        let ret = bucket.put(
-            &filename, &serialize(&data).unwrap(), "application/octet-stream");
-        if ret.is_ok() {
-            code = ret.unwrap().1;
-            debug!("Uploaded new sample to S3, return code {}", code);
-        } else {
-            error!("Uploaded new sample to S3 failed. Will try again.");
-        }
-    }
+    io_write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&data).unwrap());
 }
 
 
@@ -101,16 +82,8 @@ pub fn load_s3(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
 ) -> usize {
-    let region = REGION.parse().unwrap();
-    // TODO: Add support to read credentials from the config file
-    // Read credentials from the environment variables
-    let credentials = Credentials::default();
-    let bucket = Bucket::new(BUCKET, region, credentials).unwrap();
-    let mut filename = S3_PATH.to_string();
-    filename.push_str(FILENAME);
-
-    let ret = bucket.get(&filename);
-    if ret.is_err() {
+    let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
+    if ret.is_none() {
         return last_version;
     }
     let (data, code) = ret.unwrap();

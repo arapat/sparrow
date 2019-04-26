@@ -7,13 +7,14 @@ use rayon::prelude::*;
 use std::f32::INFINITY;
 
 use tree::Tree;
+use tree::TreeSlice;
 
 use super::Example;
 
 pub type ExampleInSampleSet = (Example, (f32, usize));
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Tree;
-pub type ModelScore = (Model, f32);
+pub type ModelSig = (TreeSlice, String, String);
 
 const DELTA: f32  = 0.000001;
 const SHRINK: f32 = 1.0;

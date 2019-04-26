@@ -1,3 +1,4 @@
+use std::ops::Range;
 use std::collections::VecDeque;
 use super::Example;
 use super::TFeature;
@@ -163,6 +164,24 @@ impl Tree {
         }
         active
     }
+
+    pub fn append_patch(&mut self, patch: &TreeSlice, overwrite_root: bool) {
+        let mut i = {
+            if overwrite_root {
+                self.predicts[0] = patch.predicts[0];
+                1
+            } else {
+                0
+            }
+        };
+        while i < patch.size {
+            self.add_node(
+                patch.parent[i], patch.split_feature[i], patch.threshold[i],
+                patch.evaluation[i], patch.predicts[i],
+            );
+            i += 1;
+        }
+    }
 }
 
 impl PartialEq for Tree {
@@ -186,3 +205,28 @@ impl PartialEq for Tree {
 
 
 impl Eq for Tree {}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct TreeSlice {
+    pub size:           usize,
+    pub parent:         Vec<usize>,
+    pub split_feature:  Vec<usize>,
+    pub threshold:      Vec<TFeature>,
+    pub evaluation:     Vec<bool>,
+    pub predicts:       Vec<f32>,
+}
+
+
+impl TreeSlice {
+    pub fn new(tree: &Tree, range: Range<usize>) -> TreeSlice {
+        TreeSlice {
+            size:          range.end - range.start,
+            parent:        tree.parent[range.clone()].to_vec(),
+            split_feature: tree.split_feature[range.clone()].to_vec(),
+            threshold:     tree.threshold[range.clone()].to_vec(),
+            evaluation:    tree.evaluation[range.clone()].to_vec(),
+            predicts:      tree.predicts[range.clone()].to_vec(),
+        }
+    }
+}

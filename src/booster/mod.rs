@@ -8,16 +8,18 @@ use std::io::Write;
 use std::sync::mpsc;
 use std::ops::Range;
 use serde_json;
-use tmsn::network::start_network;
+use tmsn::network::start_network_only_send;
 
-use commons::io::create_bufwriter;
 use buffer_loader::BufferLoader;
+use commons::io::create_bufwriter;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::ModelScore;
+use commons::ModelSig;
 use commons::bins::Bins;
 use commons::channel::Sender;
+use model_sync::download_model;
 use tree::Tree;
+use tree::TreeSlice;
 use self::learner::get_base_node;
 use self::learner::Learner;
 use super::Example;
@@ -31,11 +33,11 @@ pub struct Boosting {
 
     learner: Learner,
     model: Model,
+    model_sig: String,
 
-    network_sender: Option<mpsc::Sender<ModelScore>>,
-    network_receiver: Option<mpsc::Receiver<ModelScore>>,
-    sum_gamma: f32,
-    remote_sum_gamma: f32,
+    network_sender: Option<mpsc::Sender<ModelSig>>,
+    local_name: String,
+    last_remote_length: usize,
 
     sampler_channel_s: Sender<Model>,
     persist_id: u32,
@@ -76,8 +78,7 @@ impl Boosting {
             min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range); // TODO: make num_cadid a paramter
 
         // add root node for balancing labels
-        let (gamma, base_pred) = get_base_node(max_sample_size, &mut training_loader);
-        let gamma_squared = gamma.powi(2);
+        let (_, base_pred) = get_base_node(max_sample_size, &mut training_loader);
         let model = Tree::new(num_iterations + 1, base_pred);
 
         let persist_file_buffer = {
@@ -93,11 +94,12 @@ impl Boosting {
 
             learner: learner,
             model: model,
+            // TODO: set default model sig on S3
+            model_sig: "".to_string(),
 
             network_sender: None,
-            network_receiver: None,
-            sum_gamma: gamma_squared.clone(),
-            remote_sum_gamma: gamma_squared,
+            local_name: "".to_string(),
+            last_remote_length: 0,
 
             sampler_channel_s: sampler_channel_s,
             persist_id: 0,
@@ -114,21 +116,14 @@ impl Boosting {
 
 
     /// Enable network communication. `name` is the name of this worker, which can be arbitrary
-    /// and is only used for debugging purpose. `remote_ips` is the vector of IPs of neighbor workers.
+    /// and is only used for debugging purpose.
     /// `port` is the port number that used for network communication.
-    pub fn enable_network(
-        &mut self,
-        name: String,
-        remote_ips: &Vec<String>,
-        port: u16,
-    ) {
-        let (local_s, local_r): (mpsc::Sender<ModelScore>, mpsc::Receiver<ModelScore>) =
+    pub fn enable_network(&mut self, name: String, port: u16) {
+        let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
             mpsc::channel();
-        let (remote_s, remote_r): (mpsc::Sender<ModelScore>, mpsc::Receiver<ModelScore>) =
-            mpsc::channel();
+        start_network_only_send(name.as_ref(), port, local_r);
         self.network_sender = Some(local_s);
-        self.network_receiver = Some(remote_r);
-        start_network(name.as_ref(), remote_ips, port, true, remote_s, local_r);
+        self.local_name = name;
     }
 
 
@@ -203,8 +198,6 @@ impl Boosting {
                 }
                 self.model.mark_active(index);
 
-                // TODO: how to calculate sum_gamma in the case of trees?
-                // self.sum_gamma += new_rule.gamma.powi(2);
                 // post updates
                 self.try_send_model();
                 is_gamma_significant = self.learner.is_gamma_significant();
@@ -229,48 +222,41 @@ impl Boosting {
               self.model.size, self.learner.is_gamma_significant());
     }
 
-    fn handle_network(&mut self) -> bool {
-        if self.network_receiver.is_none() {
-            return false;
-        }
-        // process all models received so far
-        let (model, score) = self.network_receiver.as_ref().unwrap().try_iter().fold(
-            (None, self.sum_gamma),
-            |cur_best, model_score| {
-                let (cur_model, cur_score) = cur_best;
-                let (new_model, score) = model_score;
-                if cur_model.is_none() || cur_score < score {
-                    (Some(new_model), score)
-                } else {
-                    (cur_model, cur_score)
-                }
-            }
-        );
-        let replace = model.is_some();
-        if replace {
-            let (old_size, old_score) = (self.model.size, self.sum_gamma);
-            self.model = model.unwrap();
-            self.sum_gamma = score;
-            self.remote_sum_gamma = self.sum_gamma;
-            self.learner.reset();
-            debug!("model-replaced, {}, {}, {}, {}",
-                    self.sum_gamma, old_score, self.model.size, old_size);
+    fn handle_network(&mut self) {
+        if self.network_sender.is_none() {
+            return;
         }
 
-        // handle sending
-        if self.sum_gamma > self.remote_sum_gamma {
+        // 0. Get the latest model
+        // 1. If it is newer, overwrite local model
+        // 2. Otherwise, push the current update to remote
+        let model_score = download_model();
+        if model_score.is_none() {
+            return;
+        }
+        let (remote_model, model_sig): (Model, String) = model_score.unwrap();
+        if model_sig != self.model_sig {
+            // replace the existing model
+            let old_size = self.model.size;
+            self.model = remote_model;
+            self.model_sig = model_sig;
+            self.last_remote_length = self.model.size;
+            self.learner.reset();
+            debug!("model-replaced, {}, {}, {}", self.model.size, old_size, self.model_sig);
+        } else {
+            // send out the local patch
+            let tree_slice = TreeSlice::new(&self.model, self.last_remote_length..self.model.size);
+            let packet: ModelSig =
+                (tree_slice, model_sig, self.local_name.clone() + &self.model.size.to_string());
             let send_result = self.network_sender.as_ref().unwrap()
-                                    .send((self.model.clone(), self.sum_gamma));
+                                    .send(packet);
             if let Err(err) = send_result {
                 error!("Attempt to send the local model to the network module but failed.
                         Error: {}", err);
             } else {
-                info!("Sent the local model to the network module, {}, {}",
-                        self.remote_sum_gamma, self.sum_gamma);
-                self.remote_sum_gamma = self.sum_gamma;
+                info!("Sent the local model to the network module, {}", self.model.size);
             }
         }
-        replace
     }
 
     fn handle_persistent(&mut self, iteration: usize, timestamp: f32) {
