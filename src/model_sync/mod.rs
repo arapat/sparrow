@@ -12,8 +12,8 @@ use tmsn::network::start_network_only_recv;
 
 
 const FILENAME: &str = "model.bin";
-const REGION:   &str = "us-west-1";
-const BUCKET:   &str = "tmsn-cache";
+const REGION:   &str = "us-east-1";
+const BUCKET:   &str = "tmsn-cache2";
 const S3_PATH:  &str = "sparrow-models/";
 
 

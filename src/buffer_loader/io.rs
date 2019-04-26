@@ -15,8 +15,8 @@ type VersionedSample = (usize, Vec<ExampleWithScore>);
 
 
 const FILENAME: &str = "sample.bin";
-const REGION:   &str = "us-west-1";
-const BUCKET:   &str = "tmsn-cache";
+const REGION:   &str = "us-east-1";
+const BUCKET:   &str = "tmsn-cache2";
 const S3_PATH:  &str = "sparrow-samples/";
 
 

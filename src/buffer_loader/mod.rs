@@ -301,8 +301,8 @@ mod tests {
 
     fn clear_s3() -> bool {
         const FILENAME: &str = "sample.bin";
-        const REGION:   &str = "us-west-1";
-        const BUCKET:   &str = "tmsn-cache";
+        const REGION:   &str = "us-east-1";
+        const BUCKET:   &str = "tmsn-cache2";
         const S3_PATH:  &str = "samples/";
         let region = REGION.parse().unwrap();
         // TODO: Add support to read credentials from the config file
