@@ -88,9 +88,9 @@ pub fn load_s3(
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        let new_sample_lock = new_sample_buffer.write();
         let (version, data) = deserialize(&data).unwrap();
         if version > last_version {
+            let new_sample_lock = new_sample_buffer.write();
             *(new_sample_lock.unwrap()) = Some(data);
             return version;
         }
