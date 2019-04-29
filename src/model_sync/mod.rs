@@ -29,6 +29,7 @@ pub fn start_model_sync(
         mpsc::channel();
     start_network_only_recv(name.as_ref(), remote_ips, port, local_s);
     upload_model(&Tree::new(tree_size, 0.0), &"".to_string());
+    debug!("Starting the receive models module");
     spawn(move || { receive_models(local_r, next_model); });
 }
 
@@ -49,7 +50,7 @@ pub fn download_model() -> Option<(Model, String)> {
 
 
 // Server upload models
-pub fn upload_model(model: &Model, sig: &String) -> bool {
+fn upload_model(model: &Model, sig: &String) -> bool {
     let data = (model.clone(), sig.clone());
     io_write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&data).unwrap())
 }
@@ -61,11 +62,16 @@ fn receive_models(receiver: mpsc::Receiver<ModelSig>, next_model_sender: Sender<
     loop {
         let (patch, old_sig, new_sig) = receiver.recv().unwrap();
         if old_sig != model_sig {
+            debug!("Received mismatch signature, incoming, {}, local, {}", old_sig, model_sig);
             continue;
         }
         model.append_patch(&patch, old_sig == "");
         model_sig = new_sig;
         next_model_sender.send(model.clone());
-        upload_model(&model, &model_sig);
+        if upload_model(&model, &model_sig) {
+            debug!("Received and uploaded model {}", model_sig);
+        } else {
+            debug!("Received model model {} but failed to upload", model_sig);
+        }
     }
 }
