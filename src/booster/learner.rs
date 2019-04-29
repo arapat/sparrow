@@ -209,6 +209,7 @@ impl Learner {
         self.rho_gamma >= self.min_gamma
     }
 
+    // TODO: support other activation function
     pub fn push_active(&mut self, index: usize) -> Option<usize> {
         let mut deactive = None;
         let c_idx = {
