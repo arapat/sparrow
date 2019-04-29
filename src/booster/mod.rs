@@ -34,6 +34,7 @@ pub struct Boosting {
     learner: Learner,
     model: Model,
     model_sig: String,
+    last_sent_model_sig: String,
 
     network_sender: Option<mpsc::Sender<ModelSig>>,
     local_name: String,
@@ -95,6 +96,7 @@ impl Boosting {
             learner: learner,
             model: model,
             model_sig: "".to_string(),
+            last_sent_model_sig: "".to_string(),
 
             network_sender: None,
             local_name: "".to_string(),
@@ -241,18 +243,24 @@ impl Boosting {
             self.model_sig = model_sig;
             self.last_remote_length = self.model.size;
             self.learner.reset();
+            for i in 0..self.model.size {
+                self.learner.push_active(i);
+                self.model.mark_active(i);
+            }
             debug!("model-replaced, {}, {}, {}", self.model.size, old_size, self.model_sig);
         } else {
             // send out the local patch
+            let new_model_sig = self.local_name.clone() + &self.model.size.to_string();
             let tree_slice = TreeSlice::new(&self.model, self.last_remote_length..self.model.size);
             let packet: ModelSig =
-                (tree_slice, model_sig, self.local_name.clone() + &self.model.size.to_string());
+                (tree_slice, model_sig, new_model_sig.clone());
             let send_result = self.network_sender.as_ref().unwrap()
                                     .send(packet);
             if let Err(err) = send_result {
                 error!("Attempt to send the local model to the network module but failed.
                         Error: {}", err);
             } else {
+                self.last_sent_model_sig = new_model_sig;
                 info!("Sent the local model to the network module, {}", self.model.size);
             }
         }

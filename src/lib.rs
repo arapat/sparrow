@@ -286,9 +286,7 @@ pub fn training(config_file: String) {
             config.save_process,
             config.save_interval,
         );
-        if config.network.len() > 0 {
-            booster.enable_network(config.local_name, config.port);
-        }
+        booster.enable_network(config.local_name, config.port);
         booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
     } else {
         start_model_sync(

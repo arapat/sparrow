@@ -41,7 +41,7 @@ pub fn download_model() -> Option<(Model, String)> {
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        deserialize(&data).unwrap()
+        Some(deserialize(&data).unwrap())
     } else {
         None
     }
