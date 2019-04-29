@@ -96,7 +96,7 @@ impl Boosting {
             learner: learner,
             model: model,
             model_sig: "".to_string(),
-            last_sent_model_sig: "".to_string(),
+            last_sent_model_sig: ".".to_string(),
 
             network_sender: None,
             local_name: "".to_string(),
@@ -236,6 +236,7 @@ impl Boosting {
             return;
         }
         let (remote_model, model_sig): (Model, String) = model_score.unwrap();
+        let new_model_sig = self.local_name.clone() + &self.model.size.to_string();
         if model_sig != self.model_sig {
             // replace the existing model
             let old_size = self.model.size;
@@ -248,9 +249,8 @@ impl Boosting {
                 self.model.mark_active(i);
             }
             debug!("model-replaced, {}, {}, {}", self.model.size, old_size, self.model_sig);
-        } else {
+        } else if self.last_sent_model_sig != new_model_sig {
             // send out the local patch
-            let new_model_sig = self.local_name.clone() + &self.model.size.to_string();
             let tree_slice = TreeSlice::new(&self.model, self.last_remote_length..self.model.size);
             let packet: ModelSig =
                 (tree_slice, model_sig, new_model_sig.clone());
@@ -261,7 +261,8 @@ impl Boosting {
                         Error: {}", err);
             } else {
                 self.last_sent_model_sig = new_model_sig;
-                info!("Sent the local model to the network module, {}", self.model.size);
+                info!("Sent the local model to the network module, {}, {}",
+                      self.last_sent_model_sig, self.model.size);
             }
         }
     }
