@@ -50,7 +50,7 @@ pub fn download_model() -> Option<(Model, String)> {
 
 // Server upload models
 pub fn upload_model(model: &Model, sig: &String) -> bool {
-    let data = (model, sig);
+    let data = (model.clone(), sig.clone());
     io_write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&data).unwrap())
 }
 
