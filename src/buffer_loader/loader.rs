@@ -68,12 +68,17 @@ impl Loader {
 
 fn loader(
     new_sample_buffer: LockedBuffer,
-    handler: &Fn(LockedBuffer, usize) -> usize,
+    handler: &Fn(LockedBuffer, usize) -> Option<usize>,
     last_version: usize,
 ) -> usize {
     let mut pm = PerformanceMonitor::new();
     pm.start();
     let version = handler(new_sample_buffer, last_version);
-    debug!("sample-loader, {}, {}", version, pm.get_duration());
-    version
+    if version.is_none() {
+        last_version
+    } else {
+        let v = version.unwrap();
+        debug!("sample-loader, {}, {}", v, pm.get_duration());
+        v
+    }
 }

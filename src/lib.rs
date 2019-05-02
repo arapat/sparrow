@@ -54,6 +54,8 @@ use std::time::Duration;
 
 use booster::Boosting;
 use buffer_loader::BufferLoader;
+use buffer_loader::clear_s3 as sample_clear_s3;
+use model_sync::clear_s3 as model_clear_s3;
 use model_sync::start_model_sync;
 use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
@@ -167,6 +169,12 @@ pub fn training(config_file: String) {
     let config: Config = serde_yaml::from_reader(
         create_bufreader(&config_file)
     ).unwrap();
+
+    // Clear S3 before running
+    if config.sampling_mode.to_lowercase() == "s3" {
+        model_clear_s3();
+        sample_clear_s3();
+    }
 
     // Strata -> BufferLoader
     let (sampled_examples_s, sampled_examples_r) = channel::bounded(config.channel_size, "gather-samples");

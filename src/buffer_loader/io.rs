@@ -8,16 +8,17 @@ use commons::io::read_all;
 use commons::io::write_all;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
+use commons::io::delete_s3;
 use super::LockedBuffer;
 
 
 type VersionedSample = (usize, Vec<ExampleWithScore>);
 
 
-const FILENAME: &str = "sample.bin";
-const REGION:   &str = "us-east-1";
-const BUCKET:   &str = "tmsn-cache2";
-const S3_PATH:  &str = "sparrow-samples/";
+pub const FILENAME: &str = "sample.bin";
+pub const REGION:   &str = "us-east-1";
+pub const BUCKET:   &str = "tmsn-cache2";
+pub const S3_PATH:  &str = "sparrow-samples/";
 
 
 // For gatherer
@@ -61,7 +62,7 @@ pub fn write_s3(
 pub fn load_local(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
-) -> usize {
+) -> Option<usize> {
     let ori_filename = FILENAME.to_string();
     let filename = ori_filename.clone() + "_READING";
     if rename(ori_filename, filename.clone()).is_ok() {
@@ -71,20 +72,20 @@ pub fn load_local(
             let new_sample_lock = new_sample_buffer.write();
             *(new_sample_lock.unwrap()) = Some(new_sample);
             remove_file(filename).unwrap();
-            return version;
+            return Some(version);
         }
     }
-    last_version
+    None
 }
 
 
 pub fn load_s3(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
-) -> usize {
+) -> Option<usize> {
     let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
     if ret.is_none() {
-        return last_version;
+        return None;
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
@@ -92,10 +93,15 @@ pub fn load_s3(
         if version > last_version {
             let new_sample_lock = new_sample_buffer.write();
             *(new_sample_lock.unwrap()) = Some(data);
-            return version;
+            return Some(version);
         }
     } else {
         debug!("Loading sample from S3 returns {}", code);
     }
-    last_version
+    None
+}
+
+
+pub fn clear_s3() {
+    delete_s3(REGION, BUCKET, S3_PATH, FILENAME);
 }

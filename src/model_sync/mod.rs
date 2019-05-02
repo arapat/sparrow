@@ -7,14 +7,15 @@ use commons::ModelSig;
 use commons::channel::Sender;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
+use commons::io::delete_s3;
 use tree::Tree;
 use tmsn::network::start_network_only_recv;
 
 
-const FILENAME: &str = "model.bin";
-const REGION:   &str = "us-east-1";
-const BUCKET:   &str = "tmsn-cache2";
-const S3_PATH:  &str = "sparrow-models/";
+pub const FILENAME: &str = "model.bin";
+pub const REGION:   &str = "us-east-1";
+pub const BUCKET:   &str = "tmsn-cache2";
+pub const S3_PATH:  &str = "sparrow-models/";
 
 
 
@@ -74,4 +75,9 @@ fn receive_models(receiver: mpsc::Receiver<ModelSig>, next_model_sender: Sender<
             debug!("Received model model {} but failed to upload", model_sig);
         }
     }
+}
+
+
+pub fn clear_s3() {
+    delete_s3(REGION, BUCKET, S3_PATH, FILENAME);
 }

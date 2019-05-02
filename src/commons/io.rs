@@ -186,6 +186,18 @@ pub fn write_s3(
 }
 
 
+pub fn delete_s3(
+    region: &str, bucket: &str, s3_path: &str, filename: &str,
+) -> bool {
+    let region = region.parse().unwrap();
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(bucket, region, credentials).unwrap();
+    let filename = s3_path.to_string() + filename;
+
+    bucket.delete(&filename).is_ok()
+}
+
+
 fn parse_libsvm<TFeature, TLabel>(
     raw_strings: &Vec<String>,
     missing_val: TFeature,

@@ -231,12 +231,16 @@ fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
 }
 
 
+pub fn clear_s3() {
+    io::clear_s3();
+}
+
+
 #[cfg(test)]
 mod tests {
     use std::thread::sleep;
-    use s3::bucket::Bucket;
-    use s3::credentials::Credentials;
     use commons::channel;
+    use common::io::delete_s3;
 
     use std::time::Duration;
     use labeled_data::LabeledData;
@@ -245,6 +249,10 @@ mod tests {
     use super::BufferLoader;
     use ::TFeature;
 
+    use super::io::REGION;
+    use super::io::BUCKET;
+    use super::io::S3_PATH;
+    use super::io::FILENAME;
 
     #[test]
     fn test_buffer_loader_memory() {
@@ -258,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_buffer_loader_s3() {
-        clear_s3();
+        delete_s3(REGION, BUCKET, S3_PATH, FILENAME);
         test_buffer_loader("s3");
     }
 
@@ -297,20 +305,5 @@ mod tests {
     fn get_example(features: Vec<TFeature>, label: i8, score: f32) -> ExampleWithScore {
         let example = LabeledData::new(features, label);
         (example, (score, 0))
-    }
-
-    fn clear_s3() -> bool {
-        const FILENAME: &str = "sample.bin";
-        const REGION:   &str = "us-east-1";
-        const BUCKET:   &str = "tmsn-cache2";
-        const S3_PATH:  &str = "samples/";
-        let region = REGION.parse().unwrap();
-        // TODO: Add support to read credentials from the config file
-        // Read credentials from the environment variables
-        let credentials = Credentials::default();
-        let bucket = Bucket::new(BUCKET, region, credentials).unwrap();
-        let filename = S3_PATH.to_string() + FILENAME;
-
-        bucket.delete(&filename).is_ok()
     }
 }
