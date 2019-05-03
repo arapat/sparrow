@@ -17,7 +17,7 @@ max_bin_size: 10
 min_gamma: 0.00001
 default_gamma: 0.25
 min_ess: 0.5
-num_iterations: 400
+num_iterations: 100
 max_leaves: 4
 max_trials_before_shrink: 1000000
 channel_size: 8
@@ -40,3 +40,6 @@ models_table_filename: ./models_table.txt
 incremental_testing: true
 testing_scores_only: false
 save_interval: 1
+sampling_mode: s3
+sampler_scanner: scanner
+sleep_duration: 5
