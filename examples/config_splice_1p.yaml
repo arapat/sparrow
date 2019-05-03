@@ -35,7 +35,7 @@ num_examples_per_block: 40960
 disk_buffer_filename: stratified.bin
 num_assigners: 1
 num_samplers: 3
-network: []
+network: ["3.91.189.181"]
 port: 8888
 local_name: local_worker
 save_process: true
