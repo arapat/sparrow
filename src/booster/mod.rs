@@ -158,6 +158,7 @@ impl Boosting {
         */
         let mut iteration = 0;
         let mut is_gamma_significant = true;
+        let mut total_data_size = 0;
         while is_gamma_significant &&
                 (self.num_iterations <= 0 || self.model.size < self.num_iterations) {
             let (new_rule, batch_size) = {
@@ -168,6 +169,7 @@ impl Boosting {
             learner_timer.update(batch_size);
             global_timer.update(batch_size);
             learner_timer.pause();
+            total_data_size += batch_size;
 
             if new_rule.is_some() {
                 let new_rule = new_rule.unwrap();
@@ -193,6 +195,8 @@ impl Boosting {
                     new_rule.evaluation,
                     new_rule.predict,
                 );
+                info!("scanner, added new rule, {}, {}, {}",
+                      self.model.size, new_rule.num_scanned, total_data_size);
                 let deactive = self.learner.push_active(index);
                 if deactive.is_some() {
                     self.model.unmark_active(deactive.unwrap());
@@ -206,8 +210,7 @@ impl Boosting {
                 if self.model.size % self.save_interval == 0 {
                     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
                 }
-
-                info!("new-tree-info, {}", self.model.size);
+                total_data_size = 0;
             }
 
             iteration += 1;

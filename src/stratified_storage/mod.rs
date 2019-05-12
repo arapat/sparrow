@@ -117,7 +117,7 @@ impl StratifiedStorage {
         disk_buffer_filename: &str,
         num_assigners: usize,
         num_samplers: usize,
-        sampled_examples: Sender<(ExampleWithScore, u32)>,
+        sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         sampling_signal: Receiver<Signal>,
         models: Receiver<Model>,
         channel_size: usize,
@@ -327,7 +327,7 @@ mod tests {
         pm_sample.start();
         let mut average = 0.0;
         for _ in 0..num_read {
-            let recv = sampled_examples_recv.recv().unwrap();
+            let recv = sampled_examples_recv.recv().unwrap().0;  // .1 is # of scanned examples
             average += (((recv.0).0).feature[0] as f32) * (recv.1 as f32) / (num_read as f32);
             pm_sample.update(recv.1 as usize);
         }

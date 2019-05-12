@@ -16,7 +16,7 @@ use super::io::write_s3;
 
 
 pub struct Gatherer {
-    gather_new_sample:   Receiver<(ExampleWithScore, u32)>,
+    gather_new_sample:   Receiver<((ExampleWithScore, u32), u32)>,
     new_sample_capacity: usize,
     new_sample_buffer:   LockedBuffer,
 }
@@ -26,7 +26,7 @@ impl Gatherer {
     /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
     /// * `new_sample_capacity`: the size of the memory buffer of the buffer loader
     pub fn new(
-        gather_new_sample:   Receiver<(ExampleWithScore, u32)>,
+        gather_new_sample:   Receiver<((ExampleWithScore, u32), u32)>,
         new_sample_capacity: usize,
         new_sample_buffer:   LockedBuffer,
     ) -> Gatherer {
@@ -87,25 +87,28 @@ impl Gatherer {
 fn gather(
     new_sample_capacity: usize,
     new_sample_buffer: LockedBuffer,
-    gather_new_sample: Receiver<(ExampleWithScore, u32)>,
+    gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
     handler: &Fn(Vec<ExampleWithScore>, LockedBuffer, usize),
     version: usize,
 ) {
-    debug!("start filling the alternate buffer");
+    debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
     pm.start();
 
     let mut new_sample = Vec::with_capacity(new_sample_capacity);
+    let mut total_scanned = 0;
     while new_sample.len() < new_sample_capacity {
-        if let Some((example, mut c)) = gather_new_sample.recv() {
+        if let Some(((example, mut c), num_scanned)) = gather_new_sample.recv() {
             // `c` is the number of times this example should be put into the sample set
             while new_sample.len() < new_sample_capacity && c > 0 {
                 new_sample.push(example.clone());
                 c -= 1;
             }
+            total_scanned += num_scanned;
         }
     }
     thread_rng().shuffle(&mut new_sample);
+    debug!("sampler, finished, generate sample, {}", total_scanned);
     handler(new_sample, new_sample_buffer, version);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
@@ -137,7 +140,7 @@ mod tests {
         let mut examples: Vec<ExampleWithScore> = vec![];
         for i in 0..100 {
             let t = get_example(vec![i as TFeature, 1, 2], 0.0);
-            gather_sender.send((t.clone(), 1));
+            gather_sender.send(((t.clone(), 1), 1));
             examples.push(t);
         }
         sleep(Duration::from_millis(1000));  // wait for the gatherer releasing the new sample

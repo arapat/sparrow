@@ -49,7 +49,7 @@ pub struct TreeNode {
     sum_c: f32,
     sum_c_squared: f32,
     bound: f32,
-    num_scanned: usize,
+    pub num_scanned: usize,
     pub fallback: bool,
 }
 

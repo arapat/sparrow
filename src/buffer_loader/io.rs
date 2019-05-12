@@ -53,7 +53,9 @@ pub fn write_s3(
     version: usize,
 ) {
     let data: VersionedSample = (version, new_sample);
+    debug!("sampler, start, write new sample to s3");
     io_write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&data).unwrap());
+    debug!("sampler, finished, write new sample to s3");
 }
 
 
@@ -83,6 +85,7 @@ pub fn load_s3(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
 ) -> Option<usize> {
+    debug!("scanner, start, download sample from s3");
     let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
     if ret.is_none() {
         return None;
@@ -93,10 +96,12 @@ pub fn load_s3(
         if version > last_version {
             let new_sample_lock = new_sample_buffer.write();
             *(new_sample_lock.unwrap()) = Some(data);
+            debug!("scanner, finished, download sample from s3, succeed");
             return Some(version);
         }
+        debug!("scanner, finished, download sample from s3, remote model is old");
     } else {
-        debug!("Loading sample from S3 returns {}", code);
+        debug!("scanner, failed, download sample from s3, err {}", code);
     }
     None
 }

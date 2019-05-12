@@ -74,7 +74,7 @@ impl BufferLoader {
         size: usize,
         batch_size: usize,
         sampling_mode: String,
-        gather_new_sample: Receiver<(ExampleWithScore, u32)>,
+        gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
         sampling_signal_channel: Sender<Signal>,
         sleep_duration: usize,
         init_block: bool,
@@ -190,7 +190,7 @@ impl BufferLoader {
                                                     (a.clone(), (w, s.1))
                                                 }).collect();
                     self.curr_example = 0;
-                    debug!("switched-buffer, {}", self.examples.len());
+                    debug!("scanner, switched-buffer, {}", self.examples.len());
                     true
                 }
             } else {
@@ -240,7 +240,7 @@ pub fn clear_s3() {
 mod tests {
     use std::thread::sleep;
     use commons::channel;
-    use common::io::delete_s3;
+    use commons::io::delete_s3;
 
     use std::time::Duration;
     use labeled_data::LabeledData;
@@ -276,7 +276,7 @@ mod tests {
         let mut buffer_loader = BufferLoader::new(
             100, 10, mode.to_string(), receiver, signal_s, 1, false, None, "both".to_string());
         assert_eq!(signal_r.recv().unwrap(), Signal::START);
-        sender.send((get_example(vec![0, 1, 2], -1, 1.0), 100));
+        sender.send(((get_example(vec![0, 1, 2], -1, 1.0), 100), 100));
         while !buffer_loader.try_switch() {
             sleep(Duration::from_millis(1000));
         }
@@ -288,7 +288,7 @@ mod tests {
             assert_eq!((batch[9].1).0, 1.0);
             assert_eq!((batch[9].0).label, -1);
         }
-        sender.send((get_example(vec![0, 1, 2], 1, 2.0), 100));
+        sender.send(((get_example(vec![0, 1, 2], 1, 2.0), 100), 100));
         while !buffer_loader.try_switch() {
             sleep(Duration::from_millis(1000));
         }

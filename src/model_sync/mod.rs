@@ -37,14 +37,19 @@ pub fn start_model_sync(
 
 // Worker download models
 pub fn download_model() -> Option<(Model, String)> {
+    debug!("sampler, start, download model");
     let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
+    debug!("sampler, finished, download model");
     if ret.is_none() {
+        debug!("sample, download model, failed");
         return None;
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
+        debug!("sample, download model, succeed");
         Some(deserialize(&data).unwrap())
     } else {
+        debug!("sample, download model, failed with return code {}", code);
         None
     }
 }
@@ -63,16 +68,16 @@ fn receive_models(receiver: mpsc::Receiver<ModelSig>, next_model_sender: Sender<
     loop {
         let (patch, old_sig, new_sig) = receiver.recv().unwrap();
         if old_sig != model_sig {
-            debug!("Received mismatch signature, incoming, {}, local, {}", old_sig, model_sig);
+            debug!("model_manager, reject, {}, {}", old_sig, new_sig);
             continue;
         }
         model.append_patch(&patch, old_sig == "");
         model_sig = new_sig;
         next_model_sender.send(model.clone());
         if upload_model(&model, &model_sig) {
-            debug!("Received and uploaded model {}", model_sig);
+            debug!("model_manager, accept, {}, {}", old_sig, model_sig);
         } else {
-            debug!("Received model model {} but failed to upload", model_sig);
+            debug!("model_manager, upload failed, {}, {}", old_sig, model_sig);
         }
     }
 }

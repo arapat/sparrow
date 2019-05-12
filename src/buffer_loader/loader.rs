@@ -75,10 +75,11 @@ fn loader(
     pm.start();
     let version = handler(new_sample_buffer, last_version);
     if version.is_none() {
+        debug!("scanner, failed to receive a new sample");
         last_version
     } else {
         let v = version.unwrap();
-        debug!("sample-loader, {}, {}", v, pm.get_duration());
+        debug!("scanner, received a new sample, {}, {}", v, pm.get_duration());
         v
     }
 }

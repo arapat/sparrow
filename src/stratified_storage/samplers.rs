@@ -38,7 +38,7 @@ use commons::get_weight;
 
 pub struct Samplers {
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: Sender<(ExampleWithScore, u32)>,
+    sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
     next_model: Receiver<Model>,
     model: Arc<RwLock<Model>>,
@@ -55,7 +55,7 @@ pub struct Samplers {
 impl Samplers {
     pub fn new(
         strata: Arc<RwLock<Strata>>,
-        sampled_examples: Sender<(ExampleWithScore, u32)>,
+        sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         updated_examples: Sender<ExampleWithScore>,
         next_model: Receiver<Model>,
         stats_update_s: Sender<(i8, (i32, f64))>,
@@ -87,7 +87,7 @@ impl Samplers {
                     let mut model = model.write().unwrap();
                     *model = new_model;
                 }
-                debug!("sampler model update, {}", model_len);
+                debug!("sampler, model updated, {}", model_len);
             }
         });
 
@@ -135,7 +135,7 @@ impl Samplers {
 
 fn sampler(
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: Sender<(ExampleWithScore, u32)>,
+    sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
     // TODO: remove sampling signal if serial sampling is removed
@@ -156,6 +156,7 @@ fn sampler(
     let mut pm2 = PerformanceMonitor::new();
     let mut pm3 = PerformanceMonitor::new();
     let mut pm4 = PerformanceMonitor::new();
+    let mut num_scanned = 0;
     let mut num_updated = 0;
     let mut num_sampled = 0;
     pm_total.start();
@@ -234,6 +235,7 @@ fn sampler(
                 (score + inc_score, model_size)
             };
             *grid += get_weight(&example, updated_score);
+            num_scanned += 1;
             if *grid >= grid_size {
                 sampled_example = Some((example.clone(), (updated_score, model_size)));
             }
@@ -251,9 +253,10 @@ fn sampler(
         let sampled_example = sampled_example.unwrap();
         let sample_count = (*grid / grid_size) as u32;
         if sample_count > 0 {
-            sampled_examples.send((sampled_example, sample_count));
+            sampled_examples.send(((sampled_example, sample_count), num_scanned));
             *grid -= grid_size * (sample_count as f32);
             num_sampled += sample_count;
+            num_scanned = 0;
             pm_sample.update(sample_count as usize);
         }
 
