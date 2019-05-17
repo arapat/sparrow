@@ -408,7 +408,7 @@ impl Learner {
                 evaluation:     eval_idx == 1,
                 predict:        base_pred * PREDS[pred_idx],
 
-                gamma:          empirical_gamma,
+                gamma:          old_rho_gamma,  // the last gamma used to generate new nodes
                 raw_martingale: raw_martingale,
                 sum_c:          sum_c,
                 sum_c_squared:  sum_c_squared,
@@ -421,7 +421,7 @@ impl Learner {
 }
 
 
-pub fn get_base_node(max_sample_size: usize, data_loader: &mut BufferLoader) -> (f32, f32) {
+pub fn get_base_node(max_sample_size: usize, data_loader: &mut BufferLoader) -> (f32, f32, f32) {
     let mut sample_size = max_sample_size;
     let mut n_pos = 0;
     let mut n_neg = 0;
@@ -446,7 +446,7 @@ pub fn get_base_node(max_sample_size: usize, data_loader: &mut BufferLoader) -> 
     let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();
     let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
     info!("root-tree-info, {}, {}, {}, {}", 1, max_sample_size, gamma, gamma * gamma);
-    (gamma, prediction)
+    (gamma, prediction, gamma)
 }
 
 

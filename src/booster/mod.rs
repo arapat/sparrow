@@ -79,8 +79,8 @@ impl Boosting {
             min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range); // TODO: make num_cadid a paramter
 
         // add root node for balancing labels
-        let (_, base_pred) = get_base_node(max_sample_size, &mut training_loader);
-        let model = Tree::new(num_iterations + 1, base_pred);
+        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);
+        let model = Tree::new(num_iterations + 1, base_pred, base_gamma);
 
         let persist_file_buffer = {
             if save_process {
@@ -194,6 +194,7 @@ impl Boosting {
                     new_rule.threshold,
                     new_rule.evaluation,
                     new_rule.predict,
+                    new_rule.gamma,
                 );
                 info!("scanner, added new rule, {}, {}, {}",
                       self.model.size, new_rule.num_scanned, total_data_size);
@@ -256,7 +257,7 @@ impl Boosting {
             // send out the local patch
             let tree_slice = TreeSlice::new(&self.model, self.last_remote_length..self.model.size);
             let packet: ModelSig =
-                (tree_slice, model_sig, new_model_sig.clone());
+                (tree_slice, self.model.last_gamma, model_sig, new_model_sig.clone());
             let send_result = self.network_sender.as_ref().unwrap()
                                     .send(packet);
             if let Err(err) = send_result {

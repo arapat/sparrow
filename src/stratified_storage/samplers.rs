@@ -68,7 +68,7 @@ impl Samplers {
             sampled_examples: sampled_examples,
             updated_examples: updated_examples,
             next_model: next_model,
-            model: Arc::new(RwLock::new(Tree::new(1, 0.0))),
+            model: Arc::new(RwLock::new(Tree::new(1, 0.0, 0.0))),
             sampling_signal: Arc::new(RwLock::new(Signal::STOP)),
             stats_update_s: stats_update_s,
             weights_table: weights_table,

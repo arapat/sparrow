@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::mpsc;
 use std::thread::spawn;
 use bincode::serialize;
@@ -29,9 +30,10 @@ pub fn start_model_sync(
     let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
         mpsc::channel();
     start_network_only_recv(name.as_ref(), remote_ips, port, local_s);
-    upload_model(&Tree::new(tree_size, 0.0), &"".to_string());
+    upload_model(&Tree::new(tree_size, 0.0, 0.0), &"".to_string());
     debug!("Starting the receive models module");
-    spawn(move || { receive_models(local_r, next_model); });
+    let num_machines = remote_ips.len();
+    spawn(move || { receive_models(num_machines, local_r, next_model); });
 }
 
 
@@ -62,16 +64,35 @@ fn upload_model(model: &Model, sig: &String) -> bool {
 }
 
 
-fn receive_models(receiver: mpsc::Receiver<ModelSig>, next_model_sender: Sender<Model>) {
+fn receive_models(
+    num_machines: usize,
+    receiver: mpsc::Receiver<ModelSig>,
+    next_model_sender: Sender<Model>,
+) {
     let mut model_sig = "".to_string();
-    let mut model = Tree::new(1, 0.0);
+    let mut model = Tree::new(1, 0.0, 0.0);
+    let mut gamma = HashMap::new();
     loop {
-        let (patch, old_sig, new_sig) = receiver.recv().unwrap();
+        let (patch, remote_gamma, old_sig, new_sig) = receiver.recv().unwrap();
+        let machine_name: String = (*old_sig).split("_").next()
+                                        .expect("Invalid signature format")
+                                        .to_string();
+        *(gamma.entry(machine_name).or_insert(0.0)) = remote_gamma;
         if old_sig != model_sig {
-            debug!("model_manager, reject, {}, {}", old_sig, new_sig);
+            debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
             continue;
         }
-        model.append_patch(&patch, old_sig == "");
+        let current_gamma: f32 = gamma.values().fold(0.0, |a, &b| a.max(b));
+        if gamma.len() < num_machines {
+            debug!("model_manager, reject for scanners not ready, {}, {}",
+                   gamma.len(), num_machines);
+            continue;
+        }
+        if current_gamma + 1e-8 < remote_gamma {
+            debug!("model_manager, reject for small gamma, {}, {}", current_gamma, remote_gamma);
+            continue;
+        }
+        model.append_patch(&patch, remote_gamma, old_sig == "");
         model_sig = new_sig;
         next_model_sender.send(model.clone());
         if upload_model(&model, &model_sig) {

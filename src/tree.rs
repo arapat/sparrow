@@ -25,6 +25,7 @@ pub struct Tree {
     latest_child:   Vec<usize>,
     is_active:      Vec<bool>,
     num_active:     Vec<usize>,
+    pub last_gamma:     f32,
 }
 
 impl Clone for Tree {
@@ -41,12 +42,13 @@ impl Clone for Tree {
             latest_child:   self.latest_child.clone(),
             is_active:      self.is_active.clone(),
             num_active:     self.num_active.clone(),
+            last_gamma:     self.last_gamma,
         }
     }
 }
 
 impl Tree {
-    pub fn new(max_nodes: usize, base_pred: f32) -> Tree {
+    pub fn new(max_nodes: usize, base_pred: f32, base_gamma: f32) -> Tree {
         let mut tree = Tree {
             size:           0,
             parent:         Vec::with_capacity(max_nodes),
@@ -59,14 +61,15 @@ impl Tree {
             latest_child:   Vec::with_capacity(max_nodes),
             is_active:      Vec::with_capacity(max_nodes),
             num_active:     Vec::with_capacity(max_nodes),
+            last_gamma:     0.0,
         };
-        tree.add_node(0, 0, 0, false, base_pred);
+        tree.add_node(0, 0, 0, false, base_pred, base_gamma);
         tree
     }
 
     pub fn add_node(
         &mut self, parent: usize,
-        feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32,
+        feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
     ) -> usize {
         let index = self.size;
         let depth = {
@@ -85,6 +88,7 @@ impl Tree {
         self.leaf_depth.push(depth);
         self.is_active.push(false);
         self.num_active.push(0);
+        self.last_gamma = gamma;
         self.latest_child.push(index);
         self.size += 1;
         if index > 0 {
@@ -164,7 +168,7 @@ impl Tree {
         active
     }
 
-    pub fn append_patch(&mut self, patch: &TreeSlice, overwrite_root: bool) {
+    pub fn append_patch(&mut self, patch: &TreeSlice, last_gamma: f32, overwrite_root: bool) {
         let mut i = {
             if overwrite_root {
                 self.predicts[0] = patch.predicts[0];
@@ -176,10 +180,11 @@ impl Tree {
         while i < patch.size {
             self.add_node(
                 patch.parent[i], patch.split_feature[i], patch.threshold[i],
-                patch.evaluation[i], patch.predicts[i],
+                patch.evaluation[i], patch.predicts[i], 0.0,
             );
             i += 1;
         }
+        self.last_gamma = last_gamma;
     }
 }
 
