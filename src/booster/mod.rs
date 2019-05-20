@@ -240,7 +240,7 @@ impl Boosting {
             return;
         }
         let (remote_model, model_sig): (Model, String) = model_score.unwrap();
-        let new_model_sig = self.local_name.clone() + &self.model.size.to_string();
+        let new_model_sig = self.local_name.clone() + "_" + &self.model.size.to_string();
         if model_sig != self.model_sig {
             // replace the existing model
             let old_size = self.model.size;
