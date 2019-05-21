@@ -291,17 +291,16 @@ impl Learner {
             }).collect()
         };
         // Sort examples - Complexity: O(Examples)
-        let mut data_by_node: HashMap<usize, Vec<&(&Example, [[[f32; 2]; 3]; NUM_RULES])>> =
+        let mut data_by_node: HashMap<usize, Vec<(&Example, [[[f32; 2]; 3]; NUM_RULES])>> =
             HashMap::new();
-        data.iter().for_each(|(index, weight, value)| {
+        data.into_iter().for_each(|(index, weight, value)| {
             // Update weights and counts
-            self.sum_weights[*index] += weight;
-            self.counts[*index] += 1;
-            data_by_node.entry(*index).or_insert(Vec::new()).push(value);
+            self.sum_weights[index] += weight;
+            self.counts[index] += 1;
+            data_by_node.entry(index).or_insert(Vec::new()).push(value);
         });
 
-        // Update each weak rule
-        // - Complexity: O(Examples * Features + Candid * Bins(Features) * Splits)
+        // Update each weak rule - Complexity: O(Candid * Bins * Splits)
         let range_start = self.range_start;
         let num_candid = self.num_candid;
         let counts = self.counts.clone();
