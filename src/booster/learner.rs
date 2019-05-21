@@ -510,7 +510,7 @@ impl Learner {
                 };
                 self.tree_max_rho_gamma = max(self.tree_max_rho_gamma, tree_gamma);
             }
-            self.reset_trackers();
+            // self.reset_trackers();
             if self.tree.num_leaves == self.max_leaves * 2 - 1 {
                 debug!("default-gamma, {}, {}", self.default_gamma, self.tree_max_rho_gamma * 0.9);
                 // self.default_gamma = 0.25;
