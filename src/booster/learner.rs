@@ -271,7 +271,7 @@ impl Learner {
 
         // preprocess examples - Complexity: O(Examples * NumRules)
         let rho_gamma = self.rho_gamma;
-        let data: Vec<(usize, f32, (&Example, [[[f32; 2]; 3]; NUM_RULES]))> = {
+        let data: Vec<(usize, f32, (Example, [[[f32; 2]; 3]; NUM_RULES]))> = {
             data.par_iter().map(|(example, (weight, _))| {
                 let (index, pred) = self.tree.get_leaf_index_prediction(example);
                 let weight = weight * get_weight(example, pred);
@@ -287,11 +287,11 @@ impl Learner {
                     vals[i][1] = [left_ci, right_ci];
                     vals[i][2] = [left_ci * left_ci, right_ci * right_ci];
                 });
-                (index, weight, (example, vals))
+                (index, weight, (example.clone(), vals))
             }).collect()
         };
         // Sort examples - Complexity: O(Examples)
-        let mut data_by_node: HashMap<usize, Vec<(&Example, [[[f32; 2]; 3]; NUM_RULES])>> =
+        let mut data_by_node: HashMap<usize, Vec<(Example, [[[f32; 2]; 3]; NUM_RULES])>> =
             HashMap::new();
         data.into_iter().for_each(|(index, weight, value)| {
             // Update weights and counts
