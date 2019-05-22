@@ -31,7 +31,7 @@ pub fn validate(
     scores_only: bool,
 ) {
     // TODO: make eval_funcs a parameter
-    let eval_funcs = vec![EvalFunc::AdaBoostLoss, EvalFunc::AUPRC, EvalFunc::AUROC];
+    let eval_funcs = vec![EvalFunc::AdaBoostLoss, EvalFunc::AUPRC, EvalFunc::AUROC, EvalFunc::ErrorRate];
     let mut performance_out = {
         if scores_only {
             None
