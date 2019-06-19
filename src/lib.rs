@@ -298,7 +298,8 @@ pub fn training(config_file: String) {
         booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
     } else {
         start_model_sync(
-            config.num_iterations, config.local_name, &config.network, config.port, next_model_s);
+            config.num_iterations, config.local_name, &config.network, config.port, next_model_s,
+            config.default_gamma);
         loop {
             sleep(Duration::from_secs(600));
         }

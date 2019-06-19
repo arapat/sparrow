@@ -9,8 +9,8 @@ use super::super::TFeature;
 
 use buffer_loader::BufferLoader;
 use commons::bins::Bins;
-use commons::min;
 use commons::get_bound;
+use commons::is_zero;
 use commons::Model;
 
 // TODO: The tree generation and score updates are for AdaBoost only,
@@ -377,6 +377,8 @@ impl Learner {
                  }
              });
 
+        valid_tree_node
+        /*
         if valid_tree_node.is_some() || self.total_count <= self.num_examples_before_shrink {
             valid_tree_node
         } else {
@@ -416,6 +418,14 @@ impl Learner {
                 num_scanned:    count,
                 fallback:       true,
             })
+        }
+        */
+    }
+
+    pub fn set_gamma(&mut self, gamma: f32) {
+        if !is_zero(gamma - self.rho_gamma) {
+            debug!("set-gamma, {}, {}", self.rho_gamma, gamma);
+            self.rho_gamma = gamma;
         }
     }
 }

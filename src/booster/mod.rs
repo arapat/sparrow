@@ -239,7 +239,7 @@ impl Boosting {
         if model_score.is_none() {
             return;
         }
-        let (remote_model, model_sig): (Model, String) = model_score.unwrap();
+        let (remote_model, model_sig, current_gamma): (Model, String, f32) = model_score.unwrap();
         let new_model_sig = self.local_name.clone() + "_" + &self.model.size.to_string();
         if model_sig != self.model_sig {
             // replace the existing model
@@ -269,6 +269,7 @@ impl Boosting {
                       self.last_sent_model_sig, self.model.size);
             }
         }
+        self.learner.set_gamma(current_gamma);
     }
 
     fn handle_persistent(&mut self, iteration: usize, timestamp: f32) {
