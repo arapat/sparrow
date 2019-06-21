@@ -1,11 +1,12 @@
-use std::collections::HashMap;
 use std::sync::mpsc;
 use std::thread::spawn;
 use bincode::serialize;
 use bincode::deserialize;
 use commons::Model;
 use commons::ModelSig;
+use commons::channel::bounded;
 use commons::channel::Sender;
+use commons::channel::Receiver;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
 use commons::io::delete_s3;
@@ -29,13 +30,24 @@ pub fn start_model_sync(
     next_model: Sender<Model>,
     default_gamma: f32,
 ) {
+    // TODO: make K a config parameter
+    const K: usize = 5;
     let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
         mpsc::channel();
+    let (bounded_local_s, bounded_local_r) = bounded(K, "model-patches");
     start_network_only_recv(name.as_ref(), remote_ips, port, local_s);
     upload_model(&Tree::new(tree_size, 0.0, 0.0), &"".to_string(), default_gamma);
     debug!("Starting the receive models module");
+    let bounded_sender = bounded_local_s.clone();
+    spawn(move || {
+        loop {
+            bounded_sender.send(local_r.recv().unwrap());
+        }
+    });
     let num_machines = remote_ips.len();
-    spawn(move || { receive_models(num_machines, local_r, next_model, default_gamma); });
+    spawn(move || {
+        receive_models(num_machines, bounded_local_r, bounded_local_s, next_model, default_gamma);
+    });
 }
 
 
@@ -68,20 +80,43 @@ fn upload_model(model: &Model, sig: &String, gamma: f32) -> bool {
 
 fn receive_models(
     num_machines: usize,
-    receiver: mpsc::Receiver<ModelSig>,
+    receiver: Receiver<ModelSig>,
+    sender:   Sender<ModelSig>,
     next_model_sender: Sender<Model>,
     default_gamma: f32,
 ) {
-    const K = 5;
-    const duration = 5.0;
+    // TODO: make duration a config parameter
+    const DURATION: f32 = 5.0;
     let mut model_sig = "".to_string();
     let mut model = Tree::new(1, 0.0, 0.0);
     // let mut gamma = HashMap::new();
     let mut timer = PerformanceMonitor::new();
-    let mut current_gamma = default_gamma;
+    let mut gamma_max = default_gamma;
+    let mut alpha = 0.5;
     timer.start();
     loop {
-        let (patch, remote_gamma, old_sig, new_sig) = receiver.recv().unwrap();
+        let packet = receiver.try_recv();
+        if packet.is_none() {
+            if timer.get_duration() >= DURATION {
+                gamma_max = gamma_max * 0.9;
+                alpha = 0.5;
+                let current_gamma = gamma_max - gamma_max * alpha * 0.1;
+                if upload_model(&model, &model_sig, current_gamma) {
+                    debug!("model_manager, gamma updated, {}, {}, {}", gamma_max, alpha, current_gamma);
+                } else {
+                    debug!("model_manager, gamma update failed, {}, {}, {}",
+                        gamma_max, alpha, current_gamma);
+                }
+                timer.reset();
+                timer.start();
+            }
+            continue;
+        }
+        if sender.is_full() {
+            alpha = alpha / 2.0;
+        }
+        let current_gamma = gamma_max - gamma_max * alpha * 0.1;
+        let (patch, remote_gamma, old_sig, new_sig) = packet.unwrap();
         let machine_name: String = (*old_sig).split("_").next()
                                         .expect("Invalid signature format")
                                         .to_string();
@@ -109,18 +144,6 @@ fn receive_models(
             debug!("model_manager, accept, {}, {}", old_sig, model_sig);
         } else {
             debug!("model_manager, upload failed, {}, {}", old_sig, model_sig);
-        }
-        timer.update(1);
-        if timer.get_duration() >= duration {
-            if timer.get_counts() >= K {
-                current_gamma = current_gamma * 0.9;
-            }
-            if upload_model(&model, &model_sig, current_gamma) {
-                debug!("model_manager, gamma updated, {}", current_gamma);
-            } else {
-                debug!("model_manager, gamma update failed, {}", current_gamma);
-            }
-            timer.reset();
         }
     }
 }

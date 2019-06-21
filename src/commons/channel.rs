@@ -114,6 +114,10 @@ impl<T> Sender<T> {
         }
         succeed
     }
+
+    pub fn is_full(&self) -> bool {
+        self.sender.is_full()
+    }
 }
 
 
