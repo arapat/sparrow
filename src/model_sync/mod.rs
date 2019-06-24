@@ -106,8 +106,12 @@ fn receive_models(
             } else if (rejected_packets as f32) / (total_packets as f32) >= FRACTION {
                 current_condition = 1;
             }
-            if current_condition == -1 && last_condition == 1 {
-                shrink_factor = (1.0 + shrink_factor) / 2.0;
+            if current_condition == -1 {
+                if last_condition == 1 {
+                    shrink_factor = (1.0 + shrink_factor) / 2.0;
+                } else if last_condition == -1 {
+                    shrink_factor = (0.8 + shrink_factor) / 2.0;
+                }
             }
             match current_condition {
                 1  => gamma = gamma / shrink_factor,
