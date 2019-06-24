@@ -85,62 +85,69 @@ fn receive_models(
     next_model_sender: Sender<Model>,
     default_gamma: f32,
 ) {
-    // TODO: make duration a config parameter
+    // TODO: make duration and fraction config parameters
     const DURATION: f32 = 5.0;
+    const FRACTION: f32 = 0.1;
     let mut model_sig = "".to_string();
     let mut model = Tree::new(1, 0.0, 0.0);
     // let mut gamma = HashMap::new();
     let mut timer = PerformanceMonitor::new();
-    let mut gamma_max = default_gamma;
-    let mut alpha = 0.5;
+    let mut gamma = default_gamma;
+    let mut shrink_factor = 0.9;
+    let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
+    let mut total_packets = 0;
+    let mut rejected_packets = 0;
     timer.start();
     loop {
+        if timer.get_duration() >= DURATION {
+            let mut current_condition = 0;
+            if total_packets == 0 {
+                current_condition = -1;
+            } else if (rejected_packets as f32) / (total_packets as f32) >= FRACTION {
+                current_condition = 1;
+            }
+            if current_condition == -1 && last_condition == 1 {
+                shrink_factor = (1.0 + shrink_factor) / 2.0;
+            }
+            match current_condition {
+                1  => gamma = gamma / shrink_factor,
+                -1 => gamma = gamma * shrink_factor,
+                _  => {},
+            }
+            if current_condition != 0 {
+                if upload_model(&model, &model_sig, gamma) {
+                    debug!("model_manager, broadcast gamma, {}, {}, {}",
+                           current_condition, gamma, shrink_factor);
+                } else {
+                    debug!("model_manager, failed gamma broadcast, {}, {}, {}",
+                           current_condition, gamma, shrink_factor);
+                }
+            }
+            last_condition = current_condition;
+            total_packets = 0;
+            rejected_packets = 0;
+            timer.reset();
+            timer.start();
+        }
         let packet = receiver.try_recv();
         if packet.is_none() {
-            if timer.get_duration() >= DURATION {
-                gamma_max = gamma_max * 0.9;
-                alpha = 0.5;
-                let current_gamma = gamma_max - gamma_max * alpha * 0.1;
-                if upload_model(&model, &model_sig, current_gamma) {
-                    debug!("model_manager, gamma updated, {}, {}, {}", gamma_max, alpha, current_gamma);
-                } else {
-                    debug!("model_manager, gamma update failed, {}, {}, {}",
-                        gamma_max, alpha, current_gamma);
-                }
-                timer.reset();
-                timer.start();
-            }
             continue;
         }
-        if sender.is_full() {
-            alpha = alpha / 2.0;
-        }
-        let current_gamma = gamma_max - gamma_max * alpha * 0.1;
         let (patch, remote_gamma, old_sig, new_sig) = packet.unwrap();
         let machine_name: String = (*old_sig).split("_").next()
                                         .expect("Invalid signature format")
                                         .to_string();
         // *(gamma.entry(machine_name).or_insert(0.0)) = remote_gamma;
+        total_packets += 1;
         if old_sig != model_sig {
             debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
+            rejected_packets += 1;
             continue;
         }
-        // let current_gamma: f32 = gamma.values().fold(0.0, |a, &b| a.max(b));
-        /*
-        if gamma.len() < num_machines {
-            debug!("model_manager, reject for scanners not ready, {}, {}",
-                   gamma.len(), num_machines);
-            continue;
-        }
-        if current_gamma + 1e-8 < remote_gamma {
-            debug!("model_manager, reject for small gamma, {}, {}", current_gamma, remote_gamma);
-            continue;
-        }
-        */
         model.append_patch(&patch, remote_gamma, old_sig == "");
         model_sig = new_sig;
         next_model_sender.send(model.clone());
-        if upload_model(&model, &model_sig, current_gamma) {
+        if upload_model(&model, &model_sig, gamma) {
             debug!("model_manager, accept, {}, {}", old_sig, model_sig);
         } else {
             debug!("model_manager, upload failed, {}, {}", old_sig, model_sig);
