@@ -145,7 +145,7 @@ pub fn load_s3(
     let mut filepath = s3_path.to_string();
     filepath.push_str(filename);
 
-    let ret = bucket.get(&filepath);
+    let ret = bucket.get_object(&filepath);
     if ret.is_err() {
         None
     } else {
@@ -168,7 +168,7 @@ pub fn write_s3(
     // let (_, _) = bucket.delete(&filename).unwrap();
     let mut code = 0;
     for i in 0..3 {
-        let ret = bucket.put(&filepath, data, "application/octet-stream");
+        let ret = bucket.put_object(&filepath, data, "application/octet-stream");
         if ret.is_ok() {
             code = ret.unwrap().1;
             debug!("Uploaded new sample to S3, return code {}", code);
@@ -185,18 +185,19 @@ pub fn write_s3(
     code == 200
 }
 
-
-pub fn delete_s3(
-    region: &str, bucket: &str, s3_path: &str, filename: &str,
-) -> bool {
+pub fn clear_s3_bucket(region: &str, bucket: &str) {
     let region = region.parse().unwrap();
     let credentials = Credentials::default();
     let bucket = Bucket::new(bucket, region, credentials).unwrap();
-    let filename = s3_path.to_string() + filename;
 
-    bucket.delete(&filename).is_ok()
+    // List out contents of directory and delete all objects
+    let results = bucket.list("", None).unwrap();
+    for (list, code) in results {
+        for obj in list.contents {
+            bucket.delete_object(&obj.key).unwrap();
+        }
+    }
 }
-
 
 fn parse_libsvm<TFeature, TLabel>(
     raw_strings: &Vec<String>,

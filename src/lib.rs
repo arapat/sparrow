@@ -57,8 +57,6 @@ use bincode::serialize;
 use bincode::deserialize;
 use booster::Boosting;
 use buffer_loader::BufferLoader;
-use buffer_loader::clear_s3 as sample_clear_s3;
-use model_sync::clear_s3 as model_clear_s3;
 use model_sync::start_model_sync;
 use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
@@ -70,6 +68,7 @@ use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::load_s3;
 use commons::io::write_s3;
+use commons::io::clear_s3_bucket;
 use commons::performance_monitor::PerformanceMonitor;
 
 // Types
@@ -182,8 +181,7 @@ pub fn training(config_file: String) {
 
     // Clear S3 before running
     if config.sampling_mode.to_lowercase() == "s3" {
-        model_clear_s3();
-        sample_clear_s3();
+        clear_s3_bucket(REGION, BUCKET);
     }
 
     // Strata -> BufferLoader

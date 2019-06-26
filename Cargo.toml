@@ -24,7 +24,7 @@ bufstream = "0.1.3"
 bincode = "1.0.0"
 evmap = "4.0.0"
 lazy_static = "1.1.0"
-rust-s3 = "0.12.0"
+rust-s3 = "0.13.0"
 tmsn = { path = "../tmsn" }
 metricslib = { path = "../metricslib" }
 

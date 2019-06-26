@@ -8,7 +8,6 @@ use commons::io::read_all;
 use commons::io::write_all;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
-use commons::io::delete_s3;
 use super::LockedBuffer;
 
 
@@ -104,9 +103,4 @@ pub fn load_s3(
         debug!("scanner, failed, download sample from s3, err {}", code);
     }
     None
-}
-
-
-pub fn clear_s3() {
-    delete_s3(REGION, BUCKET, S3_PATH, FILENAME);
 }

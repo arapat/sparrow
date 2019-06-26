@@ -11,7 +11,6 @@ use commons::channel::Receiver;
 use commons::io::create_bufwriter;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
-use commons::io::delete_s3;
 use commons::performance_monitor::PerformanceMonitor;
 use tree::Tree;
 use tmsn::network::start_network_only_recv;
@@ -193,9 +192,4 @@ fn handle_persistent(model: &Model, iteration: usize, timestamp: f32) {
     let mut file_buffer = create_bufwriter(
         &format!("models/model_{}-v{}.json", iteration, iteration));
     file_buffer.write(json.as_ref()).unwrap();
-}
-
-
-pub fn clear_s3() {
-    delete_s3(REGION, BUCKET, S3_PATH, FILENAME);
 }

@@ -231,11 +231,6 @@ fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
 }
 
 
-pub fn clear_s3() {
-    io::clear_s3();
-}
-
-
 #[cfg(test)]
 mod tests {
     use std::thread::sleep;
