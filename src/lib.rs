@@ -221,7 +221,13 @@ pub fn training(config_file: String) {
                     break
                 }
             }
-            deserialize(&bins.unwrap().0).unwrap()
+            let bins = deserialize(&bins.unwrap().0).unwrap();
+            {
+                let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
+                let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
+                file_buffer.write(json.as_ref()).unwrap();
+            }
+            bins
         }
     };
     let validate_set1: Vec<Example> = {
