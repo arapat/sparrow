@@ -33,7 +33,8 @@ pub struct Boosting {
 
     learner: Learner,
     model: Model,
-    model_sig: String,
+    base_model_sig: String,
+    base_model_size: usize,
     last_sent_model_sig: String,
 
     network_sender: Option<mpsc::Sender<ModelSig>>,
@@ -96,7 +97,8 @@ impl Boosting {
 
             learner: learner,
             model: model,
-            model_sig: "".to_string(),
+            base_model_sig: "".to_string(),
+            base_model_size: 0,
             last_sent_model_sig: ".".to_string(),
 
             network_sender: None,
@@ -240,25 +242,28 @@ impl Boosting {
         if model_score.is_none() {
             return;
         }
-        let (remote_model, model_sig, current_gamma): (Model, String, f32) = model_score.unwrap();
+        let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
+            model_score.unwrap();
         let new_model_sig = self.local_name.clone() + "_" + &self.model.size.to_string();
-        if model_sig != self.model_sig {
+        if remote_model_sig != self.base_model_sig {
             // replace the existing model
             let old_size = self.model.size;
             self.model = remote_model;
-            self.model_sig = model_sig;
+            self.base_model_sig = remote_model_sig;
+            self.base_model_size = self.model.size;
             self.last_remote_length = self.model.size;
             self.learner.reset();
             for i in 0..self.model.size {
                 self.learner.push_active(i);
                 self.model.mark_active(i);
             }
-            debug!("model-replaced, {}, {}, {}", self.model.size, old_size, self.model_sig);
-        } else if self.last_sent_model_sig != new_model_sig {
+            debug!("model-replaced, {}, {}, {}", self.model.size, old_size, self.base_model_sig);
+        } else if self.model.size > self.base_model_size &&
+                  self.last_sent_model_sig != new_model_sig {
             // send out the local patch
             let tree_slice = TreeSlice::new(&self.model, self.last_remote_length..self.model.size);
             let packet: ModelSig =
-                (tree_slice, self.model.last_gamma, model_sig, new_model_sig.clone());
+                (tree_slice, self.model.last_gamma, remote_model_sig, new_model_sig.clone());
             let send_result = self.network_sender.as_ref().unwrap()
                                     .send(packet);
             if let Err(err) = send_result {

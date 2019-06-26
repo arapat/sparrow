@@ -333,8 +333,9 @@ pub fn training(config_file: String) {
             config.default_gamma);
         loop {
             sleep(Duration::from_secs(10));
-            let filename = format!("models/model_{}-v{}.json", config.num_iteartion, config.num_iteration);
-            if Path::new(filename).exists() {
+            let filename = format!("models/model_{}-v{}.json",
+                                   config.num_iterations, config.num_iterations);
+            if Path::new(&filename).exists() {
                 break;
             }
         }
