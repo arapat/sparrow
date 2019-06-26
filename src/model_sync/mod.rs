@@ -148,9 +148,8 @@ fn receive_models(
         }
         let (patch, remote_gamma, old_sig, new_sig) = packet.unwrap();
         let machine_name = {
-            let signature = model_sig.clone();
-            let t: Vec<&str> = signature.rsplitn(2, '_').collect();
-            t[0].to_string()
+            let t: Vec<&str> = new_sig.rsplitn(2, '_').collect();
+            t[1].to_string()
         };
         let machine_id: usize = {
             let t: Vec<&str> = machine_name.rsplitn(2, '_').collect();
