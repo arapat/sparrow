@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::sync::mpsc;
 use std::thread::spawn;
 use bincode::serialize;
@@ -7,6 +8,7 @@ use commons::ModelSig;
 use commons::channel::bounded;
 use commons::channel::Sender;
 use commons::channel::Receiver;
+use commons::io::create_bufwriter;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
 use commons::io::delete_s3;
@@ -139,6 +141,9 @@ fn receive_models(
             last_condition = current_condition;
             total_packets = 0;
             rejected_packets = 0;
+            num_updates_packs.iter_mut().for_each(|t| *t = 0);
+            num_updates_rejs.iter_mut().for_each(|t| *t = 0);
+            num_updates_nodes.iter_mut().for_each(|t| *t = 0);
             timer.reset();
             timer.start();
         }
@@ -174,7 +179,17 @@ fn receive_models(
             debug!("model_manager, upload failed, {}, {}, {}, {}",
                    old_sig, model_sig, machine_name, patch.size);
         }
+        handle_persistent(&model, model.size, 0.0);
     }
+}
+
+
+fn handle_persistent(model: &Model, iteration: usize, timestamp: f32) {
+    let json = serde_json::to_string(&(timestamp, iteration, model)).expect(
+        "Local model cannot be serialized."
+    );
+    let mut file_buffer = create_bufwriter(&"models/model.json".to_string());
+    file_buffer.write(json.as_ref()).unwrap();
 }
 
 
