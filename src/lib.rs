@@ -49,6 +49,7 @@ mod testing;
 /// Syncing model to S3
 mod model_sync;
 
+use std::path::Path;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -68,10 +69,8 @@ use commons::channel;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::load_s3;
-use commons::io::raw_read_all;
 use commons::io::write_s3;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::Model;
 
 // Types
 // TODO: decide TFeature according to the bin size
@@ -334,12 +333,9 @@ pub fn training(config_file: String) {
             config.default_gamma);
         loop {
             sleep(Duration::from_secs(10));
-            let t = serde_json::from_str(&raw_read_all(&"models/model.json".to_string()));
-            if t.is_ok() {
-                let (_, size, _): (f32, usize, Model) = t.unwrap();
-                if size >= config.num_iterations {
-                    break;
-                }
+            let filename = format!("models/model_{}-v{}.json", config.num_iteartion, config.num_iteration);
+            if Path::new(filename).exists() {
+                break;
             }
         }
     }

@@ -93,6 +93,7 @@ fn receive_models(
     let mut model_sig = "".to_string();
     let mut model = Tree::new(1, 0.0, 0.0);
     // let mut gamma = HashMap::new();
+    let mut global_timer = PerformanceMonitor::new();
     let mut timer = PerformanceMonitor::new();
     let mut gamma = default_gamma;
     let mut shrink_factor = 0.9;
@@ -103,6 +104,7 @@ fn receive_models(
     let mut num_updates_rejs  = vec![0; num_machines + 1];
     let mut num_updates_nodes = vec![0; num_machines + 1];
     timer.start();
+    global_timer.start();
     loop {
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
@@ -179,7 +181,7 @@ fn receive_models(
             debug!("model_manager, upload failed, {}, {}, {}, {}",
                    old_sig, model_sig, machine_name, patch.size);
         }
-        handle_persistent(&model, model.size, 0.0);
+        handle_persistent(&model, model.size, global_timer.get_duration());
     }
 }
 
@@ -188,7 +190,8 @@ fn handle_persistent(model: &Model, iteration: usize, timestamp: f32) {
     let json = serde_json::to_string(&(timestamp, iteration, model)).expect(
         "Local model cannot be serialized."
     );
-    let mut file_buffer = create_bufwriter(&"models/model.json".to_string());
+    let mut file_buffer = create_bufwriter(
+        &format!("models/model_{}-v{}.json", iteration, iteration));
     file_buffer.write(json.as_ref()).unwrap();
 }
 
