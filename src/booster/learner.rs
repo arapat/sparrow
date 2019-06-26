@@ -82,7 +82,7 @@ impl TreeNode {
 // [i][k][j][rule_id] => bin i slot j candidate-node k
 pub struct Learner {
     bins: Vec<Bins>,
-    range_start: usize,
+    range: Range<usize>,
     num_candid:  usize,
     num_examples_before_shrink: usize,
     _default_gamma: f32,
@@ -121,7 +121,7 @@ impl Learner {
     ) -> Learner {
         let mut learner = Learner {
             bins: bins,
-            range_start: range.start,
+            range: range.clone(),
             num_candid:  num_candid.clone(),
             num_examples_before_shrink: num_examples_before_shrink as usize,
             _default_gamma: default_gamma.clone(),
@@ -139,7 +139,7 @@ impl Learner {
             sum_weights:      HashMap::new(),
         };
         let num_candid = learner.num_candid;
-        for i in 0..learner.bins.len() {
+        for i in range.start..range.end {
             let size = learner.bins[i].len();
             learner.weak_rules_score.push(vec![vec![[0.0; NUM_RULES]; size]; num_candid]);
             learner.sum_c_squared.push(vec![vec![[0.0; NUM_RULES]; size]; num_candid]);
@@ -151,9 +151,10 @@ impl Learner {
     /// (except gamma, because the advantage of the root node is not likely to increase)
     /// Trigger when the model or the gamma is changed
     pub fn reset(&mut self) {
-        for i in 0..self.bins.len() {
+        for abs_i in self.range.start..self.range.end {
+            let i = abs_i - self.range.start;
             for index in 0..self.num_candid {
-                for j in 0..self.bins[i].len() {
+                for j in 0..self.bins[abs_i].len() {
                     for k in 0..NUM_RULES {
                         self.weak_rules_score[i][index][j][k] = 0.0;
                         self.sum_c_squared[i][index][j][k]    = 0.0;
@@ -169,8 +170,9 @@ impl Learner {
     }
 
     fn setup(&mut self, index: usize, c_idx: usize) {
-        for i in 0..self.bins.len() {
-            for j in 0..self.bins[i].len() {
+        for abs_i in self.range.start..self.range.end {
+            let i = abs_i - self.range.start;
+            for j in 0..self.bins[abs_i].len() {
                 for k in 0..NUM_RULES {
                     self.weak_rules_score[i][c_idx][j][k] = 0.0;
                     self.sum_c_squared[i][c_idx][j][k]    = 0.0;
@@ -186,9 +188,10 @@ impl Learner {
         let mut max_ratio = 0.0;
         let mut actual_ratio = 0.0;
         let mut rule_id = (0, 0, 0, 0, 0);
-        for i in 0..self.bins.len() {
+        for abs_i in self.range.start..self.range.end {
+            let i = abs_i - self.range.start;
             self.alist.iter().enumerate().for_each(|(c_idx, index)| {
-                for j in 0..self.bins[i].len() {
+                for j in 0..self.bins[abs_i].len() {
                     for k in 0..NUM_RULES {
                         // max ratio considers absent examples, actual ratio does not
                         let ratio = self.weak_rules_score[i][c_idx][j][k] / self.total_weight;
@@ -272,7 +275,7 @@ impl Learner {
         });
 
         // Update each weak rule - Complexity: O(Candid * Bins * Splits)
-        let range_start = self.range_start;
+        let range = self.range.clone();
         let counts = self.counts.clone();
         let total_weight = self.total_weight;
         let total_weight_sq = self.total_weight_sq;
@@ -284,7 +287,7 @@ impl Learner {
                  let data = &data_by_node[index];
                  let tree_node = {
                      // all bins read data in parallel
-                     self.bins.par_iter().zip(
+                     self.bins[range.start..range.end].par_iter().zip(
                          self.weak_rules_score.par_iter_mut()
                      ).zip(
                          self.sum_c_squared.par_iter_mut()
@@ -297,7 +300,7 @@ impl Learner {
                              vec![[[0.0; 2]; NUM_PREDS]; bin.len() + 1];
                          data.iter()
                              .for_each(|(example, vals)| {
-                                 let flip_index = example.feature[range_start + i] as usize;
+                                 let flip_index = example.feature[range.start + i] as usize;
                                  let t = &mut bin_accum_vals[flip_index];
                                  for j in 0..NUM_PREDS {
                                      for k in 0..t[j].len() {
@@ -351,7 +354,7 @@ impl Learner {
                                          valid_weak_rule = Some(
                                              TreeNode {
                                                  prt_index:     *index,
-                                                 feature:        i + range_start,
+                                                 feature:        i + range.start,
                                                  threshold:      j as TFeature,
                                                  evaluation:     eval_idx == 1,
                                                  predict:        base_pred * PREDS[pred_idx],
