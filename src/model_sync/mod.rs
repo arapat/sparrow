@@ -97,6 +97,9 @@ fn receive_models(
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
     let mut total_packets = 0;
     let mut rejected_packets = 0;
+    let mut num_updates_packs = vec![0; num_machines + 1];
+    let mut num_updates_rejs  = vec![0; num_machines + 1];
+    let mut num_updates_nodes = vec![0; num_machines + 1];
     timer.start();
     loop {
         if timer.get_duration() >= DURATION {
@@ -127,6 +130,12 @@ fn receive_models(
                            current_condition, gamma, shrink_factor);
                 }
             }
+            let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
+            let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
+            let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
+            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}",
+                   gamma, shrink_factor, total_packets, rejected_packets,
+                   packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "));
             last_condition = current_condition;
             total_packets = 0;
             rejected_packets = 0;
@@ -138,23 +147,33 @@ fn receive_models(
             continue;
         }
         let (patch, remote_gamma, old_sig, new_sig) = packet.unwrap();
-        let machine_name: String = (*old_sig).split("_").next()
-                                        .expect("Invalid signature format")
-                                        .to_string();
-        // *(gamma.entry(machine_name).or_insert(0.0)) = remote_gamma;
+        let machine_name = {
+            let signature = model_sig.clone();
+            let t: Vec<&str> = signature.rsplitn(2, '_').collect();
+            t[0].to_string()
+        };
+        let machine_id: usize = {
+            let t: Vec<&str> = machine_name.rsplitn(2, '_').collect();
+            t[0].parse().unwrap()
+        };
+        num_updates_packs[machine_id] += 1;
         total_packets += 1;
         if old_sig != model_sig {
             debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
+            num_updates_rejs[machine_id] += 1;
             rejected_packets += 1;
             continue;
         }
         model.append_patch(&patch, remote_gamma, old_sig == "");
+        num_updates_nodes[machine_id] += patch.size;
         model_sig = new_sig;
         next_model_sender.send(model.clone());
         if upload_model(&model, &model_sig, gamma) {
-            debug!("model_manager, accept, {}, {}", old_sig, model_sig);
+            debug!("model_manager, accept, {}, {}, {}, {}",
+                   old_sig, model_sig, machine_name, patch.size);
         } else {
-            debug!("model_manager, upload failed, {}, {}", old_sig, model_sig);
+            debug!("model_manager, upload failed, {}, {}, {}, {}",
+                   old_sig, model_sig, machine_name, patch.size);
         }
     }
 }

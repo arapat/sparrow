@@ -1,7 +1,6 @@
 use ordered_float::NotNaN;
 
 use std::collections::BTreeMap;
-use std::ops::Range;
 
 use stratified_storage::serial_storage::SerialStorage;
 use super::super::TFeature;
