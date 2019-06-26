@@ -75,8 +75,9 @@ impl Boosting {
         save_interval: usize,
     ) -> Boosting {
         let mut training_loader = training_loader;
+        // TODO: make num_cadid a paramter
         let learner = Learner::new(
-            min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range); // TODO: make num_cadid a paramter
+            min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range);
 
         // add root node for balancing labels
         let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);

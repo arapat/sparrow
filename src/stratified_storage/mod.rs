@@ -245,11 +245,7 @@ impl StratifiedStorage {
                     let features: Vec<TFeature> =
                         data.feature.iter().enumerate()
                             .map(|(idx, val)| {
-                                if range.start <= idx && idx < range.end {
-                                    bins[idx - range.start].get_split_index(*val)
-                                } else {
-                                    0
-                                }
+                                bins[idx].get_split_index(*val)
                             }).collect();
                     let mapped_data = LabeledData::new(features, data.label);
                     updated_examples_s.send((mapped_data, (0.0, 0)));

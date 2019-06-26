@@ -52,6 +52,8 @@ mod model_sync;
 use std::thread::sleep;
 use std::time::Duration;
 
+use bincode::serialize;
+use bincode::deserialize;
 use booster::Boosting;
 use buffer_loader::BufferLoader;
 use buffer_loader::clear_s3 as sample_clear_s3;
@@ -65,6 +67,8 @@ use commons::bins::create_bins;
 use commons::channel;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
+use commons::io::load_s3;
+use commons::io::write_s3;
 use commons::performance_monitor::PerformanceMonitor;
 
 // Types
@@ -75,6 +79,11 @@ pub type TFeature = u8;
 pub type TLabel = i8;
 pub type RawExample = LabeledData<RawTFeature, TLabel>;
 pub type Example = LabeledData<TFeature, TLabel>;
+
+pub const FILENAME: &str = "bins.json";
+pub const REGION:   &str = "us-east-1";
+pub const BUCKET:   &str = "tmsn-cache2";
+pub const S3_PATH:  &str = "sparrow-bins/";
 
 
 /// Configuration for training and testing with Sparrow
@@ -193,13 +202,28 @@ pub fn training(config_file: String) {
         None,
         config.range.clone(),
     );
-    let bins = create_bins(
-        config.max_sample_size, config.max_bin_size, &config.range, &mut serial_training_loader);
-    {
-        let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
-        let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
-        file_buffer.write(json.as_ref()).unwrap();
-    }
+    let bins = {
+        if config.sampler_scanner == "sampler" {
+            let bins = create_bins(
+                config.max_sample_size, config.max_bin_size, config.num_features, &mut serial_training_loader);
+            {
+                let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
+                let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
+                file_buffer.write(json.as_ref()).unwrap();
+            }
+            write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&bins).unwrap());
+            bins
+        } else {
+            let mut bins = None;
+            loop {
+                bins = load_s3(REGION, BUCKET, S3_PATH, FILENAME);
+                if bins.is_some() {
+                    break
+                }
+            }
+            deserialize(&bins.unwrap().0).unwrap()
+        }
+    };
     let validate_set1: Vec<Example> = {
         if false {
             let mut loader = SerialStorage::new(

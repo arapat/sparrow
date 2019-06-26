@@ -98,15 +98,13 @@ impl DistinctValues {
 pub fn create_bins(
     max_sample_size: usize,
     max_bin_size: usize,
-    range: &Range<usize>,
+    num_features: usize,
     data_loader: &mut SerialStorage,
 ) -> Vec<Bins> {
-    let start = range.start;
-    let range_size = range.end - start;
-    let mut distinct: Vec<DistinctValues> = Vec::with_capacity(range_size);
+    let mut distinct: Vec<DistinctValues> = Vec::with_capacity(num_features);
     let mut remaining_reads = max_sample_size;
 
-    for _ in 0..range_size {
+    for _ in 0..num_features {
         distinct.push(DistinctValues::new());
     }
     while remaining_reads > 0 {
@@ -116,7 +114,7 @@ pub fn create_bins(
             distinct.iter_mut()
                     .enumerate()
                     .for_each(|(idx, mapper)| {
-                        mapper.update(feature[start + idx] as f32);
+                        mapper.update(feature[idx] as f32);
                     });
         });
         remaining_reads -= data.len();

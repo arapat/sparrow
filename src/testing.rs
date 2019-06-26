@@ -1,4 +1,5 @@
 use rayon::prelude::*;
+use bincode::deserialize;
 use serde_json;
 use metricslib::validate as mvalidate;
 use metricslib::EvalFunc;
@@ -7,12 +8,17 @@ use std::io::BufRead;
 use std::io::Write;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
+use commons::io::load_s3;
 use commons::io::raw_read_all;
 use commons::io::write_all;
 use commons::Model;
 use stratified_storage::serial_storage::SerialStorage;
 use TLabel;
 
+pub const FILENAME: &str = "bins.json";
+pub const REGION:   &str = "us-east-1";
+pub const BUCKET:   &str = "tmsn-cache2";
+pub const S3_PATH:  &str = "sparrow-bins/";
 
 /// Validating a list of models
 ///
@@ -39,9 +45,14 @@ pub fn validate(
             Some(create_bufwriter(&"models/performance.csv".to_string()))
         }
     };
-
-    let bins = serde_json::from_str(&raw_read_all(&"models/bins.json".to_string()))
-                        .expect(&format!("Cannot parse the bins in `{}`", "models/bins.json"));
+    let mut bins = None;
+    loop {
+        bins = load_s3(REGION, BUCKET, S3_PATH, FILENAME);
+        if bins.is_some() {
+            break
+        }
+    }
+    let bins = deserialize(&bins.unwrap().0).unwrap();
     let mut models_list = create_bufreader(&models_table);
     let mut data = SerialStorage::new(
         testing_filename,

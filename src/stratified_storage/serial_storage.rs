@@ -110,7 +110,6 @@ impl SerialStorage {
             return self.memory_buffer[self.head..self.tail].to_vec();
         }
         // Load from disk
-        let (start, end) = (self.range.start, self.range.end);
         let batch: Vec<Example> =
             if self.is_binary {
                 read_k_labeled_data_from_binary_file(
@@ -125,11 +124,7 @@ impl SerialStorage {
                     let features: Vec<TFeature> =
                         data.feature.iter().enumerate()
                             .map(|(idx, val)| {
-                                if start <= idx && idx < end {
-                                    self.bins[idx - start].get_split_index(*val)
-                                } else {
-                                    0
-                                }
+                                self.bins[idx].get_split_index(*val)
                             }).collect();
                     LabeledData::new(features, data.label)
                 }).collect()
