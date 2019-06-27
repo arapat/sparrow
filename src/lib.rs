@@ -269,7 +269,11 @@ pub fn training(config_file: String) {
             vec![]
         }
     };
-    if config.sampler_scanner != "scanner" {
+    if config.sampler_scanner == "sampler" {
+        info!("Starting the model sync.");
+        start_model_sync(
+            config.num_iterations, config.local_name.clone(), &config.network, config.port,
+            next_model_s.clone(), config.default_gamma);
         info!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
             config.num_examples,
@@ -307,7 +311,7 @@ pub fn training(config_file: String) {
         Some(config.min_ess),
         config.sampler_scanner.clone(),
     );
-    if config.sampler_scanner != "sampler" {
+    if config.sampler_scanner == "scanner" {
         info!("Starting the booster.");
         let mut booster = Boosting::new(
             config.num_iterations,
@@ -326,9 +330,6 @@ pub fn training(config_file: String) {
         booster.enable_network(config.local_name, config.port);
         booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
     } else {
-        start_model_sync(
-            config.num_iterations, config.local_name, &config.network, config.port, next_model_s,
-            config.default_gamma);
         loop {
             sleep(Duration::from_secs(10));
             let filename = format!("models/model_{}-v{}.json",
