@@ -97,9 +97,13 @@ fn gather(
 
     let mut new_sample = Vec::with_capacity(new_sample_capacity);
     let mut total_scanned = 0;
+    let mut num_positive = 0;
     while new_sample.len() < new_sample_capacity {
         if let Some(((example, mut c), num_scanned)) = gather_new_sample.recv() {
             // `c` is the number of times this example should be put into the sample set
+            if example.0.label > 0 {
+                num_positive += c;
+            }
             while new_sample.len() < new_sample_capacity && c > 0 {
                 new_sample.push(example.clone());
                 c -= 1;
@@ -108,7 +112,8 @@ fn gather(
         }
     }
     thread_rng().shuffle(&mut new_sample);
-    debug!("sampler, finished, generate sample, {}", total_scanned);
+    debug!("sampler, finished, generate sample, {}, {}, {}",
+           total_scanned, new_sample.len(), num_positive);
     handler(new_sample, new_sample_buffer, version);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
