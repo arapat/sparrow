@@ -16,11 +16,12 @@ use tree::Tree;
 use tmsn::network::start_network_only_recv;
 
 
-pub const FILENAME: &str = "model.bin";
 pub const REGION:   &str = "us-east-1";
 pub const BUCKET:   &str = "tmsn-cache2";
-pub const S3_PATH:  &str = "sparrow-models/";
-
+pub const S3_PATH_MODELS:  &str = "sparrow-models/";
+pub const MODEL_FILENAME: &str = "model.bin";
+pub const S3_PATH_ASSIGNS:  &str = "sparrow-assigns/";
+pub const ASSIGN_FILENAME: &str = "assign.bin";
 
 
 pub fn start_model_sync(
@@ -55,7 +56,7 @@ pub fn start_model_sync(
 // Worker download models
 pub fn download_model() -> Option<(Model, String, f32)> {
     debug!("sampler, start, download model");
-    let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
+    let ret = io_load_s3(REGION, BUCKET, S3_PATH_MODELS, MODEL_FILENAME);
     debug!("sampler, finished, download model");
     if ret.is_none() {
         debug!("sample, download model, failed");
@@ -75,7 +76,7 @@ pub fn download_model() -> Option<(Model, String, f32)> {
 // Server upload models
 fn upload_model(model: &Model, sig: &String, gamma: f32) -> bool {
     let data = (model.clone(), sig.clone(), gamma);
-    io_write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&data).unwrap())
+    io_write_s3(REGION, BUCKET, S3_PATH_MODELS, MODEL_FILENAME, &serialize(&data).unwrap())
 }
 
 
@@ -94,17 +95,21 @@ fn receive_models(
     // let mut gamma = HashMap::new();
     let mut global_timer = PerformanceMonitor::new();
     let mut timer = PerformanceMonitor::new();
-    let mut gamma = default_gamma;
+    let mut gamma = default_gamma.clone();
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
     let mut total_packets = 0;
     let mut rejected_packets = 0;
-    let mut num_updates_packs = vec![0; num_machines + 1];
-    let mut num_updates_rejs  = vec![0; num_machines + 1];
-    let mut num_updates_nodes = vec![0; num_machines + 1];
+    let mut num_updates_packs = vec![0; num_machines];
+    let mut num_updates_rejs  = vec![0; num_machines];
+    let mut num_updates_nodes = vec![0; num_machines];
+    let mut node_status = vec![(0, default_gamma, None)];
+    let mut worker_assign = vec![None; num_machines];
+    worker_assign[0] = Some(0);
     timer.start();
     global_timer.start();
     loop {
+        // adjust gamma
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
             if total_packets == 0 {
@@ -159,7 +164,7 @@ fn receive_models(
         };
         let machine_id: usize = {
             let t: Vec<&str> = machine_name.rsplitn(2, '_').collect();
-            t[0].parse().unwrap()
+            t[0].parse::<usize>().unwrap() % num_machines
         };
         num_updates_packs[machine_id] += 1;
         total_packets += 1;
@@ -169,18 +174,86 @@ fn receive_models(
             rejected_packets += 1;
             continue;
         }
-        model.append_patch(&patch, remote_gamma, old_sig == "");
-        num_updates_nodes[machine_id] += patch.size;
-        model_sig = new_sig;
-        next_model_sender.send(model.clone());
-        if upload_model(&model, &model_sig, gamma) {
-            debug!("model_manager, accept, {}, {}, {}, {}",
-                   old_sig, model_sig, machine_name, patch.size);
+        if patch.size == 0 {
+            let node_id = worker_assign[machine_id].unwrap();
+            node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
+            worker_assign[machine_id] = None;
         } else {
-            debug!("model_manager, upload failed, {}, {}, {}, {}",
-                   old_sig, model_sig, machine_name, patch.size);
+            let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "");
+            num_updates_nodes[machine_id] += patch.size;
+            model_sig = new_sig;
+            next_model_sender.send(model.clone());
+            if upload_model(&model, &model_sig, gamma) {
+                debug!("model_manager, accept, {}, {}, {}, {}",
+                       old_sig, model_sig, machine_name, patch.size);
+            } else {
+                debug!("model_manager, upload failed, {}, {}, {}, {}",
+                       old_sig, model_sig, machine_name, patch.size);
+            }
+            handle_persistent(&model, model.size, global_timer.get_duration());
+            for depth in new_nodes_depth {
+                node_status.push((depth, default_gamma, None));
+            }
         }
-        handle_persistent(&model, model.size, global_timer.get_duration());
+        update_assignments(&mut node_status, &mut worker_assign, gamma);
+    }
+}
+
+
+pub fn download_assignments() -> Option<Vec<Option<usize>>> {
+    let ret = io_load_s3(REGION, BUCKET, S3_PATH_ASSIGNS, ASSIGN_FILENAME);
+    debug!("model sync, finished, download assignments");
+    if ret.is_none() {
+        debug!("model sync, download assignments, failed");
+        return None;
+    }
+    let (data, code) = ret.unwrap();
+    if code == 200 {
+        debug!("model sync, download assignments, succeed");
+        Some(deserialize(&data).unwrap())
+    } else {
+        debug!("model sync, download assignments, failed with return code {}", code);
+        None
+    }
+}
+
+
+fn update_assignments(
+    node_status: &mut Vec<(usize, f32, Option<usize>)>,
+    worker_assign: &mut Vec<Option<usize>>,
+    gamma: f32,
+) {
+    let mut did_something = true;
+    let mut num_updates = 0;
+    while did_something {
+        did_something = false;
+        let mut valid_worker = 0;
+        while valid_worker < worker_assign.len() && worker_assign[valid_worker].is_some() {
+            valid_worker += 1;
+        }
+        if valid_worker < worker_assign.len() {
+            let mut min_depth = 9999;
+            let mut node = 0;
+            for i in 0..node_status.len() {
+                let (depth, old_gamma, status) = node_status[i];
+                if status.is_none() && old_gamma > gamma && depth < min_depth {
+                    node = i;
+                    min_depth = depth;
+                }
+            }
+            if min_depth < 9999 {
+                node_status[node] = (min_depth, gamma, Some(valid_worker));
+                worker_assign[valid_worker] = Some(node);
+                did_something = true;
+                num_updates += 1;
+                info!("assign, {}, {}", valid_worker, node);
+            }
+        }
+    }
+    debug!("assign updates, {}", num_updates);
+    if num_updates > 0 {
+        io_write_s3(REGION, BUCKET, S3_PATH_ASSIGNS, ASSIGN_FILENAME,
+                    &serialize(worker_assign).unwrap());
     }
 }
 

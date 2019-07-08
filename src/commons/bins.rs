@@ -86,13 +86,12 @@ impl DistinctValues {
 }
 
 
-/// Create bins for the features in the range specified by `range`
+/// Create bins for the features
 ///
 /// * `max_sample_size`: The number of examples to read for deciding the splitting
 ///   thresholds for creating bins
 /// * `max_bin_size`: The total number of bins created for each freature. The actual
 ///   number of bins might be smaller if there are fewer distinct values for a feature
-/// * `range`: The range of the features this worker is responsible for
 /// * `data_loader`: Data loader for providing training examples
 pub fn create_bins(
     max_sample_size: usize,

@@ -6,7 +6,6 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::sync::mpsc;
-use std::ops::Range;
 use serde_json;
 use tmsn::network::start_network_only_send;
 
@@ -17,6 +16,7 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelSig;
 use commons::bins::Bins;
 use commons::channel::Sender;
+use model_sync::download_assignments;
 use model_sync::download_model;
 use tree::Tree;
 use tree::TreeSlice;
@@ -39,6 +39,7 @@ pub struct Boosting {
 
     network_sender: Option<mpsc::Sender<ModelSig>>,
     local_name: String,
+    local_id: usize,
     last_remote_length: usize,
 
     sampler_channel_s: Sender<Model>,
@@ -56,19 +57,17 @@ impl Boosting {
     /// * `max_trials_before_shrink`: if cannot find any valid weak rules after scanning `max_trials_before_shrink` number of
     /// examples, shrinking the value of the targetting edge `gamma` of the weak rule.
     /// * `training_loader`: the double-buffered data loader that provides examples to the algorithm.
-    /// * `range`: the range of the feature dimensions that the weak rules would be selected from. In most cases,
-    /// if the RustBoost is running on a single worker, `range` is equal to the `0..feature_size`; if it is running
     /// over multiple workers, it might be a subset of the full feature set.
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
         num_iterations: usize,
+        num_features: usize,
         min_gamma: f32,
         max_trials_before_shrink: u32,
         training_loader: BufferLoader,
         // serial_training_loader: SerialStorage,
         bins: Vec<Bins>,
-        range: Range<usize>,
         max_sample_size: usize,
         default_gamma: f32,
         sampler_channel_s: Sender<Model>,
@@ -78,7 +77,7 @@ impl Boosting {
         let mut training_loader = training_loader;
         // TODO: make num_cadid a paramter
         let learner = Learner::new(
-            min_gamma, default_gamma, max_trials_before_shrink, 10, bins, &range);
+            min_gamma, default_gamma, num_features, max_trials_before_shrink, bins);
 
         // add root node for balancing labels
         let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);
@@ -103,6 +102,7 @@ impl Boosting {
 
             network_sender: None,
             local_name: "".to_string(),
+            local_id: 0,
             last_remote_length: 0,
 
             sampler_channel_s: sampler_channel_s,
@@ -112,8 +112,6 @@ impl Boosting {
 
             save_process: save_process,
         };
-        b.learner.push_active(0);
-        b.model.mark_active(0);
         b.try_send_model();
         b
     }
@@ -128,6 +126,10 @@ impl Boosting {
         start_network_only_send(name.as_ref(), port, local_r);
         self.network_sender = Some(local_s);
         self.local_name = name;
+        self.local_id = {
+            let t: Vec<&str> = self.local_name.rsplitn(2, '_').collect();
+            t[0].parse().unwrap()
+        };
     }
 
 
@@ -201,11 +203,6 @@ impl Boosting {
                 );
                 info!("scanner, added new rule, {}, {}, {}",
                       self.model.size, new_rule.num_scanned, total_data_size);
-                let deactive = self.learner.push_active(index);
-                if deactive.is_some() {
-                    self.model.unmark_active(deactive.unwrap());
-                }
-                self.model.mark_active(index);
 
                 // post updates
                 self.try_send_model();
@@ -218,7 +215,8 @@ impl Boosting {
             }
 
             iteration += 1;
-            self.handle_network();
+            let data_size = self.training_loader.size;
+            self.handle_network(total_data_size >= data_size);
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
@@ -230,7 +228,7 @@ impl Boosting {
               self.model.size, self.learner.is_gamma_significant());
     }
 
-    fn handle_network(&mut self) {
+    fn handle_network(&mut self, is_full_scanned: bool) {
         if self.network_sender.is_none() {
             return;
         }
@@ -239,43 +237,51 @@ impl Boosting {
         // 1. If it is newer, overwrite local model
         // 2. Otherwise, push the current update to remote
         let model_score = download_model();
-        if model_score.is_none() {
-            return;
-        }
-        let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
-            model_score.unwrap();
-        let new_model_sig = self.local_name.clone() + "_" + &self.model.size.to_string();
-        if remote_model_sig != self.base_model_sig {
-            // replace the existing model
-            let old_size = self.model.size;
-            self.model = remote_model;
-            self.base_model_sig = remote_model_sig;
-            self.base_model_size = self.model.size;
-            self.last_remote_length = self.model.size;
-            self.learner.reset();
-            for i in 0..self.model.size {
-                self.learner.push_active(i);
-                self.model.mark_active(i);
+        if model_score.is_some() {
+            let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
+                model_score.unwrap();
+            let new_model_sig = self.local_name.clone() + "_" + &self.model.size.to_string();
+            if remote_model_sig != self.base_model_sig {
+                // replace the existing model
+                let old_size = self.model.size;
+                self.model = remote_model;
+                self.base_model_sig = remote_model_sig;
+                self.base_model_size = self.model.size;
+                self.last_remote_length = self.model.size;
+                self.learner.reset();
+                debug!("model-replaced, {}, {}, {}",
+                       self.model.size, old_size, self.base_model_sig);
+            } else if (self.model.size > self.base_model_size || is_full_scanned) &&
+                    self.last_sent_model_sig != new_model_sig {
+                // send out the local patch
+                let tree_slice = TreeSlice::new(
+                    &self.model, self.last_remote_length..self.model.size);
+                let packet: ModelSig =
+                    (tree_slice, self.model.last_gamma, remote_model_sig, new_model_sig.clone());
+                let send_result = self.network_sender.as_ref().unwrap()
+                                        .send(packet);
+                if let Err(err) = send_result {
+                    error!("Attempt to send the local model to the network module but failed.
+                            Error: {}", err);
+                } else {
+                    self.last_sent_model_sig = new_model_sig;
+                    info!("Sent the local model to the network module, {}, {}",
+                        self.last_sent_model_sig, self.model.size);
+                }
             }
-            debug!("model-replaced, {}, {}, {}", self.model.size, old_size, self.base_model_sig);
-        } else if self.model.size > self.base_model_size &&
-                  self.last_sent_model_sig != new_model_sig {
-            // send out the local patch
-            let tree_slice = TreeSlice::new(&self.model, self.last_remote_length..self.model.size);
-            let packet: ModelSig =
-                (tree_slice, self.model.last_gamma, remote_model_sig, new_model_sig.clone());
-            let send_result = self.network_sender.as_ref().unwrap()
-                                    .send(packet);
-            if let Err(err) = send_result {
-                error!("Attempt to send the local model to the network module but failed.
-                        Error: {}", err);
-            } else {
-                self.last_sent_model_sig = new_model_sig;
-                info!("Sent the local model to the network module, {}, {}",
-                      self.last_sent_model_sig, self.model.size);
+            self.learner.set_gamma(current_gamma);
+        }
+
+        let assigns = download_assignments();
+        if assigns.is_some() {
+            let assignments = assigns.unwrap();
+            let expand_node = assignments[self.local_id % assignments.len()];
+            if expand_node.is_some() {
+                if self.learner.set_expand_node(expand_node.unwrap()) {
+                    self.learner.reset();
+                }
             }
         }
-        self.learner.set_gamma(current_gamma);
     }
 
     fn handle_persistent(&mut self, iteration: usize, timestamp: f32) {
@@ -301,4 +307,5 @@ impl Boosting {
         // }
         self.sampler_channel_s.try_send(self.model.clone());
     }
+
 }

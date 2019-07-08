@@ -14,7 +14,7 @@ Why JSON but not binary?
 */
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tree {
-    pub size: usize,
+    pub size:       usize,
     parent:         Vec<usize>,
     children:       Vec<Vec<usize>>,
     split_feature:  Vec<usize>,
@@ -26,12 +26,13 @@ pub struct Tree {
     is_active:      Vec<bool>,
     num_active:     Vec<usize>,
     pub last_gamma:     f32,
+    pub base_version:   usize,
 }
 
 impl Clone for Tree {
     fn clone(&self) -> Tree {
         Tree {
-            size:     self.size,
+            size:           self.size,
             parent:         self.parent.clone(),
             children:       self.children.clone(),
             split_feature:  self.split_feature.clone(),
@@ -43,6 +44,7 @@ impl Clone for Tree {
             is_active:      self.is_active.clone(),
             num_active:     self.num_active.clone(),
             last_gamma:     self.last_gamma,
+            base_version:   self.base_version,
         }
     }
 }
@@ -62,6 +64,7 @@ impl Tree {
             is_active:      Vec::with_capacity(max_nodes),
             num_active:     Vec::with_capacity(max_nodes),
             last_gamma:     0.0,
+            base_version:   0,
         };
         tree.add_node(0, 0, 0, false, base_pred, base_gamma);
         tree
@@ -168,7 +171,9 @@ impl Tree {
         active
     }
 
-    pub fn append_patch(&mut self, patch: &TreeSlice, last_gamma: f32, overwrite_root: bool) {
+    pub fn append_patch(
+        &mut self, patch: &TreeSlice, last_gamma: f32, overwrite_root: bool,
+    ) -> Vec<usize> {
         let mut i = {
             if overwrite_root {
                 self.predicts[0] = patch.predicts[0];
@@ -177,14 +182,17 @@ impl Tree {
                 0
             }
         };
+        let mut node_indices = vec![];
         while i < patch.size {
-            self.add_node(
+            node_indices.push(self.add_node(
                 patch.parent[i], patch.split_feature[i], patch.threshold[i],
                 patch.evaluation[i], patch.predicts[i], 0.0,
-            );
+            ));
             i += 1;
         }
         self.last_gamma = last_gamma;
+        self.base_version = self.size;
+        node_indices.iter().map(|i| self.leaf_depth[*i]).collect()
     }
 }
 
@@ -223,14 +231,14 @@ pub struct TreeSlice {
 
 
 impl TreeSlice {
-    pub fn new(tree: &Tree, range: Range<usize>) -> TreeSlice {
+    pub fn new(tree: &Tree, index_range: Range<usize>) -> TreeSlice {
         TreeSlice {
-            size:          range.end - range.start,
-            parent:        tree.parent[range.clone()].to_vec(),
-            split_feature: tree.split_feature[range.clone()].to_vec(),
-            threshold:     tree.threshold[range.clone()].to_vec(),
-            evaluation:    tree.evaluation[range.clone()].to_vec(),
-            predicts:      tree.predicts[range.clone()].to_vec(),
+            size:          index_range.end - index_range.start,
+            parent:        tree.parent[index_range.clone()].to_vec(),
+            split_feature: tree.split_feature[index_range.clone()].to_vec(),
+            threshold:     tree.threshold[index_range.clone()].to_vec(),
+            evaluation:    tree.evaluation[index_range.clone()].to_vec(),
+            predicts:      tree.predicts[index_range.clone()].to_vec(),
         }
     }
 }

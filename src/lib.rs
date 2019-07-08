@@ -95,8 +95,6 @@ pub struct Config {
     pub num_examples: usize,
     /// Number of features
     pub num_features: usize,
-    /// Range of the features for creating weak rules
-    pub range: std::ops::Range<usize>, 
     /// Label for positive examples
     pub positive: String,
     /// File path to the testing data
@@ -199,7 +197,6 @@ pub fn training(config_file: String) {
         true,
         config.positive.clone(),
         None,
-        config.range.clone(),
     );
     let bins = {
         if config.sampler_scanner == "sampler" {
@@ -238,7 +235,6 @@ pub fn training(config_file: String) {
                 true,
                 config.positive.clone(),
                 Some(bins.clone()),
-                config.range.clone(),
             );
             let mut ret = Vec::with_capacity(config.num_testing_examples);
             while ret.len() < config.num_testing_examples {
@@ -258,7 +254,6 @@ pub fn training(config_file: String) {
                 true,
                 config.positive.clone(),
                 Some(bins.clone()),
-                config.range.clone(),
             );
             let mut ret = Vec::with_capacity(config.num_examples);
             while ret.len() < config.num_examples {
@@ -295,7 +290,6 @@ pub fn training(config_file: String) {
             config.num_examples,
             config.batch_size,
             config.num_features,
-            config.range.clone(),
             bins.clone(),
         );
     }
@@ -315,12 +309,12 @@ pub fn training(config_file: String) {
         info!("Starting the booster.");
         let mut booster = Boosting::new(
             config.num_iterations,
+            config.num_features,
             config.min_gamma,
             config.max_trials_before_shrink,
             buffer_loader,
             // serial_training_loader,
             bins,
-            config.range,
             config.max_sample_size,
             config.default_gamma,
             next_model_s,

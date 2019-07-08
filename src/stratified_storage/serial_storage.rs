@@ -36,7 +36,6 @@ pub struct SerialStorage {
     memory_buffer: Vec<Example>,
     index: usize,
     bins: Vec<Bins>,
-    range: std::ops::Range<usize>,
 
     head: usize,
     tail: usize,
@@ -51,7 +50,6 @@ impl SerialStorage {
         one_pass: bool,
         positive: String,
         bins: Option<Vec<Bins>>,
-        range: std::ops::Range<usize>,
     ) -> SerialStorage {
         let reader = create_bufreader(&filename);
         let binary_cons = if one_pass {
@@ -75,7 +73,6 @@ impl SerialStorage {
             memory_buffer: vec![],
             index: 0,
             bins: bins.unwrap_or(vec![]),
-            range: range,
 
             head: 0,
             tail: 0,

@@ -8,9 +8,6 @@ testing_bytes_per_example: 0
 num_examples: 30956
 num_testing_examples: 30956
 num_features: 125
-range:
-  start: 0
-  end: 125
 max_sample_size: 20000
 max_bin_size: 10
 default_gamma: 0.25

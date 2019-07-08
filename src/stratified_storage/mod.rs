@@ -4,7 +4,6 @@ mod samplers;
 pub mod serial_storage;
 
 use std::cmp::max;
-use std::ops::Range;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
@@ -225,7 +224,6 @@ impl StratifiedStorage {
         size: usize,
         batch_size: usize,
         feature_size: usize,
-        range: Range<usize>,
         bins: Vec<Bins>,
     ) {
         let mut reader = SerialStorage::new(
@@ -235,7 +233,6 @@ impl StratifiedStorage {
             true,
             self.positive.clone(),
             None,
-            range.clone(),
         );
         let updated_examples_s = self.updated_examples_s.clone();
         spawn(move || {

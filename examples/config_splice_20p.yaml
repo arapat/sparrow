@@ -8,9 +8,6 @@ testing_bytes_per_example: 574
 num_examples: 10000000
 num_testing_examples: 4627840
 num_features: 565
-range:
-  start: 0
-  end: 565
 positive: 1
 max_sample_size: 200000
 max_bin_size: 10
