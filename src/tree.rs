@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::ops::Range;
 use std::collections::VecDeque;
 use super::Example;
@@ -5,6 +6,9 @@ use super::TFeature;
 
 use commons::is_zero;
 
+
+// split_feature, threshold, evaluation
+type Condition = (usize, TFeature, bool);
 
 /*
 Why JSON but not binary?
@@ -27,6 +31,7 @@ pub struct Tree {
     num_active:     Vec<usize>,
     pub last_gamma:     f32,
     pub base_version:   usize,
+    pub model_updates:  UpdateList,
 }
 
 impl Clone for Tree {
@@ -45,6 +50,7 @@ impl Clone for Tree {
             num_active:     self.num_active.clone(),
             last_gamma:     self.last_gamma,
             base_version:   self.base_version,
+            model_updates:  self.model_updates.clone(),
         }
     }
 }
@@ -65,6 +71,7 @@ impl Tree {
             num_active:     Vec::with_capacity(max_nodes),
             last_gamma:     0.0,
             base_version:   0,
+            model_updates:  UpdateList::new(),
         };
         tree.add_node(0, 0, 0, false, base_pred, base_gamma);
         tree
@@ -74,7 +81,6 @@ impl Tree {
         &mut self, parent: usize,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
     ) -> usize {
-        let index = self.size;
         let depth = {
             if parent == 0 {
                 1
@@ -82,29 +88,57 @@ impl Tree {
                 self.leaf_depth[parent] + 1
             }
         };
-        self.parent.push(parent);
-        self.children.push(vec![]);
-        self.split_feature.push(feature);
-        self.threshold.push(threshold);
-        self.evaluation.push(evaluation);
-        self.predicts.push(pred_value);
-        self.leaf_depth.push(depth);
-        self.is_active.push(false);
-        self.num_active.push(0);
+        let node = self.find_child_node(parent, feature, threshold, evaluation);
+        let (new_index, is_new) = {
+            if let Some(index) = node {
+                self.predicts[index] += pred_value;
+                (index, false)
+            } else {
+                self.parent.push(parent);
+                self.children.push(vec![]);
+                self.split_feature.push(feature);
+                self.threshold.push(threshold);
+                self.evaluation.push(evaluation);
+                self.predicts.push(pred_value);
+                self.leaf_depth.push(depth);
+                self.num_active.push(0);
+                let index = self.size;
+                self.latest_child.push(index);
+                if index > 0 {
+                    self.children[parent].push(index);
+                }
+                self.size += 1;
+                (index, true)
+            }
+        };
         self.last_gamma = gamma;
-        self.latest_child.push(index);
-        self.size += 1;
-        if index > 0 {
-            self.children[parent].push(index);
-        }
+        let condition = self.get_conditions(new_index);
+        self.model_updates.add(condition, pred_value);
+        /*
+        // No longer needed because the tree is not used for predicting during training
         let mut ancestor = index;
         while ancestor > 0 {
             ancestor = self.parent[ancestor];
             self.latest_child[ancestor] = index;
         }
-        debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}",
-               index, parent, depth, feature, threshold, evaluation, pred_value);
-        index
+        */
+        debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
+               new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
+        new_index
+    }
+
+    fn find_child_node(
+        &self, parent: usize, feature: usize, threshold: TFeature, evaluation: bool,
+    ) -> Option<usize> {
+        let mut ret = None;
+        self.children[parent].iter().for_each(|index| {
+            if self.split_feature[*index] == feature &&
+                is_zero((self.threshold[*index] - threshold).into()) &&
+                self.evaluation[*index] == evaluation {
+                    ret = Some(*index);
+            }
+        });
+        ret
     }
 
     pub fn mark_active(&mut self, index: usize) {
@@ -127,26 +161,26 @@ impl Tree {
         self.num_active[ancestor] -= 1;
     }
 
-    pub fn get_prediction(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
+    pub fn get_prediction_tree(&self, data: &Example) -> f32 {
         let feature = &(data.feature);
         let mut queue = VecDeque::new();
         queue.push_back(0);
         let mut prediction = 0.0;
         while !queue.is_empty() {
             let node = queue.pop_front().unwrap();
-            if version <= node {
-                prediction += self.predicts[node];
-            }
+            prediction += self.predicts[node];
             self.children[node].iter().filter(|child| {
-                version <= self.latest_child[**child] && (
-                    (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                        self.evaluation[**child]
-                )
+                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
+                    self.evaluation[**child]
             }).for_each(|t| {
                 queue.push_back(*t);
             });
         }
-        (prediction, (self.latest_child[0] + 1, version))
+        prediction
+    }
+
+    pub fn get_prediction(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
+        self.model_updates.get_prediction(data, version)
     }
 
     pub fn get_active_nodes(&self, data: &Example) -> Vec<usize> {
@@ -194,6 +228,22 @@ impl Tree {
         self.base_version = self.size;
         node_indices.iter().map(|i| self.leaf_depth[*i]).collect()
     }
+
+    pub fn get_conditions(&self, node_index: usize) -> Vec<Condition> {
+        let mut ret = vec![];
+        // split_feature, threshold, evaluation
+        let mut index = node_index;
+        while index > 0 {
+            ret.push((
+                self.split_feature[index],
+                self.threshold[index],
+                self.evaluation[index],
+            ));
+            index = self.parent[index];
+        }
+        ret.reverse();
+        ret
+    }
 }
 
 impl PartialEq for Tree {
@@ -239,6 +289,63 @@ impl TreeSlice {
             threshold:     tree.threshold[index_range.clone()].to_vec(),
             evaluation:    tree.evaluation[index_range.clone()].to_vec(),
             predicts:      tree.predicts[index_range.clone()].to_vec(),
+        }
+    }
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct UpdateList {
+    pub size:  usize,
+    condition: Vec<Vec<Condition>>,
+    predicts:  Vec<f32>,
+}
+
+
+impl UpdateList {
+    pub fn new() -> UpdateList {
+        UpdateList {
+            size: 0,
+            condition: vec![],
+            predicts: vec![],
+        }
+    }
+
+    pub fn get_prediction(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
+        let feature = &(data.feature);
+        let pred: f32 = self.predicts[version..self.size].par_iter().zip(
+            self.condition[version..self.size].par_iter()
+        ).map(|(predict, conditions)| {
+            let mut valid = true;
+            for (split_feature, threshold, evaluation) in conditions {
+                if (feature[*split_feature] <= *threshold) != *evaluation {
+                    valid = false;
+                    break;
+                }
+            }
+            if valid {
+                *predict
+            } else {
+                0.0
+            }
+        }).sum();
+        (pred, (self.size, version))
+    }
+
+    pub fn add(&mut self, conditions: Vec<Condition>, predict: f32) {
+        self.condition.push(conditions);
+        self.predicts.push(predict);
+        self.size += 1;
+    }
+}
+
+
+impl Clone for UpdateList {
+    fn clone(&self) -> UpdateList {
+        UpdateList {
+            size:      self.size,
+            condition: self.condition.clone(),
+            predicts:  self.predicts.clone(),
         }
     }
 }
