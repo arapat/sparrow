@@ -135,6 +135,9 @@ impl Tree {
         &self, parent: usize, feature: usize, threshold: TFeature, evaluation: bool,
     ) -> Option<usize> {
         let mut ret = None;
+        if parent >= self.children.len() {
+            return None;
+        }
         self.children[parent].iter().for_each(|index| {
             if self.split_feature[*index] == feature &&
                 is_zero((self.threshold[*index] - threshold).into()) &&

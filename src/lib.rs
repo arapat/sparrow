@@ -190,16 +190,16 @@ pub fn training(config_file: String) {
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
 
     info!("Creating bins.");
-    let mut serial_training_loader = SerialStorage::new(
-        config.training_filename.clone(),
-        config.num_examples,
-        config.num_features,
-        true,
-        config.positive.clone(),
-        None,
-    );
     let bins = {
         if config.sampler_scanner == "sampler" {
+            let mut serial_training_loader = SerialStorage::new(
+                config.training_filename.clone(),
+                config.num_examples,
+                config.num_features,
+                true,
+                config.positive.clone(),
+                None,
+            );
             let bins = create_bins(
                 config.max_sample_size, config.max_bin_size, config.num_features, &mut serial_training_loader);
             {
