@@ -148,6 +148,7 @@ impl Tree {
         ret
     }
 
+    /*
     pub fn mark_active(&mut self, index: usize) {
         let mut ancestor = index;
         self.is_active[index] = true;
@@ -167,6 +168,7 @@ impl Tree {
         }
         self.num_active[ancestor] -= 1;
     }
+    */
 
     pub fn get_prediction_tree(&self, data: &Example) -> f32 {
         let feature = &(data.feature);
@@ -190,26 +192,23 @@ impl Tree {
         self.model_updates.get_prediction(data, version)
     }
 
-    pub fn get_active_nodes(&self, data: &Example) -> Vec<usize> {
+    pub fn is_visited(&self, data: &Example, target: usize) -> bool {
         let feature = &(data.feature);
         let mut queue = VecDeque::new();
         queue.push_back(0);
-        let mut active = vec![];
         while !queue.is_empty() {
             let node = queue.pop_front().unwrap();
-            if self.is_active[node] {
-                active.push(node);
+            if node == target {
+                return true;
             }
             self.children[node].iter().filter(|child| {
-                self.num_active[**child] > 0 && (
-                    (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                        self.evaluation[**child]
-                )
+                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
+                    self.evaluation[**child]
             }).for_each(|t| {
                 queue.push_back(*t);
             });
         }
-        active
+        false
     }
 
     pub fn append_patch(

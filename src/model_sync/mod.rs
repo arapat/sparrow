@@ -108,9 +108,12 @@ fn receive_models(
     worker_assign[0] = Some(0);
     timer.start();
     global_timer.start();
+    let mut bootup = true;
     loop {
         // adjust gamma
-        if timer.get_duration() >= DURATION {
+        if bootup && timer.get_duration() >= DURATION + 15.0 ||
+                !bootup && timer.get_duration() >= DURATION {
+            bootup = false;
             let mut current_condition = 0;
             if total_packets == 0 {
                 current_condition = -1;

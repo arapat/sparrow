@@ -208,8 +208,7 @@ impl Learner {
                     vals[i][0]  = abs_val;
                     vals[i][1]  = ci * ci - null_weight * null_weight;
                 });
-                let active_nodes = tree.get_active_nodes(example);
-                (active_nodes.contains(&expand_node), *weight, (example, vals))
+                (tree.is_visited(example, expand_node), *weight, (example, vals))
             }).filter(|(contains, _, _)| *contains)
               .map(|(_, w, b)| (w, b))
               .collect()
