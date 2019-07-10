@@ -82,7 +82,7 @@ impl Samplers {
         let model = self.model.clone();
         spawn(move || {
             while let Some(new_model) = next_model.recv() {
-                let model_len = new_model.size;
+                let model_len = new_model.size();
                 {
                     let mut model = model.write().unwrap();
                     *model = new_model;

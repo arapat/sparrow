@@ -106,7 +106,7 @@ pub fn validate(
                     mvalidate(&sorted_scores_labels, &eval_funcs).iter()
                                                                  .map(|t| t.to_string())
                                                                  .collect();
-                let meta_info = vec![filepath.clone(), ts.to_string(), model.size.to_string()];
+                let meta_info = vec![filepath.clone(), ts.to_string(), model.size().to_string()];
                 let output = format!("{},{}\n", meta_info.join(","), performance_scores.join(","));
                 out.write(output.as_bytes())
                    .expect("Failed to write the performance scores to file.");
@@ -123,7 +123,7 @@ pub fn validate(
 
         // Reset scores if necessary
         if incremental_testing {
-            last_model_length = model.size;
+            last_model_length = model.size();
         } else {
             for i in 0..scores.len() {
                 scores[i] = 0.0;

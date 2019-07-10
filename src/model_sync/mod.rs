@@ -190,7 +190,7 @@ fn receive_models(
                 debug!("model_manager, upload failed, {}, {}, {}, {}",
                        old_sig, model_sig, machine_name, patch.size);
             }
-            handle_persistent(&model, model.size, global_timer.get_duration());
+            handle_persistent(&model, model.size(), global_timer.get_duration());
             for depth in new_nodes_depth {
                 node_status.push((depth, default_gamma, None));
             }

@@ -165,7 +165,7 @@ impl Boosting {
         let mut is_gamma_significant = true;
         let mut total_data_size = 0;
         while is_gamma_significant &&
-                (self.num_iterations <= 0 || self.model.size < self.num_iterations) {
+                (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
             let (new_rule, batch_size) = {
                 let data = self.training_loader.get_next_batch_and_update(true, &self.model);
                 learner_timer.resume();
@@ -202,13 +202,13 @@ impl Boosting {
                     new_rule.gamma,
                 );
                 info!("scanner, added new rule, {}, {}, {}",
-                      self.model.size, new_rule.num_scanned, total_data_size);
+                      self.model.size(), new_rule.num_scanned, total_data_size);
 
                 // post updates
                 self.try_send_model();
                 is_gamma_significant = self.learner.is_gamma_significant();
                 self.learner.reset();
-                if self.model.size % self.save_interval == 0 {
+                if self.model.size() % self.save_interval == 0 {
                     self.handle_persistent(iteration, prep_time + global_timer.get_duration());
                 }
                 total_data_size = 0;
@@ -225,7 +225,7 @@ impl Boosting {
         }
         self.handle_persistent(iteration, prep_time + global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
-              self.model.size, self.learner.is_gamma_significant());
+              self.model.size(), self.learner.is_gamma_significant());
     }
 
     fn handle_network(&mut self, is_full_scanned: bool) {
@@ -240,22 +240,22 @@ impl Boosting {
         if model_score.is_some() {
             let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
                 model_score.unwrap();
-            let new_model_sig = self.local_name.clone() + "_" + &self.model.size.to_string();
+            let new_model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
             if remote_model_sig != self.base_model_sig {
                 // replace the existing model
-                let old_size = self.model.size;
+                let old_size = self.model.size();
                 self.model = remote_model;
                 self.base_model_sig = remote_model_sig;
-                self.base_model_size = self.model.size;
-                self.last_remote_length = self.model.size;
+                self.base_model_size = self.model.size();
+                self.last_remote_length = self.model.size();
                 self.learner.reset();
                 debug!("model-replaced, {}, {}, {}",
-                       self.model.size, old_size, self.base_model_sig);
-            } else if (self.model.size > self.base_model_size || is_full_scanned) &&
+                       self.model.size(), old_size, self.base_model_sig);
+            } else if (self.model.size() > self.base_model_size || is_full_scanned) &&
                     self.last_sent_model_sig != new_model_sig {
                 // send out the local patch
                 let tree_slice = TreeSlice::new(
-                    &self.model, self.last_remote_length..self.model.size);
+                    &self.model, self.last_remote_length..self.model.size());
                 let packet: ModelSig =
                     (tree_slice, self.model.last_gamma, remote_model_sig, new_model_sig.clone());
                 let send_result = self.network_sender.as_ref().unwrap()
@@ -266,7 +266,7 @@ impl Boosting {
                 } else {
                     self.last_sent_model_sig = new_model_sig;
                     info!("Sent the local model to the network module, {}, {}",
-                        self.last_sent_model_sig, self.model.size);
+                        self.last_sent_model_sig, self.model.size());
                 }
             }
             self.learner.set_gamma(current_gamma);
@@ -291,7 +291,7 @@ impl Boosting {
         self.persist_id += 1;
         if self.save_process {
             let mut file_buffer = create_bufwriter(
-                &format!("models/model_{}-v{}.json", self.model.size, self.persist_id));
+                &format!("models/model_{}-v{}.json", self.model.size(), self.persist_id));
             file_buffer.write(json.as_ref()).unwrap();
         } else {
             let buf = self.persist_file_buffer.as_mut().unwrap();
