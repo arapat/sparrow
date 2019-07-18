@@ -266,35 +266,6 @@ pub fn training(config_file: String) {
         }
     };
     let current_sample_version = Arc::new(RwLock::new(0));
-    if config.sampler_scanner == "sampler" {
-        info!("Starting the model sync.");
-        start_model_sync(
-            config.num_iterations, config.local_name.clone(), &config.network, config.port,
-            next_model_s.clone(), config.default_gamma, current_sample_version.clone());
-        info!("Starting the stratified structure.");
-        let stratified_structure = StratifiedStorage::new(
-            config.num_examples,
-            config.num_features,
-            config.positive.clone(),
-            config.num_examples_per_block,
-            config.disk_buffer_filename.as_ref(),
-            config.num_assigners,
-            config.num_samplers,
-            sampled_examples_s,
-            sampling_signal_r,
-            next_model_r,
-            config.channel_size,
-            config.debug_mode,
-        );
-        info!("Initializing the stratified structure.");
-        stratified_structure.init_stratified_from_file(
-            config.training_filename.clone(),
-            config.num_examples,
-            config.batch_size,
-            config.num_features,
-            bins.clone(),
-        );
-    }
     info!("Starting the buffered loader.");
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
@@ -326,7 +297,34 @@ pub fn training(config_file: String) {
         );
         booster.enable_network(config.local_name, config.port);
         booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
-    } else {
+    } else { // if config.sampler_scanner == "sampler" {
+        info!("Starting the model sync.");
+        start_model_sync(
+            config.num_iterations, config.local_name.clone(), &config.network, config.port,
+            next_model_s.clone(), config.default_gamma, current_sample_version.clone());
+        info!("Starting the stratified structure.");
+        let stratified_structure = StratifiedStorage::new(
+            config.num_examples,
+            config.num_features,
+            config.positive.clone(),
+            config.num_examples_per_block,
+            config.disk_buffer_filename.as_ref(),
+            config.num_assigners,
+            config.num_samplers,
+            sampled_examples_s,
+            sampling_signal_r,
+            next_model_r,
+            config.channel_size,
+            config.debug_mode,
+        );
+        info!("Initializing the stratified structure.");
+        stratified_structure.init_stratified_from_file(
+            config.training_filename.clone(),
+            config.num_examples,
+            config.batch_size,
+            config.num_features,
+            bins.clone(),
+        );
         loop {
             sleep(Duration::from_secs(10));
             let filename = format!("models/model_{}-v{}.json",
