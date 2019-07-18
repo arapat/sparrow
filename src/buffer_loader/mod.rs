@@ -23,7 +23,7 @@ use self::loader::Loader;
 
 
 // LockedBuffer is set to None once it is read by the receiver
-pub type LockedBuffer = Arc<RwLock<Option<Vec<ExampleWithScore>>>>;
+pub type LockedBuffer = Arc<RwLock<Option<(usize, Vec<ExampleWithScore>)>>>;
 
 
 #[derive(Clone, Debug, PartialEq)]
@@ -48,6 +48,7 @@ pub struct BufferLoader {
     num_batch: usize,
 
     examples: Vec<ExampleInSampleSet>,
+    pub current_version: usize,
     new_examples: LockedBuffer,
     gatherer: Gatherer,
     loader: Loader,
@@ -80,6 +81,7 @@ impl BufferLoader {
         init_block: bool,
         min_ess: Option<f32>,
         sampler_scanner: String,
+        current_sample_version: Arc<RwLock<usize>>,
     ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
@@ -95,7 +97,7 @@ impl BufferLoader {
             }
         };
         let gatherer = Gatherer::new(
-            gather_new_sample, size.clone(), new_examples.clone());
+            gather_new_sample, size.clone(), new_examples.clone(), current_sample_version);
         let loader = Loader::new(new_examples.clone(), sleep_duration);
         let mut buffer_loader = BufferLoader {
             size: size,
@@ -103,6 +105,7 @@ impl BufferLoader {
             num_batch: num_batch,
 
             examples: vec![],
+            current_version: 0,
             new_examples: new_examples,
             gatherer: gatherer,
             loader: loader,
@@ -177,11 +180,12 @@ impl BufferLoader {
     fn try_switch(&mut self) -> bool {
         self.sampling_pm.resume();
         let switched = {
-            if let Ok(mut new_examples) = self.new_examples.try_write() {
-                if new_examples.is_none() {
+            if let Ok(mut new_examples_version) = self.new_examples.try_write() {
+                if new_examples_version.is_none() {
                     false
                 } else {
-                    let new_examples: Vec<_> = new_examples.take().unwrap();
+                    let (new_version, new_examples): (usize, Vec<_>) =
+                        new_examples_version.take().unwrap();
                     self.examples = new_examples.iter()
                                                 .map(|t| {
                                                     let (a, s) = t;
@@ -189,8 +193,11 @@ impl BufferLoader {
                                                     let w = get_weight(&a, 0.0);
                                                     (a.clone(), (w, s.1, s.1))
                                                 }).collect();
+                    let old_version = self.current_version;
+                    self.current_version = new_version;
                     self.curr_example = 0;
-                    debug!("scanner, switched-buffer, {}", self.examples.len());
+                    debug!("scanner, switched-buffer, {}, {}, {}",
+                           old_version, self.current_version, self.examples.len());
                     true
                 }
             } else {

@@ -16,7 +16,7 @@ pub type ExampleInSampleSet = (Example, (f32, usize, usize));
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Tree;
 // Signature of a model patch must start with "machineID_"
-pub type ModelSig = (TreeSlice, f32, String, String);
+pub type ModelSig = (TreeSlice, f32, usize, String, String);
 
 const DELTA: f32  = 0.000001;
 const SHRINK: f32 = 1.0;

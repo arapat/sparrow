@@ -1,4 +1,6 @@
 use std::io::Write;
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::sync::mpsc;
 use std::thread::spawn;
 use bincode::serialize;
@@ -31,6 +33,7 @@ pub fn start_model_sync(
     port: u16,
     next_model: Sender<Model>,
     default_gamma: f32,
+    current_sample_version: Arc<RwLock<usize>>,
 ) {
     // TODO: make K a config parameter
     const K: usize = 5;
@@ -48,7 +51,9 @@ pub fn start_model_sync(
     });
     let num_machines = remote_ips.len();
     spawn(move || {
-        receive_models(num_machines, bounded_local_r, bounded_local_s, next_model, default_gamma);
+        receive_models(
+            num_machines, bounded_local_r, bounded_local_s, next_model, default_gamma,
+            current_sample_version);
     });
 }
 
@@ -86,6 +91,7 @@ fn receive_models(
     sender:   Sender<ModelSig>,
     next_model_sender: Sender<Model>,
     default_gamma: f32,
+    current_sample_version: Arc<RwLock<usize>>,
 ) {
     // TODO: make duration and fraction config parameters
     const DURATION: f32 = 5.0;
@@ -160,7 +166,7 @@ fn receive_models(
         if packet.is_none() {
             continue;
         }
-        let (patch, remote_gamma, old_sig, new_sig) = packet.unwrap();
+        let (patch, remote_gamma, sample_version, old_sig, new_sig) = packet.unwrap();
         let machine_name = {
             let t: Vec<&str> = new_sig.rsplitn(2, '_').collect();
             t[1].to_string()
@@ -173,6 +179,16 @@ fn receive_models(
         total_packets += 1;
         if old_sig != model_sig {
             debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
+            num_updates_rejs[machine_id] += 1;
+            rejected_packets += 1;
+            continue;
+        }
+        let current_version: usize = {
+            *(current_sample_version.read().unwrap())
+        };
+        if sample_version < current_version {
+            debug!("model_manager, reject for sample version mismatch, {}, {}",
+                   sample_version, current_version);
             num_updates_rejs[machine_id] += 1;
             rejected_packets += 1;
             continue;

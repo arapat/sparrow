@@ -27,8 +27,6 @@ extern crate time;
 extern crate tmsn;
 extern crate metricslib;
 
-use std::io::Write;
-
 /// The class of the weak learner, namely a decision stump.
 mod tree;
 
@@ -49,7 +47,10 @@ mod testing;
 /// Syncing model to S3
 mod model_sync;
 
+use std::io::Write;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -264,11 +265,12 @@ pub fn training(config_file: String) {
             vec![]
         }
     };
+    let current_sample_version = Arc::new(RwLock::new(0));
     if config.sampler_scanner == "sampler" {
         info!("Starting the model sync.");
         start_model_sync(
             config.num_iterations, config.local_name.clone(), &config.network, config.port,
-            next_model_s.clone(), config.default_gamma);
+            next_model_s.clone(), config.default_gamma, current_sample_version.clone());
         info!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
             config.num_examples,
@@ -304,6 +306,7 @@ pub fn training(config_file: String) {
         config.sampler_scanner != "sampler",
         Some(config.min_ess),
         config.sampler_scanner.clone(),
+        current_sample_version.clone(),
     );
     if config.sampler_scanner == "scanner" {
         info!("Starting the booster.");

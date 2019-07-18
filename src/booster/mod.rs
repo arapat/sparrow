@@ -256,8 +256,9 @@ impl Boosting {
                 // send out the local patch
                 let tree_slice = TreeSlice::new(
                     &self.model, self.last_remote_length..self.model.size());
-                let packet: ModelSig =
-                    (tree_slice, self.model.last_gamma, remote_model_sig, new_model_sig.clone());
+                let packet: ModelSig = (
+                    tree_slice, self.model.last_gamma, self.training_loader.current_version,
+                    self.base_model_sig.clone(), new_model_sig.clone());
                 let send_result = self.network_sender.as_ref().unwrap()
                                         .send(packet);
                 if let Err(err) = send_result {

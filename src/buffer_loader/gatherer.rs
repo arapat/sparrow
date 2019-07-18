@@ -1,6 +1,8 @@
 
 use rand::Rng;
 
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::thread::spawn;
 use rand::thread_rng;
 
@@ -16,9 +18,10 @@ use super::io::write_s3;
 
 
 pub struct Gatherer {
-    gather_new_sample:   Receiver<((ExampleWithScore, u32), u32)>,
-    new_sample_capacity: usize,
-    new_sample_buffer:   LockedBuffer,
+    gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
+    new_sample_capacity:    usize,
+    new_sample_buffer:      LockedBuffer,
+    current_sample_version: Arc<RwLock<usize>>,
 }
 
 
@@ -26,14 +29,16 @@ impl Gatherer {
     /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
     /// * `new_sample_capacity`: the size of the memory buffer of the buffer loader
     pub fn new(
-        gather_new_sample:   Receiver<((ExampleWithScore, u32), u32)>,
-        new_sample_capacity: usize,
-        new_sample_buffer:   LockedBuffer,
+        gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
+        new_sample_capacity:    usize,
+        new_sample_buffer:      LockedBuffer,
+        current_sample_version: Arc<RwLock<usize>>,
     ) -> Gatherer {
         Gatherer {
             gather_new_sample:   gather_new_sample,
             new_sample_capacity: new_sample_capacity,
             new_sample_buffer:   new_sample_buffer,
+            current_sample_version: current_sample_version,
         }
     }
 
