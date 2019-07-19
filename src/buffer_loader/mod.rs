@@ -148,23 +148,25 @@ impl BufferLoader {
     /// `allow_switch`: If set to true, the alternate buffer would be checked if it
     /// was ready. If it was, the loader will switched to the alternate buffer for
     /// reading the next batch of examples.
-    pub fn get_next_batch(&mut self, allow_switch: bool) -> &[ExampleInSampleSet] {
-        self.get_next_mut_batch(allow_switch)
+    pub fn get_next_batch(&mut self, allow_switch: bool) -> (&[ExampleInSampleSet], bool) {
+        let (examples, switched) = self.get_next_mut_batch(allow_switch);
+        (&*examples, switched)
     }
 
     pub fn get_next_batch_and_update(
         &mut self,
         allow_switch: bool,
         model: &Model
-    ) -> &[ExampleInSampleSet] {
-        let batch = self.get_next_mut_batch(allow_switch);
+    ) -> (&[ExampleInSampleSet], bool) {
+        let (batch, switched) = self.get_next_mut_batch(allow_switch);
         update_scores(batch, model);
-        batch
+        (batch, switched)
     }
 
-    fn get_next_mut_batch(&mut self, allow_switch: bool) -> &mut [ExampleInSampleSet] {
+    fn get_next_mut_batch(&mut self, allow_switch: bool) -> (&mut [ExampleInSampleSet], bool) {
+        let mut switched = false;
         if self.ess <= self.min_ess && allow_switch {
-            self.try_switch();
+            switched = self.try_switch();
         }
         self.curr_example += self.batch_size;
         if self.curr_example >= self.size {
@@ -174,7 +176,7 @@ impl BufferLoader {
 
         assert!(!self.examples.is_empty());
         let tail = min(self.curr_example + self.batch_size, self.size);
-        &mut self.examples[self.curr_example..tail]
+        (&mut self.examples[self.curr_example..tail], switched)
     }
 
     fn try_switch(&mut self) -> bool {

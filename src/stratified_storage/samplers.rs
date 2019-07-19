@@ -234,11 +234,14 @@ fn sampler(
                 pm4.pause();
                 (score + inc_score, model_size)
             };
-            *grid += get_weight(&example, updated_score);
-            num_scanned += 1;
-            if *grid >= grid_size {
-                sampled_example = Some((example.clone(), (updated_score, model_size)));
+            let updated_weight = get_weight(&example, updated_score);
+            if updated_weight.log2() as i8 == index {
+                *grid += updated_weight;
+                if *grid >= grid_size {
+                    sampled_example = Some((example.clone(), (updated_score, model_size)));
+                }
             }
+            num_scanned += 1;
             stats_update_s.send((index, (-1, -get_weight(&example, score) as f64)));
             updated_examples.send((example, (updated_score, model_size)));
             num_updated += 1;

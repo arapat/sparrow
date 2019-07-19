@@ -343,7 +343,7 @@ pub fn get_base_node(max_sample_size: usize, data_loader: &mut BufferLoader) -> 
     let mut n_pos = 0;
     let mut n_neg = 0;
     while sample_size > 0 {
-        let data = data_loader.get_next_batch(true);
+        let (data, _) = data_loader.get_next_batch(true);
         let (num_pos, num_neg) =
             data.par_iter().fold(
                 || (0, 0),

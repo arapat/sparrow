@@ -167,8 +167,12 @@ impl Boosting {
         while is_gamma_significant &&
                 (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
             let (new_rule, batch_size) = {
-                let data = self.training_loader.get_next_batch_and_update(true, &self.model);
+                let (data, switched) =
+                    self.training_loader.get_next_batch_and_update(true, &self.model);
                 learner_timer.resume();
+                if switched {
+                    self.learner.reset();
+                }
                 (self.learner.update(&self.model, &data), data.len())
             };
             learner_timer.update(batch_size);
