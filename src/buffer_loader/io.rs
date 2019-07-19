@@ -55,6 +55,10 @@ pub fn write_s3(
     debug!("sampler, start, write new sample to s3");
     io_write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&data).unwrap());
     debug!("sampler, finished, write new sample to s3");
+    let filename = FILENAME.to_string() + "_WRITING";
+    write_all(&filename, &serialize(&data).unwrap())
+        .expect("Failed to write the sample set to file");
+    rename(filename, format!("{}_{}", FILENAME, version)).unwrap();
 }
 
 
