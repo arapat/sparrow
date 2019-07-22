@@ -82,17 +82,20 @@ impl Tree {
     }
 
     pub fn add_node(
-        &mut self, parent: usize,
+        &mut self, parent: i32,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
     ) -> usize {
         let depth = {
-            if parent == 0 {
+            if parent < 0 {
+                0
+            } else if parent == 0 {
                 1
             } else {
-                self.leaf_depth[parent] + 1
+                self.leaf_depth[parent as usize] + 1
             }
         };
         let node = self.find_child_node(parent, feature, threshold, evaluation);
+        let parent = parent as usize;
         let (new_index, is_new) = {
             if let Some(index) = node {
                 self.predicts[index] += pred_value;
@@ -132,13 +135,16 @@ impl Tree {
     }
 
     fn find_child_node(
-        &self, parent: usize, feature: usize, threshold: TFeature, evaluation: bool,
+        &self, parent: i32, feature: usize, threshold: TFeature, evaluation: bool,
     ) -> Option<usize> {
+        if parent < 0 {
+            return Some(0);
+        }
         let mut ret = None;
-        if parent >= self.children.len() {
+        if parent >= self.children.len() as i32 {
             return None;
         }
-        self.children[parent].iter().for_each(|index| {
+        self.children[parent as usize].iter().for_each(|index| {
             if self.split_feature[*index] == feature &&
                 is_zero((self.threshold[*index] - threshold).into()) &&
                 self.evaluation[*index] == evaluation {
@@ -225,7 +231,7 @@ impl Tree {
         let mut node_indices = vec![];
         while i < patch.size {
             node_indices.push(self.add_node(
-                patch.parent[i], patch.split_feature[i], patch.threshold[i],
+                patch.parent[i] as i32, patch.split_feature[i], patch.threshold[i],
                 patch.evaluation[i], patch.predicts[i], 0.0,
             ));
             i += 1;

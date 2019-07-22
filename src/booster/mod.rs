@@ -125,7 +125,9 @@ impl Boosting {
         }
         let max_sample_size = self.max_sample_size;
         let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
-        self.model = Tree::new(self.num_iterations + 1, base_pred, base_gamma);
+        let index = self.model.add_node(-1, 0, 0, false, base_pred, base_gamma);
+        info!("scanner, added new rule, {}, {}, {}",
+              self.model.size(), max_sample_size, max_sample_size);
         self.try_send_model();
     }
 
@@ -211,7 +213,7 @@ impl Boosting {
                 */
                 new_rule.write_log();
                 let index = self.model.add_node(
-                    new_rule.prt_index,
+                    new_rule.prt_index as i32,
                     new_rule.feature,
                     new_rule.threshold,
                     new_rule.evaluation,
