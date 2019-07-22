@@ -288,6 +288,8 @@ impl Boosting {
                 }
             }
             self.learner.set_gamma(current_gamma);
+        } else {
+            debug!("booster, download-model, failed");
         }
 
         let assigns = download_assignments();
