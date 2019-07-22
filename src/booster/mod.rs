@@ -6,6 +6,8 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 use std::sync::mpsc;
+use std::thread::sleep;
+use std::time::Duration;
 use serde_json;
 use tmsn::network::start_network_only_send;
 
@@ -47,6 +49,7 @@ pub struct Boosting {
     persist_file_buffer: Option<BufWriter<File>>,
     save_interval: usize,
 
+    max_sample_size: usize,
     save_process: bool,
 }
 
@@ -80,8 +83,8 @@ impl Boosting {
             min_gamma, default_gamma, num_features, max_trials_before_shrink, bins);
 
         // add root node for balancing labels
-        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);
-        let model = Tree::new(num_iterations + 1, base_pred, base_gamma);
+        // let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);
+        let model = Tree::new(num_iterations + 1, 0.0, 0.0);  // base_pred, base_gamma);
 
         let persist_file_buffer = {
             if save_process {
@@ -90,7 +93,7 @@ impl Boosting {
                 Some(create_bufwriter(&String::from("model.json")))
             }
         };
-        let mut b = Boosting {
+        Boosting {
             num_iterations: num_iterations,
             training_loader: training_loader,
 
@@ -110,10 +113,20 @@ impl Boosting {
             persist_file_buffer: persist_file_buffer,
             save_interval: save_interval,
 
+            max_sample_size: max_sample_size,
             save_process: save_process,
-        };
-        b.try_send_model();
-        b
+        }
+    }
+
+
+    pub fn set_root_tree(&mut self) {
+        while !self.training_loader.try_switch() {
+            sleep(Duration::from_millis(2000));
+        }
+        let max_sample_size = self.max_sample_size;
+        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
+        self.model = Tree::new(self.num_iterations + 1, base_pred, base_gamma);
+        self.try_send_model();
     }
 
 

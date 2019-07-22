@@ -69,7 +69,7 @@ pub fn download_model() -> Option<(Model, String, f32)> {
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        debug!("sample, download model, succeed");
+        // debug!("sample, download model, succeed");
         Some(deserialize(&data).unwrap())
     } else {
         debug!("sample, download model, failed with return code {}", code);
@@ -94,7 +94,7 @@ fn receive_models(
     current_sample_version: Arc<RwLock<usize>>,
 ) {
     // TODO: make duration and fraction config parameters
-    const DURATION: f32 = 5.0;
+    const DURATION: f32 = 15.0;
     const FRACTION: f32 = 0.1;
     let mut model_sig = "".to_string();
     let mut model = Tree::new(1, 0.0, 0.0);
@@ -228,7 +228,7 @@ pub fn download_assignments() -> Option<Vec<Option<usize>>> {
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        debug!("model sync, download assignments, succeed");
+        // debug!("model sync, download assignments, succeed");
         Some(deserialize(&data).unwrap())
     } else {
         debug!("model sync, download assignments, failed with return code {}", code);

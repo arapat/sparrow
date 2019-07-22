@@ -377,6 +377,7 @@ impl Learner {
         if !is_zero(gamma - self.rho_gamma) {
             debug!("set-gamma, {}, {}", self.rho_gamma, gamma);
             self.rho_gamma = gamma;
+            self.reset();
         }
     }
 

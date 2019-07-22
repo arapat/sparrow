@@ -179,7 +179,7 @@ impl BufferLoader {
         (&mut self.examples[self.curr_example..tail], switched)
     }
 
-    fn try_switch(&mut self) -> bool {
+    pub fn try_switch(&mut self) -> bool {
         self.sampling_pm.resume();
         let switched = {
             if let Ok(mut new_examples_version) = self.new_examples.try_write() {

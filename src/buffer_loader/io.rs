@@ -88,7 +88,7 @@ pub fn load_s3(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
 ) -> Option<usize> {
-    debug!("scanner, start, download sample from s3");
+    // debug!("scanner, start, download sample from s3");
     let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
     if ret.is_none() {
         return None;
@@ -99,7 +99,7 @@ pub fn load_s3(
         if version > last_version {
             let new_sample_lock = new_sample_buffer.write();
             *(new_sample_lock.unwrap()) = Some((version, data));
-            debug!("scanner, finished, download sample from s3, succeed");
+            // debug!("scanner, finished, download sample from s3, succeed");
             return Some(version);
         }
         debug!("scanner, finished, download sample from s3, remote model is old");

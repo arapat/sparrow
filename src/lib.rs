@@ -274,7 +274,7 @@ pub fn training(config_file: String) {
         sampled_examples_r,
         sampling_signal_s,
         config.sleep_duration,
-        config.sampler_scanner != "sampler",
+        false, // config.sampler_scanner != "sampler",
         Some(config.min_ess),
         config.sampler_scanner.clone(),
         current_sample_version.clone(),
@@ -296,6 +296,7 @@ pub fn training(config_file: String) {
             config.save_interval,
         );
         booster.enable_network(config.local_name, config.port);
+        booster.set_root_tree();
         booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
     } else { // if config.sampler_scanner == "sampler" {
         info!("Starting the model sync.");
