@@ -69,7 +69,7 @@ pub fn download_model() -> Option<(Model, String, f32)> {
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        debug!("sample, download model, succeed");
+        // debug!("sample, download model, succeed");
         Some(deserialize(&data).unwrap())
     } else {
         debug!("sample, download model, failed with return code {}", code);
@@ -228,7 +228,7 @@ pub fn download_assignments() -> Option<Vec<Option<usize>>> {
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        debug!("model sync, download assignments, succeed");
+        // debug!("model sync, download assignments, succeed");
         Some(deserialize(&data).unwrap())
     } else {
         debug!("model sync, download assignments, failed with return code {}", code);

@@ -88,7 +88,7 @@ pub fn load_s3(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
 ) -> Option<usize> {
-    debug!("scanner, start, download sample from s3");
+    // debug!("scanner, start, download sample from s3");
     let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
     if ret.is_none() {
         return None;
