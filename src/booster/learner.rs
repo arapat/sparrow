@@ -169,12 +169,13 @@ impl Learner {
                 }
             }
         }
+        debug!("learner, learner is reset, {}, {}, {}, {}, {}",
+               self.expand_node, self.total_count, self.total_weight, self.count, self.sum_weight);
         self.sum_weight = 0.0;
         self.count = 0;
         self.total_count = 0;
         self.total_weight = 0.0;
         self.total_weight_sq = 0.0;
-        debug!("learner, learner is reset");
     }
 
     /*
