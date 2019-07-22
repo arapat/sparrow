@@ -30,6 +30,7 @@ const NUM_RULES: usize = 2 * NUM_PREDS;  // i.e., false (0), true (1)
 const PREDS: [f32; NUM_PREDS] = [-1.0, 1.0];
 // (pred1, false), (pred1, true), (pred2, false), (pred2, true)
 type ScoreBoard = Vec<Vec<[f32; NUM_RULES]>>;
+type ScoreBoard1 = Vec<Vec<f32>>;
 type RuleStats = [[f32; 2]; NUM_PREDS];
 
 
@@ -48,12 +49,17 @@ pub struct TreeNode {
     bound: f32,
     pub num_scanned: usize,
     pub fallback: bool,
+
+    pub positive: usize,
+    pub negative: usize,
+    pub positive_weight: f32,
+    pub negative_weight: f32,
 }
 
 impl TreeNode {
     pub fn write_log(&self) {
         info!(
-            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
             self.prt_index,
             self.feature,
             self.threshold,
@@ -67,6 +73,12 @@ impl TreeNode {
             self.sum_c_squared,
             self.bound,
             self.sum_c_squared / self.num_scanned as f32,
+
+            self.positive,
+            self.negative,
+            self.positive_weight,
+            self.negative_weight,
+
             self.fallback,
         );
     }
@@ -93,6 +105,11 @@ pub struct Learner {
     // trackers for each candidate
     weak_rules_score: ScoreBoard,
     sum_c_squared:    ScoreBoard,
+    // trackers for debugging
+    num_positive:     ScoreBoard1,
+    num_negative:     ScoreBoard1,
+    weight_positive:  ScoreBoard1,
+    weight_negative:  ScoreBoard1,
     // track the number of examples exposed to each splitting candidates
     count:            usize,
     sum_weight:       f32,
@@ -123,6 +140,12 @@ impl Learner {
             total_weight_sq:  0.0,
             weak_rules_score: vec![],
             sum_c_squared:    vec![],
+
+            num_positive:     vec![],
+            num_negative:     vec![],
+            weight_positive:  vec![],
+            weight_negative:  vec![],
+
             count:            0,
             sum_weight:      0.0,
         };
@@ -233,21 +256,36 @@ impl Learner {
                 self.weak_rules_score.par_iter_mut()
             ).zip(
                 self.sum_c_squared.par_iter_mut()
+            ).zip(
+                self.num_positive.par_iter_mut()
+                    .zip(self.num_negative.par_iter_mut())
+                    .zip(self.weight_positive.par_iter_mut())
+                    .zip(self.weight_negative.par_iter_mut())
             ).enumerate().map(|(i, zipped_values)| {
-                let ((bin, weak_rules_score), sum_c_squared) = zipped_values;
+                let (((bin, weak_rules_score), sum_c_squared), debug_info) = zipped_values;
+                let (((num_positive, num_negative), weight_positive), weight_negative) = debug_info;
 
                 // <Split, NodeId, RuleId, stats, LeftOrRight>
                 // the last element of is for the examples that are larger than all split values
                 let mut bin_accum_vals: Vec<RuleStats> =
                     vec![[[0.0; 2]; NUM_PREDS]; bin.len() + 1];
+                let mut counts: [usize; 2] = [0, 0];
+                let mut weights: [f32; 2]  = [0.0, 0.0];
                 data.iter()
-                    .for_each(|(_, (example, vals))| {
+                    .for_each(|(w, (example, vals))| {
                         let flip_index = example.feature[i] as usize;
                         let t = &mut bin_accum_vals[flip_index];
                         for j in 0..NUM_PREDS {
                             for k in 0..t[j].len() {
                                 t[j][k] += vals[j][k];
                             }
+                        }
+                        if example.label > 0 {
+                            counts[0]  += 1;
+                            weights[0] += w;
+                        } else {
+                            counts[1]  += 1;
+                            weights[1] += w;
                         }
                     });
 
@@ -281,8 +319,17 @@ impl Learner {
                             let weak_rules_score =
                                 &mut weak_rules_score[j][rule_idx];
                             let sum_c_squared    = &mut sum_c_squared[j][rule_idx];
+                            let num_positive = &mut num_positive[j];
+                            let num_negative = &mut num_negative[j];
+                            let weight_positive = &mut weight_positive[j];
+                            let weight_negative = &mut weight_negative[j];
+
                             *weak_rules_score   += accum[0];
                             *sum_c_squared      += accum[1];
+                            *num_positive       += counts[0] as f32;
+                            *num_negative       += counts[1] as f32;
+                            *weight_positive    += weights[0];
+                            *weight_negative    += weights[1];
                             // Check stopping rule
                             let sum_c = *weak_rules_score - 2.0 * rho_gamma * total_weight;
                             let sum_c_squared = *sum_c_squared +
@@ -306,6 +353,12 @@ impl Learner {
                                         sum_c_squared:  sum_c_squared,
                                         bound:          bound,
                                         num_scanned:    count,
+
+                                        positive:        *num_positive as usize,
+                                        negative:        *num_negative as usize,
+                                        positive_weight: *weight_positive,
+                                        negative_weight: *weight_negative,
+
                                         fallback:       false,
                                     }
                                 );
