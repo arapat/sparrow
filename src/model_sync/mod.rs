@@ -162,6 +162,7 @@ fn receive_models(
             timer.reset();
             timer.start();
         }
+        update_assignments(&mut node_status, &mut worker_assign, gamma);
         let packet = receiver.try_recv();
         if packet.is_none() {
             continue;
@@ -214,7 +215,6 @@ fn receive_models(
                 node_status.push((depth, default_gamma, None));
             }
         }
-        update_assignments(&mut node_status, &mut worker_assign, gamma);
     }
 }
 
