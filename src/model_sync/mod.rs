@@ -269,8 +269,8 @@ fn update_assignments(
             }
         }
     }
-    debug!("assign updates, {}", num_updates);
     if num_updates > 0 {
+        debug!("assign updates, {}", num_updates);
         io_write_s3(REGION, BUCKET, S3_PATH_ASSIGNS, ASSIGN_FILENAME,
                     &serialize(worker_assign).unwrap());
     }
