@@ -174,6 +174,7 @@ impl Learner {
         self.total_count = 0;
         self.total_weight = 0.0;
         self.total_weight_sq = 0.0;
+        debug!("learner, learner is reset");
     }
 
     /*

@@ -60,9 +60,9 @@ pub fn start_model_sync(
 
 // Worker download models
 pub fn download_model() -> Option<(Model, String, f32)> {
-    debug!("sampler, start, download model");
+    // debug!("sampler, start, download model");
     let ret = io_load_s3(REGION, BUCKET, S3_PATH_MODELS, MODEL_FILENAME);
-    debug!("sampler, finished, download model");
+    // debug!("sampler, finished, download model");
     if ret.is_none() {
         debug!("sample, download model, failed");
         return None;
@@ -221,7 +221,7 @@ fn receive_models(
 
 pub fn download_assignments() -> Option<Vec<Option<usize>>> {
     let ret = io_load_s3(REGION, BUCKET, S3_PATH_ASSIGNS, ASSIGN_FILENAME);
-    debug!("model sync, finished, download assignments");
+    // debug!("model sync, finished, download assignments");
     if ret.is_none() {
         debug!("model sync, download assignments, failed");
         return None;
