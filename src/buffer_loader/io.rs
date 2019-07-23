@@ -102,7 +102,8 @@ pub fn load_s3(
             // debug!("scanner, finished, download sample from s3, succeed");
             return Some(version);
         }
-        debug!("scanner, finished, download sample from s3, remote model is old");
+        debug!("scanner, finished, download sample from s3, remote model is old, {}, {}",
+               version, last_version);
     } else {
         debug!("scanner, failed, download sample from s3, err {}", code);
     }
