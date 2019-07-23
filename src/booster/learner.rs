@@ -153,6 +153,10 @@ impl Learner {
             let size = learner.bins[i].len();
             learner.weak_rules_score.push(vec![[0.0; NUM_RULES]; size]);
             learner.sum_c_squared.push(vec![[0.0; NUM_RULES]; size]);
+            learner.num_positive.push(vec![0.0; size]);
+            learner.num_negative.push(vec![0.0; size]);
+            learner.weight_positive.push(vec![0.0; size]);
+            learner.weight_negative.push(vec![0.0; size]);
         }
         learner
     }
