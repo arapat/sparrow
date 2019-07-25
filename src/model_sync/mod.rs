@@ -187,7 +187,7 @@ fn receive_models(
         let current_version: usize = {
             *(current_sample_version.read().unwrap())
         };
-        if sample_version < current_version {
+        if sample_version != current_version {
             debug!("model_manager, reject for sample version mismatch, {}, {}",
                    sample_version, current_version);
             num_updates_rejs[machine_id] += 1;

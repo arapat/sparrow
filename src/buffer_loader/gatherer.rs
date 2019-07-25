@@ -49,6 +49,7 @@ impl Gatherer {
         let new_sample_capacity = self.new_sample_capacity;
         let gather_new_sample = self.gather_new_sample.clone();
         let new_sample_buffer = self.new_sample_buffer.clone();
+        let current_sample_version = self.current_sample_version.clone();
         info!("Starting non-blocking gatherer");
         spawn(move || {
             let mut version = 0;
@@ -82,6 +83,9 @@ impl Gatherer {
                             version,
                         );
                     },
+                }
+                {
+                    *(current_sample_version.write().unwrap()) = version;
                 }
             }
         });
