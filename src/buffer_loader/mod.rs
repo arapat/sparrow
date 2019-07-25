@@ -193,7 +193,7 @@ impl BufferLoader {
                                                     let (a, s) = t;
                                                     // sampling weights are ignored
                                                     let w = get_weight(&a, 0.0);
-                                                    (a.clone(), (w, s.1, s.1))
+                                                    (a.clone(), (w, 0.0, s.1, s.1))
                                                 }).collect();
                     let old_version = self.current_version;
                     self.current_version = new_version;
@@ -218,7 +218,7 @@ impl BufferLoader {
     fn update_ess(&mut self) {
         let (sum_weights, sum_weight_squared): (f32, f32) =
             self.examples.iter()
-                         .map(|(_, (w, _, _))| { (w, w * w) })
+                         .map(|(_, (w, _, _, _))| { (w, w * w) })
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
@@ -233,14 +233,16 @@ impl BufferLoader {
 /// Update the scores of the examples using `model`
 fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
     data.par_iter_mut().for_each(|example| {
-        let (mut curr_weight, mut curr_version, mut base_version) = example.1;
+        let (mut curr_weight, curr_score, mut curr_version, mut base_version) = example.1;
         if base_version != model.base_version {
             curr_weight = 1.0;
             curr_version = base_version;  // reset score
             base_version = model.base_version;
         }
         let (new_score, (new_version, _)) = model.get_prediction(&example.0, curr_version);
-        (*example).1 = (curr_weight * get_weight(&example.0, new_score), new_version, base_version);
+        let updated_score = new_score + curr_score;
+        (*example).1 = (
+            get_weight(&example.0, updated_score), updated_score, new_version, base_version);
     });
 }
 

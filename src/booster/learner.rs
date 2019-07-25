@@ -226,7 +226,7 @@ impl Learner {
         let rho_gamma = self.rho_gamma;
         let expand_node = self.expand_node;
         let data: Vec<(f32, (&Example, RuleStats))> = {
-            data.par_iter().map(|(example, (weight, _, _))| {
+            data.par_iter().map(|(example, (weight, _, _, _))| {
                 let labeled_weight = weight * (example.label as f32);
                 // let null_weight = 2.0 * rho_gamma * weight;
                 let null_weight = 2.0 * rho_gamma * weight;

@@ -12,7 +12,7 @@ use tree::TreeSlice;
 use super::Example;
 
 // current score and size, base model and size
-pub type ExampleInSampleSet = (Example, (f32, usize, usize));
+pub type ExampleInSampleSet = (Example, (f32, f32, usize, usize));  // weight, score, new_ver, base_ver
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Tree;
 // Signature of a model patch must start with "machineID_"
