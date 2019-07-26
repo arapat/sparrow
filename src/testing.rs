@@ -45,14 +45,8 @@ pub fn validate(
             Some(create_bufwriter(&"models/performance.csv".to_string()))
         }
     };
-    let mut bins = None;
-    loop {
-        bins = load_s3(REGION, BUCKET, S3_PATH, FILENAME);
-        if bins.is_some() {
-            break
-        }
-    }
-    let bins = deserialize(&bins.unwrap().0).unwrap();
+    let bins = serde_json::from_str(&raw_read_all(&"models/bins.json".to_string()))
+                         .expect(&format!("Cannot parse the bins.json"));
     let mut models_list = create_bufreader(&models_table);
     let mut data = SerialStorage::new(
         testing_filename,
