@@ -171,6 +171,10 @@ impl Learner {
                     self.weak_rules_score[i][j][k] = 0.0;
                     self.sum_c_squared[i][j][k]    = 0.0;
                 }
+                self.num_positive[i][j] = 0.0;
+                self.num_negative[i][j] = 0.0;
+                self.weight_positive[i][j] = 0.0;
+                self.weight_negative[i][j] = 0.0;
             }
         }
         debug!("learner, learner is reset, {}, {}, {}, {}, {}",
