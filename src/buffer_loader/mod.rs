@@ -165,7 +165,8 @@ impl BufferLoader {
 
     fn get_next_mut_batch(&mut self, allow_switch: bool) -> (&mut [ExampleInSampleSet], bool) {
         let mut switched = false;
-        if self.ess <= self.min_ess && allow_switch {
+        // if self.ess <= self.min_ess && allow_switch {
+        if allow_switch {
             switched = self.try_switch();
         }
         self.curr_example += self.batch_size;
