@@ -171,16 +171,16 @@ pub fn write_s3(
         let ret = bucket.put_object(&filepath, data, "application/octet-stream");
         if ret.is_ok() {
             code = ret.unwrap().1;
-            debug!("Uploaded new sample to S3, return code {}", code);
+            debug!("Uploaded `{}` to S3, return code {}", filename, code);
             if code == 200 {
                 break;
             }
         } else {
-            error!("Uploading new sample to S3 trial {} failed.", (i + 1));
+            error!("Uploading `{}` to S3 trial {} failed.", filename, (i + 1));
         }
     }
     if code != 200 {
-        error!("Uploading new sample to S3 failed. Gave up retrying.");
+        error!("Uploading `{}` to S3 failed. Gave up retrying.", filename);
     }
     code == 200
 }
