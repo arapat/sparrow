@@ -110,8 +110,7 @@ fn receive_models(
     let mut num_updates_rejs  = vec![0; num_machines];
     let mut num_updates_nodes = vec![0; num_machines];
     let mut node_status = vec![(0, default_gamma, None)];
-    let mut worker_assign = vec![None; num_machines];
-    worker_assign[0] = Some(0);
+    let mut worker_assign = vec![Some(0); num_machines];
     timer.start();
     global_timer.start();
     let mut bootup = true;
@@ -195,9 +194,11 @@ fn receive_models(
             continue;
         }
         if patch.size == 0 {
-            let node_id = worker_assign[machine_id].unwrap();
-            node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
-            worker_assign[machine_id] = None;
+                if worker_assign[machine_id].is_some() {
+                    let node_id = worker_assign[machine_id].unwrap();
+                    node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
+                    worker_assign[machine_id] = None;
+                }
         } else {
             let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "");
             num_updates_nodes[machine_id] += patch.size;
@@ -223,7 +224,7 @@ pub fn download_assignments() -> Option<Vec<Option<usize>>> {
     let ret = io_load_s3(REGION, BUCKET, S3_PATH_ASSIGNS, ASSIGN_FILENAME);
     // debug!("model sync, finished, download assignments");
     if ret.is_none() {
-        debug!("model sync, download assignments, failed");
+        // debug!("model sync, download assignments, failed");
         return None;
     }
     let (data, code) = ret.unwrap();
