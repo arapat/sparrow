@@ -30,6 +30,7 @@ use super::Example;
 /// The boosting algorithm. It contains two functions, one for starting
 /// the network communication, the other for starting the training procedure.
 pub struct Boosting {
+    exp_name: String,
     num_iterations: usize,
     training_loader: BufferLoader,
 
@@ -64,6 +65,7 @@ impl Boosting {
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
+        exp_name: String,
         num_iterations: usize,
         num_features: usize,
         min_gamma: f32,
@@ -94,6 +96,7 @@ impl Boosting {
             }
         };
         Boosting {
+            exp_name: exp_name,
             num_iterations: num_iterations,
             training_loader: training_loader,
 
@@ -255,7 +258,7 @@ impl Boosting {
         // 0. Get the latest model
         // 1. If it is newer, overwrite local model
         // 2. Otherwise, push the current update to remote
-        let model_score = download_model();
+        let model_score = download_model(&self.exp_name);
         if model_score.is_some() {
             let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
                 model_score.unwrap();
@@ -294,7 +297,7 @@ impl Boosting {
             debug!("booster, download-model, failed");
         }
 
-        let assigns = download_assignments();
+        let assigns = download_assignments(&self.exp_name);
         if assigns.is_some() {
             let assignments = assigns.unwrap();
             let expand_node = assignments[self.local_id % assignments.len()];

@@ -82,6 +82,7 @@ impl BufferLoader {
         min_ess: Option<f32>,
         sampler_scanner: String,
         current_sample_version: Arc<RwLock<usize>>,
+        exp_name: String,
     ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
@@ -97,8 +98,9 @@ impl BufferLoader {
             }
         };
         let gatherer = Gatherer::new(
-            gather_new_sample, size.clone(), new_examples.clone(), current_sample_version);
-        let loader = Loader::new(new_examples.clone(), sleep_duration);
+            gather_new_sample, size.clone(), new_examples.clone(),
+            current_sample_version, exp_name.clone());
+        let loader = Loader::new(new_examples.clone(), sleep_duration, exp_name);
         let mut buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,

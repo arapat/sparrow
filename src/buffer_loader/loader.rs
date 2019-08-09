@@ -14,6 +14,7 @@ use super::io::load_s3;
 pub struct Loader {
     new_sample_buffer: LockedBuffer,
     sleep_duration:    u64,
+    exp_name:          String,
 }
 
 
@@ -22,10 +23,12 @@ impl Loader {
     pub fn new(
         new_sample_buffer: LockedBuffer,
         sleep_duration: usize,
+        exp_name:       String,
     ) -> Loader {
         Loader {
             new_sample_buffer: new_sample_buffer,
             sleep_duration:    sleep_duration as u64,
+            exp_name:          exp_name,
         }
     }
 
@@ -35,6 +38,7 @@ impl Loader {
     pub fn run(&self, mode: SampleMode) {
         let buffer: LockedBuffer = self.new_sample_buffer.clone();
         let sleep_duration = self.sleep_duration;
+        let exp_name = self.exp_name.clone();
         info!("Starting non-blocking loader");
         spawn(move || {
             let mut last_version: usize = 0;
@@ -45,6 +49,7 @@ impl Loader {
                             buffer.clone(),
                             &load_local,
                             last_version,
+                            exp_name.as_str(),
                         )
                     },
                     SampleMode::S3 => {
@@ -52,6 +57,7 @@ impl Loader {
                             buffer.clone(),
                             &load_s3,
                             last_version,
+                            exp_name.as_str(),
                         )
                     },
                     // SampleMode.MEMORY should be handled by `gatherer`
@@ -68,12 +74,13 @@ impl Loader {
 
 fn loader(
     new_sample_buffer: LockedBuffer,
-    handler: &Fn(LockedBuffer, usize) -> Option<usize>,
+    handler: &Fn(LockedBuffer, usize, &str) -> Option<usize>,
     last_version: usize,
+    exp_name: &str,
 ) -> usize {
     let mut pm = PerformanceMonitor::new();
     pm.start();
-    let version = handler(new_sample_buffer, last_version);
+    let version = handler(new_sample_buffer, last_version, exp_name);
     if version.is_none() {
         debug!("scanner, failed to receive a new sample");
         last_version

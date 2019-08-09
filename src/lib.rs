@@ -151,6 +151,8 @@ pub struct Config {
     pub port: u16,
     /// Identifier for the local machine
     pub local_name: String,
+    /// Folder for writing data to S3
+    pub exp_name: String,
 
     /// Flag for keeping all intermediate models during training (for debugging purpose)
     pub save_process: bool,
@@ -191,6 +193,7 @@ pub fn training(config_file: String) {
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
 
     info!("Creating bins.");
+    let s3_path = format!("{}/{}", config.exp_name, S3_PATH);
     let bins = {
         if config.sampler_scanner == "sampler" {
             let mut serial_training_loader = SerialStorage::new(
@@ -208,12 +211,12 @@ pub fn training(config_file: String) {
                 let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
                 file_buffer.write(json.as_ref()).unwrap();
             }
-            write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&bins).unwrap());
+            write_s3(REGION, BUCKET, s3_path.as_str(), FILENAME, &serialize(&bins).unwrap());
             bins
         } else {
             let mut bins = None;
             loop {
-                bins = load_s3(REGION, BUCKET, S3_PATH, FILENAME);
+                bins = load_s3(REGION, BUCKET, s3_path.as_str(), FILENAME);
                 if bins.is_some() {
                     break
                 }
@@ -278,10 +281,12 @@ pub fn training(config_file: String) {
         Some(config.min_ess),
         config.sampler_scanner.clone(),
         current_sample_version.clone(),
+        config.exp_name.clone(),
     );
     if config.sampler_scanner == "scanner" {
         info!("Starting the booster.");
         let mut booster = Boosting::new(
+            config.exp_name.clone(),
             config.num_iterations,
             config.num_features,
             config.min_gamma,
@@ -302,7 +307,8 @@ pub fn training(config_file: String) {
         info!("Starting the model sync.");
         start_model_sync(
             config.num_iterations, config.local_name.clone(), &config.network, config.port,
-            next_model_s.clone(), config.default_gamma, current_sample_version.clone());
+            next_model_s.clone(), config.default_gamma, current_sample_version.clone(),
+            config.exp_name.clone());
         info!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
             config.num_examples,

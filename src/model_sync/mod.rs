@@ -34,6 +34,7 @@ pub fn start_model_sync(
     next_model: Sender<Model>,
     default_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
+    exp_name: String,
 ) {
     // TODO: make K a config parameter
     const K: usize = 5;
@@ -41,7 +42,7 @@ pub fn start_model_sync(
         mpsc::channel();
     let (bounded_local_s, bounded_local_r) = bounded(K, "model-patches");
     start_network_only_recv(name.as_ref(), remote_ips, port, local_s);
-    upload_model(&Tree::new(tree_size, 0.0, 0.0), &"".to_string(), default_gamma);
+    upload_model(&Tree::new(tree_size, 0.0, 0.0), &"".to_string(), default_gamma, &exp_name);
     debug!("Starting the receive models module");
     let bounded_sender = bounded_local_s.clone();
     spawn(move || {
@@ -53,15 +54,16 @@ pub fn start_model_sync(
     spawn(move || {
         receive_models(
             num_machines, bounded_local_r, bounded_local_s, next_model, default_gamma,
-            current_sample_version);
+            current_sample_version, &exp_name);
     });
 }
 
 
 // Worker download models
-pub fn download_model() -> Option<(Model, String, f32)> {
+pub fn download_model(exp_name: &String) -> Option<(Model, String, f32)> {
     // debug!("sampler, start, download model");
-    let ret = io_load_s3(REGION, BUCKET, S3_PATH_MODELS, MODEL_FILENAME);
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
+    let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME);
     // debug!("sampler, finished, download model");
     if ret.is_none() {
         debug!("sample, download model, failed");
@@ -79,9 +81,10 @@ pub fn download_model() -> Option<(Model, String, f32)> {
 
 
 // Server upload models
-fn upload_model(model: &Model, sig: &String, gamma: f32) -> bool {
+fn upload_model(model: &Model, sig: &String, gamma: f32, exp_name: &String) -> bool {
     let data = (model.clone(), sig.clone(), gamma);
-    io_write_s3(REGION, BUCKET, S3_PATH_MODELS, MODEL_FILENAME, &serialize(&data).unwrap())
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
+    io_write_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME, &serialize(&data).unwrap())
 }
 
 
@@ -92,6 +95,7 @@ fn receive_models(
     next_model_sender: Sender<Model>,
     default_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
+    exp_name: &String,
 ) {
     // TODO: make duration and fraction config parameters
     const DURATION: f32 = 15.0;
@@ -138,7 +142,7 @@ fn receive_models(
                 _  => {},
             }
             if current_condition != 0 {
-                if upload_model(&model, &model_sig, gamma) {
+                if upload_model(&model, &model_sig, gamma, exp_name) {
                     debug!("model_manager, broadcast gamma, {}, {}, {}",
                            current_condition, gamma, shrink_factor);
                 } else {
@@ -161,7 +165,7 @@ fn receive_models(
             timer.reset();
             timer.start();
         }
-        update_assignments(&mut node_status, &mut worker_assign, gamma);
+        update_assignments(&mut node_status, &mut worker_assign, gamma, exp_name);
         let packet = receiver.try_recv();
         if packet.is_none() {
             continue;
@@ -204,7 +208,7 @@ fn receive_models(
             num_updates_nodes[machine_id] += patch.size;
             model_sig = new_sig;
             next_model_sender.send(model.clone());
-            if upload_model(&model, &model_sig, gamma) {
+            if upload_model(&model, &model_sig, gamma, exp_name) {
                 debug!("model_manager, accept, {}, {}, {}, {}",
                        old_sig, model_sig, machine_name, patch.size);
             } else {
@@ -220,8 +224,9 @@ fn receive_models(
 }
 
 
-pub fn download_assignments() -> Option<Vec<Option<usize>>> {
-    let ret = io_load_s3(REGION, BUCKET, S3_PATH_ASSIGNS, ASSIGN_FILENAME);
+pub fn download_assignments(exp_name: &String) -> Option<Vec<Option<usize>>> {
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
+    let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME);
     // debug!("model sync, finished, download assignments");
     if ret.is_none() {
         // debug!("model sync, download assignments, failed");
@@ -242,6 +247,7 @@ fn update_assignments(
     node_status: &mut Vec<(usize, f32, Option<usize>)>,
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
+    exp_name: &String,
 ) {
     let mut did_something = true;
     let mut num_updates = 0;
@@ -272,7 +278,8 @@ fn update_assignments(
     }
     if num_updates > 0 {
         debug!("assign updates, {}", num_updates);
-        io_write_s3(REGION, BUCKET, S3_PATH_ASSIGNS, ASSIGN_FILENAME,
+        let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
+        io_write_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME,
                     &serialize(worker_assign).unwrap());
     }
 }

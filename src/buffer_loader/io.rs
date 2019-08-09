@@ -27,6 +27,7 @@ pub fn write_memory(
     new_sample: Vec<ExampleWithScore>,
     new_sample_buffer: LockedBuffer,
     version: usize,
+    _exp_name: &str,
 ) {
     let new_sample_lock = new_sample_buffer.write();
     *(new_sample_lock.unwrap()) = Some((version, new_sample));
@@ -37,6 +38,7 @@ pub fn write_local(
     new_sample: Vec<ExampleWithScore>,
     _new_sample_buffer: LockedBuffer,
     version: usize,
+    _exp_name: &str,
 ) {
     let filename = FILENAME.to_string() + "_WRITING";
     let data: VersionedSample = (version, new_sample);
@@ -50,10 +52,12 @@ pub fn write_s3(
     new_sample: Vec<ExampleWithScore>,
     _new_sample_buffer: LockedBuffer,
     version: usize,
+    exp_name: &str,
 ) {
     let data: VersionedSample = (version, new_sample);
     debug!("sampler, start, write new sample to s3");
-    io_write_s3(REGION, BUCKET, S3_PATH, FILENAME, &serialize(&data).unwrap());
+    let s3_path = format!("{}/{}", exp_name, S3_PATH);
+    io_write_s3(REGION, BUCKET, s3_path.as_str(), FILENAME, &serialize(&data).unwrap());
     debug!("sampler, finished, write new sample to s3");
     let filename = FILENAME.to_string() + "_WRITING";
     write_all(&filename, &serialize(&data).unwrap())
@@ -67,6 +71,7 @@ pub fn write_s3(
 pub fn load_local(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
+    _exp_name: &str,
 ) -> Option<usize> {
     let ori_filename = FILENAME.to_string();
     let filename = ori_filename.clone() + "_READING";
@@ -87,9 +92,11 @@ pub fn load_local(
 pub fn load_s3(
     new_sample_buffer: LockedBuffer,
     last_version: usize,
+    exp_name: &str,
 ) -> Option<usize> {
     // debug!("scanner, start, download sample from s3");
-    let ret = io_load_s3(REGION, BUCKET, S3_PATH, FILENAME);
+    let s3_path = format!("{}/{}", exp_name, S3_PATH);
+    let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), FILENAME);
     if ret.is_none() {
         return None;
     }

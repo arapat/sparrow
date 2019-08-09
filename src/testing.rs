@@ -15,10 +15,6 @@ use commons::Model;
 use stratified_storage::serial_storage::SerialStorage;
 use TLabel;
 
-pub const FILENAME: &str = "bins.json";
-pub const REGION:   &str = "us-east-1";
-pub const BUCKET:   &str = "tmsn-cache2";
-pub const S3_PATH:  &str = "sparrow-bins/";
 
 /// Validating a list of models
 ///

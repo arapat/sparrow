@@ -22,6 +22,7 @@ pub struct Gatherer {
     new_sample_capacity:    usize,
     new_sample_buffer:      LockedBuffer,
     current_sample_version: Arc<RwLock<usize>>,
+    exp_name:               String,
 }
 
 
@@ -33,12 +34,14 @@ impl Gatherer {
         new_sample_capacity:    usize,
         new_sample_buffer:      LockedBuffer,
         current_sample_version: Arc<RwLock<usize>>,
+        exp_name:               String,
     ) -> Gatherer {
         Gatherer {
             gather_new_sample:   gather_new_sample,
             new_sample_capacity: new_sample_capacity,
             new_sample_buffer:   new_sample_buffer,
             current_sample_version: current_sample_version,
+            exp_name:            exp_name,
         }
     }
 
@@ -50,6 +53,7 @@ impl Gatherer {
         let gather_new_sample = self.gather_new_sample.clone();
         let new_sample_buffer = self.new_sample_buffer.clone();
         let current_sample_version = self.current_sample_version.clone();
+        let exp_name = self.exp_name.clone();
         info!("Starting non-blocking gatherer");
         spawn(move || {
             let mut version = 0;
@@ -63,6 +67,7 @@ impl Gatherer {
                             gather_new_sample.clone(),
                             &write_memory,
                             version,
+                            exp_name.as_str(),
                         );
                     },
                     SampleMode::LOCAL => {
@@ -72,6 +77,7 @@ impl Gatherer {
                             gather_new_sample.clone(),
                             &write_local,
                             version,
+                            exp_name.as_str(),
                         );
                     },
                     SampleMode::S3 => {
@@ -81,6 +87,7 @@ impl Gatherer {
                             gather_new_sample.clone(),
                             &write_s3,
                             version,
+                            exp_name.as_str(),
                         );
                     },
                 }
@@ -97,8 +104,9 @@ fn gather(
     new_sample_capacity: usize,
     new_sample_buffer: LockedBuffer,
     gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
-    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer, usize),
+    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str),
     version: usize,
+    exp_name: &str,
 ) {
     debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
@@ -127,7 +135,7 @@ fn gather(
     thread_rng().shuffle(&mut new_sample);
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}",
            total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive);
-    handler(new_sample, new_sample_buffer, version);
+    handler(new_sample, new_sample_buffer, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
 }
