@@ -185,13 +185,13 @@ pub fn write_s3(
     code == 200
 }
 
-pub fn clear_s3_bucket(region: &str, bucket: &str) {
+pub fn clear_s3_bucket(region: &str, bucket: &str, exp_name: &str) {
     let region = region.parse().unwrap();
     let credentials = Credentials::default();
     let bucket = Bucket::new(bucket, region, credentials).unwrap();
 
     // List out contents of directory and delete all objects
-    let results = bucket.list("", None).unwrap();
+    let results = bucket.list(exp_name, None).unwrap();
     for (list, code) in results {
         for obj in list.contents {
             bucket.delete_object(&obj.key).unwrap();

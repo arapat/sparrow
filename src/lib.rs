@@ -182,7 +182,7 @@ pub fn training(config_file: String) {
 
     // Clear S3 before running
     if config.sampling_mode.to_lowercase() == "s3" {
-        clear_s3_bucket(REGION, BUCKET);
+        clear_s3_bucket(REGION, BUCKET, config.exp_name.as_str());
     }
 
     // Strata -> BufferLoader
