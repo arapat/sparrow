@@ -110,6 +110,7 @@ fn receive_models(
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
     let mut total_packets = 0;
     let mut rejected_packets = 0;
+    let mut failed_searches = 0;
     let mut num_updates_packs = vec![0; num_machines];
     let mut num_updates_rejs  = vec![0; num_machines];
     let mut num_updates_nodes = vec![0; num_machines];
@@ -124,7 +125,8 @@ fn receive_models(
                 !bootup && timer.get_duration() >= DURATION {
             bootup = false;
             let mut current_condition = 0;
-            if total_packets == 0 {
+            if failed_searches >= (num_machines as f32 * 0.5) as usize {
+                // alternative: if total_packets == 0
                 current_condition = -1;
             } else if (rejected_packets as f32) / (total_packets as f32) >= FRACTION {
                 current_condition = 1;
@@ -136,6 +138,7 @@ fn receive_models(
                     shrink_factor = (0.8 + shrink_factor) / 2.0;
                 }
             }
+            let old_gamma = gamma;
             match current_condition {
                 1  => gamma = gamma / shrink_factor,
                 -1 => gamma = gamma * shrink_factor,
@@ -143,12 +146,13 @@ fn receive_models(
             }
             if current_condition != 0 {
                 if upload_model(&model, &model_sig, gamma, exp_name) {
-                    debug!("model_manager, broadcast gamma, {}, {}, {}",
-                           current_condition, gamma, shrink_factor);
+                    debug!("model_manager, broadcast gamma, {}, {}, {}, {}",
+                           current_condition, gamma, shrink_factor, old_gamma);
                 } else {
-                    debug!("model_manager, failed gamma broadcast, {}, {}, {}",
-                           current_condition, gamma, shrink_factor);
+                    debug!("model_manager, failed gamma broadcast, {}, {}, {}, {}",
+                           current_condition, gamma, shrink_factor, old_gamma);
                 }
+                failed_searches = 0;
             }
             let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
@@ -198,16 +202,27 @@ fn receive_models(
             continue;
         }
         if patch.size == 0 {
-                if worker_assign[machine_id].is_some() {
-                    let node_id = worker_assign[machine_id].unwrap();
-                    node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
-                    worker_assign[machine_id] = None;
-                }
+            if worker_assign[machine_id].is_some() {
+                let node_id = worker_assign[machine_id].unwrap();
+                node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
+                worker_assign[machine_id] = None;
+                failed_searches += 1;
+                debug!("model_manager, empty, {}, {}", machine_id, node_id);
+            }
         } else {
             let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "");
             num_updates_nodes[machine_id] += patch.size;
             model_sig = new_sig;
             next_model_sender.send(model.clone());
+            let node_id = {
+                if worker_assign[machine_id].is_some() {
+                    worker_assign[machine_id].unwrap()
+                } else {
+                    0
+                }
+            };
+            debug!("model_manager, new nodes, {}, {}, {}, {}, {}",
+                    machine_id, node_id, remote_gamma, new_nodes_depth[0], patch.size);
             if upload_model(&model, &model_sig, gamma, exp_name) {
                 debug!("model_manager, accept, {}, {}, {}, {}",
                        old_sig, model_sig, machine_name, patch.size);

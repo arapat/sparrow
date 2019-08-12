@@ -1,6 +1,6 @@
 [package]
 name = "sparrow"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Julaiti Alafate <jalafate@gmail.com>"]
 
 [[bin]]

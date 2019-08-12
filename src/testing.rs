@@ -1,5 +1,4 @@
 use rayon::prelude::*;
-use bincode::deserialize;
 use serde_json;
 use metricslib::validate as mvalidate;
 use metricslib::EvalFunc;
@@ -8,7 +7,6 @@ use std::io::BufRead;
 use std::io::Write;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
-use commons::io::load_s3;
 use commons::io::raw_read_all;
 use commons::io::write_all;
 use commons::Model;
