@@ -84,7 +84,7 @@ impl Tree {
     pub fn add_node(
         &mut self, parent: i32,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
-    ) -> usize {
+    ) -> Option<usize> {
         let depth = {
             if parent < 0 {
                 0
@@ -131,7 +131,11 @@ impl Tree {
         */
         debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
                new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
-        new_index
+        if is_new {
+            Some(new_index)
+        } else {
+            None
+        }
     }
 
     fn find_child_node(
@@ -238,7 +242,10 @@ impl Tree {
         }
         self.last_gamma = last_gamma;
         self.base_version = self.model_updates.size;
-        node_indices.iter().map(|i| self.leaf_depth[*i]).collect()
+        node_indices.iter()
+                    .filter(|t| t.is_some())
+                    .map(|t| self.leaf_depth[t.unwrap()])
+                    .collect()
     }
 
     pub fn get_conditions(&self, node_index: usize) -> Vec<Condition> {

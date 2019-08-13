@@ -1,3 +1,4 @@
+use std::cmp::min;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -125,7 +126,8 @@ fn receive_models(
                 !bootup && timer.get_duration() >= DURATION {
             bootup = false;
             let mut current_condition = 0;
-            if failed_searches >= (num_machines as f32 * 0.5) as usize {
+            let threshold = min(num_machines, node_status.len()) as f32 * 0.5;
+            if failed_searches >= threshold as usize {
                 // alternative: if total_packets == 0
                 current_condition = -1;
             } else if (rejected_packets as f32) / (total_packets as f32) >= FRACTION {
@@ -157,8 +159,8 @@ fn receive_models(
             let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
-            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}",
-                   gamma, shrink_factor, total_packets, rejected_packets,
+            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}, {}",
+                   gamma, shrink_factor, failed_searches, total_packets, rejected_packets,
                    packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "));
             last_condition = current_condition;
             total_packets = 0;
@@ -207,7 +209,7 @@ fn receive_models(
                 node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
-                debug!("model_manager, empty, {}, {}", machine_id, node_id);
+                debug!("model_manager, empty, {}, {}, {}", machine_id, node_id, failed_searches);
             }
         } else {
             let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "");
