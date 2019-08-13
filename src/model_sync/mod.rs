@@ -223,8 +223,8 @@ fn receive_models(
                     0
                 }
             };
-            debug!("model_manager, new nodes, {}, {}, {}, {}, {}",
-                    machine_id, node_id, remote_gamma, new_nodes_depth[0], patch.size);
+            debug!("model_manager, new nodes, {}, {}, {}, {}",
+                    machine_id, node_id, remote_gamma, patch.size);
             if upload_model(&model, &model_sig, gamma, exp_name) {
                 debug!("model_manager, accept, {}, {}, {}, {}",
                        old_sig, model_sig, machine_name, patch.size);
