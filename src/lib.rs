@@ -181,7 +181,7 @@ pub fn training(config_file: String) {
     ).unwrap();
 
     // Clear S3 before running
-    if config.sampler_scanner == "sampler" && config.sampling_mode.to_lowercase() == "s3" {
+    if config.sampling_mode.to_lowercase() == "s3" {
         clear_s3_bucket(REGION, BUCKET, config.exp_name.as_str());
     }
 
