@@ -120,7 +120,8 @@ impl Tree {
         };
         self.last_gamma = gamma;
         let condition = self.get_conditions(new_index);
-        self.model_updates.add(parent, feature, threshold, evaluation, pred_value, condition);
+        self.model_updates.add(
+            parent, feature, threshold, evaluation, pred_value, condition, is_new);
         /*
         // No longer needed because the tree is not used for predicting during training
         let mut ancestor = index;
@@ -199,7 +200,7 @@ impl Tree {
     }
 
     pub fn get_prediction(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
-        self.model_updates.get_prediction(data, version)
+        self.model_updates.get_prediction_ul(data, version)
     }
 
     pub fn is_visited(&self, data: &Example, target: usize) -> bool {
@@ -222,7 +223,7 @@ impl Tree {
     }
 
     pub fn append_patch(
-        &mut self, patch: &TreeSlice, last_gamma: f32, overwrite_root: bool,
+        &mut self, patch: &UpdateList, last_gamma: f32, overwrite_root: bool,
     ) -> Vec<usize> {
         let mut i = {
             if overwrite_root {
@@ -235,7 +236,7 @@ impl Tree {
         let mut node_indices = vec![];
         while i < patch.size {
             node_indices.push(self.add_node(
-                patch.parent[i] as i32, patch.split_feature[i], patch.threshold[i],
+                patch.parent[i] as i32, patch.feature[i], patch.threshold[i],
                 patch.evaluation[i], patch.predicts[i], 0.0,
             ));
             i += 1;
@@ -289,31 +290,6 @@ impl Eq for Tree {}
 
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct TreeSlice {
-    pub size:           usize,
-    pub parent:         Vec<usize>,
-    pub split_feature:  Vec<usize>,
-    pub threshold:      Vec<TFeature>,
-    pub evaluation:     Vec<bool>,
-    pub predicts:       Vec<f32>,
-}
-
-
-impl TreeSlice {
-    pub fn new(tree: &Tree, index_range: Range<usize>) -> TreeSlice {
-        TreeSlice {
-            size:          index_range.end - index_range.start,
-            parent:        tree.model_updates.parent[index_range.clone()].to_vec(),
-            split_feature: tree.model_updates.feature[index_range.clone()].to_vec(),
-            threshold:     tree.model_updates.threshold[index_range.clone()].to_vec(),
-            evaluation:    tree.model_updates.evaluation[index_range.clone()].to_vec(),
-            predicts:      tree.model_updates.predicts[index_range.clone()].to_vec(),
-        }
-    }
-}
-
-
-#[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateList {
     pub size:   usize,
     pub parent:     Vec<usize>,
@@ -322,6 +298,8 @@ pub struct UpdateList {
     pub evaluation: Vec<bool>,
     pub predicts:   Vec<f32>,
     condition:  Vec<Vec<Condition>>,
+    // debug info
+    pub is_new:     Vec<bool>,
 }
 
 
@@ -335,10 +313,11 @@ impl UpdateList {
             evaluation: vec![],
             predicts:   vec![],
             condition:  vec![],
+            is_new:     vec![],
         }
     }
 
-    pub fn get_prediction(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
+    pub fn get_prediction_ul(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
         let feature = &(data.feature);
         let pred: f32 = self.predicts[version..self.size].par_iter().zip(
             self.condition[version..self.size].par_iter()
@@ -367,6 +346,7 @@ impl UpdateList {
         evaluation: bool,
         predict: f32,
         conditions: Vec<Condition>,
+        is_new: bool,
     ) {
         self.parent.push(parent);
         self.feature.push(feature);
@@ -374,7 +354,21 @@ impl UpdateList {
         self.evaluation.push(evaluation);
         self.predicts.push(predict);
         self.condition.push(conditions);
+        self.is_new.push(is_new);
         self.size += 1;
+    }
+
+    pub fn create_slice(&self, index_range: Range<usize>) -> UpdateList {
+        UpdateList {
+            size:          index_range.end - index_range.start,
+            parent:        self.parent[index_range.clone()].to_vec(),
+            feature:       self.feature[index_range.clone()].to_vec(),
+            threshold:     self.threshold[index_range.clone()].to_vec(),
+            evaluation:    self.evaluation[index_range.clone()].to_vec(),
+            predicts:      self.predicts[index_range.clone()].to_vec(),
+            condition:     vec![],
+            is_new:        self.is_new[index_range.clone()].to_vec(),
+        }
     }
 }
 
@@ -389,6 +383,7 @@ impl Clone for UpdateList {
             evaluation: self.evaluation.clone(),
             predicts:   self.predicts.clone(),
             condition:  self.condition.clone(),
+            is_new:     self.is_new.clone(),
         }
     }
 }

@@ -116,6 +116,8 @@ fn receive_models(
     let mut num_updates_rejs  = vec![0; num_machines];
     let mut num_updates_nodes = vec![0; num_machines];
     let mut node_status = vec![(0, default_gamma, None)];
+    let mut node_sum_gamma_sq = vec![0.0];
+    let mut node_timestamp = vec![0.0];
     let mut worker_assign = vec![Some(0); num_machines];
     timer.start();
     global_timer.start();
@@ -171,7 +173,9 @@ fn receive_models(
             timer.reset();
             timer.start();
         }
-        update_assignments(&mut node_status, &mut worker_assign, gamma, exp_name);
+        update_assignments(
+            &mut node_status, &mut worker_assign, gamma, exp_name,
+            &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         let packet = receiver.try_recv();
         if packet.is_none() {
             continue;
@@ -209,7 +213,11 @@ fn receive_models(
                 node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
-                debug!("model_manager, empty, {}, {}, {}", machine_id, node_id, failed_searches);
+                let duration = global_timer.get_duration() - node_timestamp[node_id];
+                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}",
+                        machine_id, node_id, remote_gamma, failed_searches,
+                        node_sum_gamma_sq[node_id], duration,
+                        node_sum_gamma_sq[node_id] / duration);
             }
         } else {
             let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "");
@@ -223,8 +231,10 @@ fn receive_models(
                     0
                 }
             };
-            debug!("model_manager, new nodes, {}, {}, {}, {}",
-                    machine_id, node_id, remote_gamma, patch.size);
+            let (count_new, count_updates) = patch.is_new.iter().fold(
+                (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
+            debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}",
+                    machine_id, node_id, remote_gamma, patch.size, count_new, count_updates);
             if upload_model(&model, &model_sig, gamma, exp_name) {
                 debug!("model_manager, accept, {}, {}, {}, {}",
                        old_sig, model_sig, machine_name, patch.size);
@@ -235,7 +245,9 @@ fn receive_models(
             handle_persistent(&model, model.size(), global_timer.get_duration());
             for depth in new_nodes_depth {
                 node_status.push((depth, default_gamma, None));
+                node_sum_gamma_sq.push(0.0);
             }
+            node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
         }
     }
 }
@@ -265,6 +277,9 @@ fn update_assignments(
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
     exp_name: &String,
+    node_sum_gamma_sq: &mut Vec<f32>,
+    node_timestamp: &mut Vec<f32>,
+    cur_timestamp: f32,
 ) {
     let mut did_something = true;
     let mut num_updates = 0;
@@ -286,10 +301,12 @@ fn update_assignments(
             }
             if min_depth < 9999 {
                 node_status[node] = (min_depth, gamma, Some(valid_worker));
+                node_sum_gamma_sq[node] = 0.0;
+                node_timestamp[node] = cur_timestamp;
                 worker_assign[valid_worker] = Some(node);
                 did_something = true;
                 num_updates += 1;
-                info!("assign, {}, {}", valid_worker, node);
+                info!("model-manager, assign, {}, {}", valid_worker, node);
             }
         }
     }

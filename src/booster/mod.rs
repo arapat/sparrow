@@ -21,7 +21,7 @@ use commons::channel::Sender;
 use model_sync::download_assignments;
 use model_sync::download_model;
 use tree::Tree;
-use tree::TreeSlice;
+use tree::UpdateList;
 use self::learner::get_base_node;
 use self::learner::Learner;
 use super::Example;
@@ -276,8 +276,8 @@ impl Boosting {
             } else if (self.model.size() > self.base_model_size || is_full_scanned) &&
                     self.last_sent_model_sig != new_model_sig {
                 // send out the local patch
-                let tree_slice = TreeSlice::new(
-                    &self.model, self.last_remote_length..self.model.size());
+                let tree_slice = self.model.model_updates.create_slice(
+                    self.last_remote_length..self.model.size());
                 let packet: ModelSig = (
                     tree_slice, self.model.last_gamma, self.training_loader.current_version,
                     self.base_model_sig.clone(), new_model_sig.clone());

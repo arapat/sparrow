@@ -7,7 +7,7 @@ use rayon::prelude::*;
 use std::f32::INFINITY;
 
 use tree::Tree;
-use tree::TreeSlice;
+use tree::UpdateList;
 
 use super::Example;
 
@@ -16,7 +16,7 @@ pub type ExampleInSampleSet = (Example, (f32, f32, usize, usize));  // weight, s
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Tree;
 // Signature of a model patch must start with "machineID_"
-pub type ModelSig = (TreeSlice, f32, usize, String, String);
+pub type ModelSig = (UpdateList, f32, usize, String, String);
 
 const DELTA: f32  = 0.000001;
 const SHRINK: f32 = 1.0;
