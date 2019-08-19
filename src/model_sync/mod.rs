@@ -246,6 +246,7 @@ fn receive_models(
             for depth in new_nodes_depth {
                 node_status.push((depth, default_gamma, None));
                 node_sum_gamma_sq.push(0.0);
+                node_timestamp.push(0.0);
             }
             node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
         }
