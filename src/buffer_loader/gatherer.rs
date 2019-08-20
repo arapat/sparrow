@@ -1,12 +1,15 @@
 
 use rand::Rng;
 
+use std::fs::rename;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
 use rand::thread_rng;
 
+use bincode::serialize;
 use commons::channel::Receiver;
+use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 
@@ -135,6 +138,12 @@ fn gather(
     thread_rng().shuffle(&mut new_sample);
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}",
            total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive);
+    // Create a snapshot for continous training
+    let filename = "latest_sample.bin".to_string() + "_WRITING";
+    write_all(&filename, &serialize(&(version, new_sample.clone())).unwrap())
+        .expect("Failed to write the sample set to file for snapshot");
+    rename(filename, "latest_sample.bin".to_string()).unwrap();
+    // Send the sample to the handler
     handler(new_sample, new_sample_buffer, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);

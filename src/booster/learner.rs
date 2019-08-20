@@ -92,7 +92,6 @@ impl TreeNode {
 pub struct Learner {
     bins: Vec<Bins>,
     num_features:   usize,
-    num_examples_before_shrink: usize,
     _default_gamma: f32,
     min_gamma: f32,
 
@@ -123,13 +122,11 @@ impl Learner {
         min_gamma: f32,
         default_gamma: f32,
         num_features: usize,
-        num_examples_before_shrink: u32,
         bins: Vec<Bins>,
     ) -> Learner {
         let mut learner = Learner {
             bins: bins,
             num_features: num_features.clone(),
-            num_examples_before_shrink: num_examples_before_shrink as usize,
             _default_gamma: default_gamma.clone(),
             min_gamma: min_gamma,
 

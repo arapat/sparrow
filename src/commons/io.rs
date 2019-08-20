@@ -192,7 +192,7 @@ pub fn clear_s3_bucket(region: &str, bucket: &str, exp_name: &str) {
 
     // List out contents of directory and delete all objects
     let results = bucket.list(exp_name, None).unwrap();
-    for (list, code) in results {
+    for (list, _) in results {
         for obj in list.contents {
             bucket.delete_object(&obj.key).unwrap();
         }

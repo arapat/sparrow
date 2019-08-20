@@ -214,12 +214,9 @@ pub fn training(config_file: String) {
             write_s3(REGION, BUCKET, s3_path.as_str(), FILENAME, &serialize(&bins).unwrap());
             bins
         } else {
-            let mut bins = None;
-            loop {
+            let mut bins = load_s3(REGION, BUCKET, s3_path.as_str(), FILENAME);
+            while bins.is_none() {
                 bins = load_s3(REGION, BUCKET, s3_path.as_str(), FILENAME);
-                if bins.is_some() {
-                    break
-                }
             }
             let bins = deserialize(&bins.unwrap().0).unwrap();
             {
@@ -228,44 +225,6 @@ pub fn training(config_file: String) {
                 file_buffer.write(json.as_ref()).unwrap();
             }
             bins
-        }
-    };
-    let validate_set1: Vec<Example> = {
-        if false {
-            let mut loader = SerialStorage::new(
-                config.testing_filename.clone(),
-                config.num_testing_examples,
-                config.num_features,
-                true,
-                config.positive.clone(),
-                Some(bins.clone()),
-            );
-            let mut ret = Vec::with_capacity(config.num_testing_examples);
-            while ret.len() < config.num_testing_examples {
-                ret.extend(loader.read(config.batch_size));
-            }
-            ret
-        } else {
-            vec![]
-        }
-    };
-    let validate_set2: Vec<Example> = {
-        if false {
-            let mut loader = SerialStorage::new(
-                config.training_filename.clone(),
-                config.num_examples,
-                config.num_features,
-                true,
-                config.positive.clone(),
-                Some(bins.clone()),
-            );
-            let mut ret = Vec::with_capacity(config.num_examples);
-            while ret.len() < config.num_examples {
-                ret.extend(loader.read(config.batch_size));
-            }
-            ret
-        } else {
-            vec![]
         }
     };
     let current_sample_version = Arc::new(RwLock::new(0));
@@ -290,7 +249,6 @@ pub fn training(config_file: String) {
             config.num_iterations,
             config.num_features,
             config.min_gamma,
-            config.max_trials_before_shrink,
             buffer_loader,
             // serial_training_loader,
             bins,
@@ -302,7 +260,7 @@ pub fn training(config_file: String) {
         );
         booster.enable_network(config.local_name, config.port);
         booster.set_root_tree();
-        booster.training(training_perf_mon.get_duration(), validate_set1, validate_set2);
+        booster.training(training_perf_mon.get_duration());
     } else { // if config.sampler_scanner == "sampler" {
         info!("Starting the model sync.");
         start_model_sync(

@@ -67,8 +67,8 @@ impl SerialStorage {
                filename, size, feature_size);
         let (in_memory, memory_buffer) = {
             if filename.starts_with("sample.bin") {
-                let (version, new_sample): VersionedSample =
-                                           deserialize(read_all(&filename).as_ref()).unwrap();
+                let (_version, new_sample): VersionedSample =
+                    deserialize(read_all(&filename).as_ref()).unwrap();
                 (true, new_sample.iter().map(|t| t.0.clone()).collect())
             } else {
                 (false, vec![])

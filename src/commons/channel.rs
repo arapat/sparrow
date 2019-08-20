@@ -115,6 +115,7 @@ impl<T> Sender<T> {
         succeed
     }
 
+    #[allow(dead_code)]
     pub fn is_full(&self) -> bool {
         self.sender.is_full()
     }

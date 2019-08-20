@@ -45,16 +45,15 @@ pub fn start_model_sync(
     start_network_only_recv(name.as_ref(), remote_ips, port, local_s);
     upload_model(&Tree::new(tree_size, 0.0, 0.0), &"".to_string(), default_gamma, &exp_name);
     debug!("Starting the receive models module");
-    let bounded_sender = bounded_local_s.clone();
     spawn(move || {
         loop {
-            bounded_sender.send(local_r.recv().unwrap());
+            bounded_local_s.send(local_r.recv().unwrap());
         }
     });
     let num_machines = remote_ips.len();
     spawn(move || {
-        receive_models(
-            num_machines, bounded_local_r, bounded_local_s, next_model, default_gamma,
+        model_sync_main(
+            num_machines, bounded_local_r, next_model, default_gamma,
             current_sample_version, &exp_name);
     });
 }
@@ -81,6 +80,25 @@ pub fn download_model(exp_name: &String) -> Option<(Model, String, f32)> {
 }
 
 
+pub fn download_assignments(exp_name: &String) -> Option<Vec<Option<usize>>> {
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
+    let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME);
+    // debug!("model sync, finished, download assignments");
+    if ret.is_none() {
+        // debug!("model sync, download assignments, failed");
+        return None;
+    }
+    let (data, code) = ret.unwrap();
+    if code == 200 {
+        // debug!("model sync, download assignments, succeed");
+        Some(deserialize(&data).unwrap())
+    } else {
+        debug!("model sync, download assignments, failed with return code {}", code);
+        None
+    }
+}
+
+
 // Server upload models
 fn upload_model(model: &Model, sig: &String, gamma: f32, exp_name: &String) -> bool {
     let data = (model.clone(), sig.clone(), gamma);
@@ -89,10 +107,9 @@ fn upload_model(model: &Model, sig: &String, gamma: f32, exp_name: &String) -> b
 }
 
 
-fn receive_models(
+fn model_sync_main(
     num_machines: usize,
     receiver: Receiver<ModelSig>,
-    sender:   Sender<ModelSig>,
     next_model_sender: Sender<Model>,
     default_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
@@ -250,25 +267,6 @@ fn receive_models(
             }
             node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
         }
-    }
-}
-
-
-pub fn download_assignments(exp_name: &String) -> Option<Vec<Option<usize>>> {
-    let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
-    let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME);
-    // debug!("model sync, finished, download assignments");
-    if ret.is_none() {
-        // debug!("model sync, download assignments, failed");
-        return None;
-    }
-    let (data, code) = ret.unwrap();
-    if code == 200 {
-        // debug!("model sync, download assignments, succeed");
-        Some(deserialize(&data).unwrap())
-    } else {
-        debug!("model sync, download assignments, failed with return code {}", code);
-        None
     }
 }
 

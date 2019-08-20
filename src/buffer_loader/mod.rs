@@ -55,7 +55,7 @@ pub struct BufferLoader {
     sampling_signal_channel: Sender<Signal>,
 
     ess: f32,
-    min_ess: f32,
+    _min_ess: f32,
     curr_example: usize,
     sampling_pm: PerformanceMonitor,
 }
@@ -114,7 +114,7 @@ impl BufferLoader {
             sampling_signal_channel: sampling_signal_channel,
 
             ess: 0.0,
-            min_ess: min_ess.unwrap_or(0.0),
+            _min_ess: min_ess.unwrap_or(0.0),
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
@@ -236,9 +236,8 @@ impl BufferLoader {
 /// Update the scores of the examples using `model`
 fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
     data.par_iter_mut().for_each(|example| {
-        let (mut curr_weight, curr_score, mut curr_version, mut base_version) = example.1;
+        let (_curr_weight, curr_score, mut curr_version, mut base_version) = example.1;
         if base_version != model.base_version {
-            curr_weight = 1.0;
             curr_version = base_version;  // reset score
             base_version = model.base_version;
         }

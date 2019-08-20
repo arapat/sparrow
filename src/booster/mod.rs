@@ -21,10 +21,8 @@ use commons::channel::Sender;
 use model_sync::download_assignments;
 use model_sync::download_model;
 use tree::Tree;
-use tree::UpdateList;
 use self::learner::get_base_node;
 use self::learner::Learner;
-use super::Example;
 
 
 /// The boosting algorithm. It contains two functions, one for starting
@@ -58,8 +56,6 @@ impl Boosting {
     /// Create a boosting training class.
     ///
     /// * `num_iterations`: the number of boosting iteration. If it equals to 0, then the algorithm runs indefinitely.
-    /// * `max_trials_before_shrink`: if cannot find any valid weak rules after scanning `max_trials_before_shrink` number of
-    /// examples, shrinking the value of the targetting edge `gamma` of the weak rule.
     /// * `training_loader`: the double-buffered data loader that provides examples to the algorithm.
     /// over multiple workers, it might be a subset of the full feature set.
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
@@ -69,7 +65,6 @@ impl Boosting {
         num_iterations: usize,
         num_features: usize,
         min_gamma: f32,
-        max_trials_before_shrink: u32,
         training_loader: BufferLoader,
         // serial_training_loader: SerialStorage,
         bins: Vec<Bins>,
@@ -79,10 +74,9 @@ impl Boosting {
         save_process: bool,
         save_interval: usize,
     ) -> Boosting {
-        let mut training_loader = training_loader;
         // TODO: make num_cadid a paramter
         let learner = Learner::new(
-            min_gamma, default_gamma, num_features, max_trials_before_shrink, bins);
+            min_gamma, default_gamma, num_features, bins);
 
         // add root node for balancing labels
         // let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);
@@ -129,8 +123,15 @@ impl Boosting {
         let max_sample_size = self.max_sample_size;
         let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
         let index = self.model.add_node(-1, 0, 0, false, base_pred, base_gamma);
-        info!("scanner, added new rule, {}, {}, {}",
-              self.model.size(), max_sample_size, max_sample_size);
+        let index = {
+            if index.is_some() {
+                index.unwrap()
+            } else {
+                0
+            }
+        };
+        info!("scanner, added new rule, {}, {}, {}, {}",
+              self.model.size(), max_sample_size, max_sample_size, index);
         self.try_send_model();
     }
 
@@ -155,8 +156,6 @@ impl Boosting {
     pub fn training(
         &mut self,
         prep_time: f32,
-        _validate_set1: Vec<Example>,
-        _validate_set2: Vec<Example>,
     ) {
         info!("Start training.");
 
@@ -165,20 +164,6 @@ impl Boosting {
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
-        /*
-        let mut validate_w1: Vec<f32> = {
-            validate_set1.iter()
-                        .map(|example| {
-                            get_weight(example, self.model[0].get_leaf_prediction(example))
-                        }).collect()
-        };
-        let mut validate_w2: Vec<f32> = {
-            validate_set2.iter()
-                        .map(|example| {
-                            get_weight(example, self.model[0].get_leaf_prediction(example))
-                        }).collect()
-        };
-        */
         let mut iteration = 0;
         let mut is_gamma_significant = true;
         let mut total_data_size = 0;
@@ -200,20 +185,6 @@ impl Boosting {
 
             if new_rule.is_some() {
                 let new_rule = new_rule.unwrap();
-                /*
-                if validate_set1.len() > 0 {
-                    validate_w1.par_iter_mut()
-                              .zip(validate_set1.par_iter())
-                              .for_each(|(w, example)| {
-                                  *w *= get_weight(example, new_rule.get_leaf_prediction(example));
-                              });
-                    validate_w2.par_iter_mut()
-                              .zip(validate_set2.par_iter())
-                              .for_each(|(w, example)| {
-                                  *w *= get_weight(example, new_rule.get_leaf_prediction(example));
-                              });
-                }
-                */
                 new_rule.write_log();
                 let index = self.model.add_node(
                     new_rule.prt_index as i32,
@@ -223,8 +194,15 @@ impl Boosting {
                     new_rule.predict,
                     new_rule.gamma,
                 );
-                info!("scanner, added new rule, {}, {}, {}",
-                      self.model.size(), new_rule.num_scanned, total_data_size);
+                let index = {
+                    if index.is_some() {
+                        index.unwrap()
+                    } else {
+                        0
+                    }
+                };
+                info!("scanner, added new rule, {}, {}, {}, {}",
+                      self.model.size(), new_rule.num_scanned, total_data_size, index);
 
                 // post updates
                 self.try_send_model();

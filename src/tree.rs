@@ -181,6 +181,7 @@ impl Tree {
     }
     */
 
+    #[allow(dead_code)]
     pub fn get_prediction_tree(&self, data: &Example) -> f32 {
         let feature = &(data.feature);
         let mut queue = VecDeque::new();
