@@ -10,6 +10,7 @@ use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
 
+use commons::channel;
 use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_weight;
@@ -52,7 +53,11 @@ pub struct BufferLoader {
     new_examples: LockedBuffer,
     gatherer: Gatherer,
     loader: Loader,
-    sampling_signal_channel: Sender<Signal>,
+    sampling_signal_s: Sender<Signal>,
+    pub sampling_signal_r: Receiver<Signal>,
+    pub sampled_examples_s: Sender<((ExampleWithScore, u32), u32)>,
+    _sampled_examples_r: Receiver<((ExampleWithScore, u32), u32)>,
+    pub current_sample_version: Arc<RwLock<usize>>,
 
     ess: f32,
     _min_ess: f32,
@@ -74,14 +79,12 @@ impl BufferLoader {
     pub fn new(
         size: usize,
         batch_size: usize,
+        channel_size: usize,
         sampling_mode: String,
-        gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
-        sampling_signal_channel: Sender<Signal>,
         sleep_duration: usize,
         init_block: bool,
         min_ess: Option<f32>,
         sampler_scanner: String,
-        current_sample_version: Arc<RwLock<usize>>,
         exp_name: String,
     ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
@@ -97,10 +100,16 @@ impl BufferLoader {
                 }
             }
         };
+        // Strata -> BufferLoader
+        let (sampled_examples_s, sampled_examples_r) =
+            channel::bounded(channel_size, "gather-samples");
+        let current_sample_version = Arc::new(RwLock::new(0));
         let gatherer = Gatherer::new(
-            gather_new_sample, size.clone(), new_examples.clone(),
-            current_sample_version, exp_name.clone());
+            sampled_examples_r.clone(), size.clone(), new_examples.clone(),
+            current_sample_version.clone(), exp_name.clone());
         let loader = Loader::new(new_examples.clone(), sleep_duration, exp_name);
+        // BufferLoader -> Strata
+        let (sampling_signal_s, sampling_signal_r) = channel::bounded(10, "sampling-signal");
         let mut buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
@@ -111,14 +120,18 @@ impl BufferLoader {
             new_examples: new_examples,
             gatherer: gatherer,
             loader: loader,
-            sampling_signal_channel: sampling_signal_channel,
+            sampled_examples_s: sampled_examples_s,
+            _sampled_examples_r: sampled_examples_r,
+            sampling_signal_s: sampling_signal_s,
+            sampling_signal_r: sampling_signal_r,
+            current_sample_version: current_sample_version,
 
             ess: 0.0,
             _min_ess: min_ess.unwrap_or(0.0),
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
-        buffer_loader.sampling_signal_channel.send(Signal::START);
+        buffer_loader.sampling_signal_s.send(Signal::START);
         match sampler_scanner.to_lowercase().as_str() {
             "sampler" => {
                 buffer_loader.gatherer.run(sample_mode.clone());

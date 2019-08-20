@@ -89,6 +89,7 @@ impl TreeNode {
 /// The objective of `Learner` is to find a weak rule that satisfies the condition of
 /// the stopping rule.
 // [i][k][j][rule_id] => bin i slot j candidate-node k
+#[derive(Serialize, Deserialize)]
 pub struct Learner {
     bins: Vec<Bins>,
     num_features:   usize,

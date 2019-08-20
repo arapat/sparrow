@@ -27,35 +27,68 @@ pub const S3_PATH_ASSIGNS:  &str = "sparrow-assigns/";
 pub const ASSIGN_FILENAME: &str = "assign.bin";
 
 
-pub fn start_model_sync(
+pub struct ModelSync {
     tree_size: usize,
     name: String,
-    remote_ips: &Vec<String>,
+    remote_ips: Vec<String>,
     port: u16,
     next_model: Sender<Model>,
     default_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
     exp_name: String,
-) {
-    // TODO: make K a config parameter
-    const K: usize = 5;
-    let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
-        mpsc::channel();
-    let (bounded_local_s, bounded_local_r) = bounded(K, "model-patches");
-    start_network_only_recv(name.as_ref(), remote_ips, port, local_s);
-    upload_model(&Tree::new(tree_size, 0.0, 0.0), &"".to_string(), default_gamma, &exp_name);
-    debug!("Starting the receive models module");
-    spawn(move || {
-        loop {
-            bounded_local_s.send(local_r.recv().unwrap());
+}
+
+
+impl ModelSync {
+    pub fn new(
+        tree_size: usize,
+        name: String,
+        remote_ips: Vec<String>,
+        port: u16,
+        next_model: Sender<Model>,
+        default_gamma: f32,
+        current_sample_version: Arc<RwLock<usize>>,
+        exp_name: String,
+    ) -> ModelSync {
+        ModelSync {
+            tree_size: tree_size,
+            name: name,
+            remote_ips: remote_ips,
+            port: port,
+            next_model: next_model,
+            default_gamma: default_gamma,
+            current_sample_version: current_sample_version,
+            exp_name: exp_name
         }
-    });
-    let num_machines = remote_ips.len();
-    spawn(move || {
-        model_sync_main(
-            num_machines, bounded_local_r, next_model, default_gamma,
-            current_sample_version, &exp_name);
-    });
+    }
+
+    pub fn start(&self) {
+        // TODO: make K a config parameter
+        const K: usize = 5;
+        let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
+            mpsc::channel();
+        let (bounded_local_s, bounded_local_r) = bounded(K, "model-patches");
+        start_network_only_recv(self.name.as_ref(), &self.remote_ips, self.port, local_s);
+        upload_model(
+            &Tree::new(self.tree_size, 0.0, 0.0), &"".to_string(), self.default_gamma,
+            &self.exp_name);
+        debug!("Starting the receive models module");
+        spawn(move || {
+            loop {
+                bounded_local_s.send(local_r.recv().unwrap());
+            }
+        });
+        let num_machines = self.remote_ips.len();
+        let next_model = self.next_model.clone();
+        let default_gamma = self.default_gamma;
+        let current_sample_version = self.current_sample_version.clone();
+        let exp_name = self.exp_name.clone();
+        spawn(move || {
+            model_sync_main(
+                num_machines, bounded_local_r, next_model, default_gamma,
+                current_sample_version, &exp_name);
+        });
+    }
 }
 
 

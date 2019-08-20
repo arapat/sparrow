@@ -49,8 +49,6 @@ mod model_sync;
 
 use std::io::Write;
 use std::path::Path;
-use std::sync::Arc;
-use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -58,12 +56,13 @@ use bincode::serialize;
 use bincode::deserialize;
 use booster::Boosting;
 use buffer_loader::BufferLoader;
-use model_sync::start_model_sync;
+use model_sync::ModelSync;
 use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
 
 use commons::bins::create_bins;
+use commons::bins::Bins;
 use commons::channel;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
@@ -171,26 +170,16 @@ pub struct Config {
 }
 
 
-pub fn training(config_file: String) {
-    let mut training_perf_mon = PerformanceMonitor::new();
-    training_perf_mon.start();
-
+fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
     // Load configurations
     let config: Config = serde_yaml::from_reader(
-        create_bufreader(&config_file)
+        create_bufreader(config_file)
     ).unwrap();
 
     // Clear S3 before running
     if config.sampling_mode.to_lowercase() == "s3" {
         clear_s3_bucket(REGION, BUCKET, config.exp_name.as_str());
     }
-
-    // Strata -> BufferLoader
-    let (sampled_examples_s, sampled_examples_r) = channel::bounded(config.channel_size, "gather-samples");
-    // BufferLoader -> Strata
-    let (sampling_signal_s, sampling_signal_r) = channel::bounded(10, "sampling-signal");
-    // Booster -> Strata
-    let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
 
     info!("Creating bins.");
     let s3_path = format!("{}/{}", config.exp_name, S3_PATH);
@@ -227,21 +216,29 @@ pub fn training(config_file: String) {
             bins
         }
     };
-    let current_sample_version = Arc::new(RwLock::new(0));
     info!("Starting the buffered loader.");
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
-        config.sampling_mode,
-        sampled_examples_r,
-        sampling_signal_s,
+        config.channel_size,
+        config.sampling_mode.clone(),
         config.sleep_duration,
         false, // config.sampler_scanner != "sampler",
         Some(config.min_ess),
         config.sampler_scanner.clone(),
-        current_sample_version.clone(),
         config.exp_name.clone(),
     );
+    (config, buffer_loader, bins)
+}
+
+
+pub fn training(config_file: String) {
+    let mut training_perf_mon = PerformanceMonitor::new();
+    training_perf_mon.start();
+
+    let (config, buffer_loader, bins) = prep_training(&config_file);
+    // Booster -> Strata
+    let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
     if config.sampler_scanner == "scanner" {
         info!("Starting the booster.");
         let mut booster = Boosting::new(
@@ -263,10 +260,11 @@ pub fn training(config_file: String) {
         booster.training(training_perf_mon.get_duration());
     } else { // if config.sampler_scanner == "sampler" {
         info!("Starting the model sync.");
-        start_model_sync(
-            config.num_iterations, config.local_name.clone(), &config.network, config.port,
-            next_model_s.clone(), config.default_gamma, current_sample_version.clone(),
-            config.exp_name.clone());
+        let model_sync = ModelSync::new(
+            config.num_iterations, config.local_name.clone(), config.network.clone(), config.port,
+            next_model_s.clone(), config.default_gamma,
+            buffer_loader.current_sample_version.clone(), config.exp_name.clone());
+        model_sync.start();
         info!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
             config.num_examples,
@@ -276,8 +274,8 @@ pub fn training(config_file: String) {
             config.disk_buffer_filename.as_ref(),
             config.num_assigners,
             config.num_samplers,
-            sampled_examples_s,
-            sampling_signal_r,
+            buffer_loader.sampled_examples_s.clone(),
+            buffer_loader.sampling_signal_r.clone(),
             next_model_r,
             config.channel_size,
             config.debug_mode,

@@ -45,22 +45,22 @@ impl Eq for F64 {}
 type WeightTableRead = evmap::ReadHandle<i8, Box<F64>>;
 
 pub struct StratifiedStorage {
+    counts_table_r: evmap::ReadHandle<i8, i32>,
+    weights_table_r: WeightTableRead,
+    updated_examples_s: Sender<ExampleWithScore>,
+    positive: String,
     // num_examples: usize,
     // feature_size: usize,
     // num_examples_per_block: usize,
     // disk_buffer_filename: String,
     // strata: Arc<RwLock<Strata>>,
     // stats_update_s: Sender<(i8, (i32, f64))>,
-    #[allow(dead_code)] counts_table_r: evmap::ReadHandle<i8, i32>,
-    #[allow(dead_code)] weights_table_r: WeightTableRead,
     // num_assigners: usize,
     // num_samplers: usize,
     // updated_examples_r: Receiver<ExampleWithScore>,
-    updated_examples_s: Sender<ExampleWithScore>,
     // sampled_examples_s: Sender<(ExampleWithScore, u32)>,
     // sampling_signal: Receiver<Signal>,
     // models: Receiver<Model>,
-    positive: String,
 }
 
 
@@ -199,22 +199,18 @@ impl StratifiedStorage {
         samplers.run();
 
         StratifiedStorage {
-            // num_examples: num_examples,
-            // feature_size: feature_size,
-            // num_examples_per_block: num_examples_per_block,
-            // disk_buffer_filename: String::from(disk_buffer_filename),
-            // strata: strata,
-            // stats_update_s: stats_update_s,
             counts_table_r: counts_table_r,
             weights_table_r: weights_table_r,
+            updated_examples_s: updated_examples_s,
+            positive: positive,
+            // strata: strata,
+            // stats_update_s: stats_update_s,
             // num_assigners: num_assigners,
             // num_samplers: num_samplers,
             // updated_examples_r: updated_examples_r,
-            updated_examples_s: updated_examples_s,
             // sampled_examples_s: sampled_examples,
             // sampling_signal: sampling_signal,
             // models: models,
-            positive: positive,
         }
     }
 
