@@ -56,7 +56,7 @@ use bincode::serialize;
 use bincode::deserialize;
 use booster::Boosting;
 use buffer_loader::BufferLoader;
-use model_sync::ModelSync;
+use model_sync::start_model_sync;
 use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
@@ -70,6 +70,7 @@ use commons::io::load_s3;
 use commons::io::write_s3;
 use commons::io::clear_s3_bucket;
 use commons::performance_monitor::PerformanceMonitor;
+use tree::Tree;
 
 // Types
 // TODO: decide TFeature according to the bin size
@@ -237,21 +238,19 @@ pub fn training(config_file: String) {
     training_perf_mon.start();
 
     let (config, buffer_loader, bins) = prep_training(&config_file);
-    // Booster -> Strata
-    let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
+    let init_tree = Tree::new(config.num_iterations, 0.0, 0.0);
     if config.sampler_scanner == "scanner" {
         info!("Starting the booster.");
         let mut booster = Boosting::new(
             config.exp_name.clone(),
+            init_tree.clone(),
             config.num_iterations,
             config.num_features,
             config.min_gamma,
             buffer_loader,
-            // serial_training_loader,
             bins,
             config.max_sample_size,
             config.default_gamma,
-            next_model_s,
             config.save_process,
             config.save_interval,
         );
@@ -260,13 +259,15 @@ pub fn training(config_file: String) {
         booster.training(training_perf_mon.get_duration());
     } else { // if config.sampler_scanner == "sampler" {
         info!("Starting the model sync.");
-        let model_sync = ModelSync::new(
-            config.num_iterations, config.local_name.clone(), config.network.clone(), config.port,
-            next_model_s.clone(), config.default_gamma,
+        // Pass the models between the network to the Strata
+        let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
+        start_model_sync(
+            init_tree.clone(), config.local_name.clone(), config.network.clone(),
+            config.port, next_model_s, config.default_gamma,
             buffer_loader.current_sample_version.clone(), config.exp_name.clone());
-        model_sync.start();
         info!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
+            init_tree,
             config.num_examples,
             config.num_features,
             config.positive.clone(),

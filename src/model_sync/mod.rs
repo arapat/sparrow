@@ -8,9 +8,7 @@ use bincode::serialize;
 use bincode::deserialize;
 use commons::Model;
 use commons::ModelSig;
-use commons::channel::bounded;
 use commons::channel::Sender;
-use commons::channel::Receiver;
 use commons::io::create_bufwriter;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
@@ -26,9 +24,8 @@ pub const MODEL_FILENAME: &str = "model.bin";
 pub const S3_PATH_ASSIGNS:  &str = "sparrow-assigns/";
 pub const ASSIGN_FILENAME: &str = "assign.bin";
 
-
-pub struct ModelSync {
-    tree_size: usize,
+pub fn start_model_sync(
+    init_tree: Tree,
     name: String,
     remote_ips: Vec<String>,
     port: u16,
@@ -36,59 +33,16 @@ pub struct ModelSync {
     default_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
     exp_name: String,
-}
-
-
-impl ModelSync {
-    pub fn new(
-        tree_size: usize,
-        name: String,
-        remote_ips: Vec<String>,
-        port: u16,
-        next_model: Sender<Model>,
-        default_gamma: f32,
-        current_sample_version: Arc<RwLock<usize>>,
-        exp_name: String,
-    ) -> ModelSync {
-        ModelSync {
-            tree_size: tree_size,
-            name: name,
-            remote_ips: remote_ips,
-            port: port,
-            next_model: next_model,
-            default_gamma: default_gamma,
-            current_sample_version: current_sample_version,
-            exp_name: exp_name
-        }
-    }
-
-    pub fn start(&self) {
-        // TODO: make K a config parameter
-        const K: usize = 5;
-        let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
-            mpsc::channel();
-        let (bounded_local_s, bounded_local_r) = bounded(K, "model-patches");
-        start_network_only_recv(self.name.as_ref(), &self.remote_ips, self.port, local_s);
-        upload_model(
-            &Tree::new(self.tree_size, 0.0, 0.0), &"".to_string(), self.default_gamma,
-            &self.exp_name);
-        debug!("Starting the receive models module");
-        spawn(move || {
-            loop {
-                bounded_local_s.send(local_r.recv().unwrap());
-            }
-        });
-        let num_machines = self.remote_ips.len();
-        let next_model = self.next_model.clone();
-        let default_gamma = self.default_gamma;
-        let current_sample_version = self.current_sample_version.clone();
-        let exp_name = self.exp_name.clone();
-        spawn(move || {
-            model_sync_main(
-                num_machines, bounded_local_r, next_model, default_gamma,
-                current_sample_version, &exp_name);
-        });
-    }
+) {
+    upload_model(&init_tree, &"init".to_string(), default_gamma, &exp_name);
+    let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
+        mpsc::channel();
+    start_network_only_recv(name.as_ref(), &remote_ips, port, local_s);
+    spawn(move || {
+        model_sync_main(
+            init_tree, remote_ips.len(), local_r, next_model, default_gamma,
+            current_sample_version, &exp_name);
+    });
 }
 
 
@@ -141,8 +95,9 @@ fn upload_model(model: &Model, sig: &String, gamma: f32, exp_name: &String) -> b
 
 
 fn model_sync_main(
+    model: Model,
     num_machines: usize,
-    receiver: Receiver<ModelSig>,
+    receiver: mpsc::Receiver<ModelSig>,
     next_model_sender: Sender<Model>,
     default_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
@@ -151,32 +106,36 @@ fn model_sync_main(
     // TODO: make duration and fraction config parameters
     const DURATION: f32 = 15.0;
     const FRACTION: f32 = 0.1;
-    let mut model_sig = "".to_string();
-    let mut model = Tree::new(1, 0.0, 0.0);
-    // let mut gamma = HashMap::new();
-    let mut global_timer = PerformanceMonitor::new();
-    let mut timer = PerformanceMonitor::new();
+    // State variables
+    // TODO: Infer all state variables based on `model`
+    let mut model = model;
+    let mut model_sig = "init".to_string();
     let mut gamma = default_gamma.clone();
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
+    let mut node_status = vec![(0, default_gamma, None); model.tree_size];
+    let mut worker_assign = vec![None; num_machines];
+    // Performance variables
+    let mut global_timer = PerformanceMonitor::new();
+    let mut timer = PerformanceMonitor::new();
     let mut total_packets = 0;
     let mut rejected_packets = 0;
     let mut failed_searches = 0;
     let mut num_updates_packs = vec![0; num_machines];
     let mut num_updates_rejs  = vec![0; num_machines];
     let mut num_updates_nodes = vec![0; num_machines];
-    let mut node_status = vec![(0, default_gamma, None)];
     let mut node_sum_gamma_sq = vec![0.0];
     let mut node_timestamp = vec![0.0];
-    let mut worker_assign = vec![Some(0); num_machines];
     timer.start();
     global_timer.start();
-    let mut bootup = true;
+    // initialize state variables based on `model`
+    for i in 0..min(node_status.len(), worker_assign.len()) {
+        node_status[i] = (model.depth[i], gamma, Some(i));
+        worker_assign[i] = Some(i);
+    }
     loop {
         // adjust gamma
-        if bootup && timer.get_duration() >= DURATION + 15.0 ||
-                !bootup && timer.get_duration() >= DURATION {
-            bootup = false;
+        if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
             let threshold = min(num_machines, node_status.len()) as f32 * 0.5;
             if failed_searches >= threshold as usize {
@@ -227,7 +186,7 @@ fn model_sync_main(
             &mut node_status, &mut worker_assign, gamma, exp_name,
             &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         let packet = receiver.try_recv();
-        if packet.is_none() {
+        if packet.is_err() {
             continue;
         }
         let (patch, remote_gamma, sample_version, old_sig, new_sig) = packet.unwrap();
@@ -270,7 +229,7 @@ fn model_sync_main(
                         node_sum_gamma_sq[node_id] / duration);
             }
         } else {
-            let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "");
+            let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
             num_updates_nodes[machine_id] += patch.size;
             model_sig = new_sig;
             next_model_sender.send(model.clone());

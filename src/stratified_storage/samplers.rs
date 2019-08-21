@@ -13,7 +13,6 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
 use commons::Model;
 use commons::Signal;
-use tree::Tree;
 use super::Strata;
 use super::WeightTableRead;
 use super::SPEED_TEST;
@@ -54,6 +53,7 @@ pub struct Samplers {
 // start signal, in which case we would loss control of the total number of sampler threads
 impl Samplers {
     pub fn new(
+        init_model: Model,
         strata: Arc<RwLock<Strata>>,
         sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         updated_examples: Sender<ExampleWithScore>,
@@ -68,7 +68,7 @@ impl Samplers {
             sampled_examples: sampled_examples,
             updated_examples: updated_examples,
             next_model: next_model,
-            model: Arc::new(RwLock::new(Tree::new(1, 0.0, 0.0))),
+            model: Arc::new(RwLock::new(init_model)),
             sampling_signal: Arc::new(RwLock::new(Signal::STOP)),
             stats_update_s: stats_update_s,
             weights_table: weights_table,

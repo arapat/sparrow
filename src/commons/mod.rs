@@ -72,26 +72,6 @@ pub fn get_bound(sum_c: f32, sum_c_squared: f32) -> f32 {
 // Computational functions
 
 #[inline]
-#[allow(dead_code)]
-pub fn max<T>(a: T, b: T) -> T where T: PartialOrd {
-    if a > b {
-        a
-    } else {
-        b
-    }
-}
-
-#[inline]
-#[allow(dead_code)]
-pub fn min<T>(a: T, b: T) -> T where T: PartialOrd {
-    if a > b {
-        b
-    } else {
-        a
-    }
-}
-
-#[inline]
 pub fn is_zero(a: f32) -> bool {
     get_sign(a as f64) == 0
 }

@@ -17,10 +17,8 @@ use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelSig;
 use commons::bins::Bins;
-use commons::channel::Sender;
 use model_sync::download_assignments;
 use model_sync::download_model;
-use tree::Tree;
 use self::learner::get_base_node;
 use self::learner::Learner;
 
@@ -43,7 +41,6 @@ pub struct Boosting {
     local_id: usize,
     last_remote_length: usize,
 
-    sampler_channel_s: Sender<Model>,
     persist_id: u32,
     persist_file_buffer: Option<BufWriter<File>>,
     save_interval: usize,
@@ -62,6 +59,7 @@ impl Boosting {
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
         exp_name: String,
+        init_model: Model,
         num_iterations: usize,
         num_features: usize,
         min_gamma: f32,
@@ -70,7 +68,6 @@ impl Boosting {
         bins: Vec<Bins>,
         max_sample_size: usize,
         default_gamma: f32,
-        sampler_channel_s: Sender<Model>,
         save_process: bool,
         save_interval: usize,
     ) -> Boosting {
@@ -80,7 +77,6 @@ impl Boosting {
 
         // add root node for balancing labels
         // let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);
-        let model = Tree::new(num_iterations + 1, 0.0, 0.0);  // base_pred, base_gamma);
 
         let persist_file_buffer = {
             if save_process {
@@ -95,7 +91,7 @@ impl Boosting {
             training_loader: training_loader,
 
             learner: learner,
-            model: model,
+            model: init_model,
             base_model_sig: "".to_string(),
             base_model_size: 0,
             last_sent_model_sig: ".".to_string(),
@@ -105,7 +101,6 @@ impl Boosting {
             local_id: 0,
             last_remote_length: 0,
 
-            sampler_channel_s: sampler_channel_s,
             persist_id: 0,
             persist_file_buffer: persist_file_buffer,
             save_interval: save_interval,
@@ -132,7 +127,6 @@ impl Boosting {
         };
         info!("scanner, added new rule, {}, {}, {}, {}",
               self.model.size(), max_sample_size, max_sample_size, index);
-        self.try_send_model();
     }
 
 
@@ -205,7 +199,6 @@ impl Boosting {
                       self.model.size(), new_rule.num_scanned, total_data_size, index);
 
                 // post updates
-                self.try_send_model();
                 is_gamma_significant = self.learner.is_gamma_significant();
                 self.learner.reset();
                 if self.model.size() % self.save_interval == 0 {
@@ -302,13 +295,4 @@ impl Boosting {
             buf.write(json.as_ref()).unwrap();
         }
     }
-
-    fn try_send_model(&mut self) {
-        // TODO: Activate network later
-        // if let Some(ref mut network_sender) = self.network_sender {
-        //     network_sender.send((self.model.clone(), self.sum_gamma)).unwrap();
-        // }
-        self.sampler_channel_s.try_send(self.model.clone());
-    }
-
 }

@@ -25,10 +25,10 @@ pub struct Tree {
     threshold:      Vec<TFeature>,
     evaluation:     Vec<bool>,
     predicts:       Vec<f32>,
-    leaf_depth:     Vec<usize>,
     latest_child:   Vec<usize>,
     is_active:      Vec<bool>,
     num_active:     Vec<usize>,
+    pub depth:      Vec<usize>,
     pub last_gamma:     f32,
     pub base_version:   usize,
     pub model_updates:  UpdateList,
@@ -44,7 +44,7 @@ impl Clone for Tree {
             threshold:      self.threshold.clone(),
             evaluation:     self.evaluation.clone(),
             predicts:       self.predicts.clone(),
-            leaf_depth:     self.leaf_depth.clone(),
+            depth:          self.depth.clone(),
             latest_child:   self.latest_child.clone(),
             is_active:      self.is_active.clone(),
             num_active:     self.num_active.clone(),
@@ -65,7 +65,7 @@ impl Tree {
             threshold:      Vec::with_capacity(max_nodes),
             evaluation:     Vec::with_capacity(max_nodes),
             predicts:       Vec::with_capacity(max_nodes),
-            leaf_depth:     Vec::with_capacity(max_nodes),
+            depth:          Vec::with_capacity(max_nodes),
             latest_child:   Vec::with_capacity(max_nodes),
             is_active:      Vec::with_capacity(max_nodes),
             num_active:     Vec::with_capacity(max_nodes),
@@ -91,7 +91,7 @@ impl Tree {
             } else if parent == 0 {
                 1
             } else {
-                self.leaf_depth[parent as usize] + 1
+                self.depth[parent as usize] + 1
             }
         };
         let node = self.find_child_node(parent, feature, threshold, evaluation);
@@ -107,7 +107,7 @@ impl Tree {
                 self.threshold.push(threshold);
                 self.evaluation.push(evaluation);
                 self.predicts.push(pred_value);
-                self.leaf_depth.push(depth);
+                self.depth.push(depth);
                 self.num_active.push(0);
                 let index = self.tree_size;
                 self.latest_child.push(index);
@@ -246,7 +246,7 @@ impl Tree {
         self.base_version = self.model_updates.size;
         node_indices.iter()
                     .filter(|t| t.is_some())
-                    .map(|t| self.leaf_depth[t.unwrap()])
+                    .map(|t| self.depth[t.unwrap()])
                     .collect()
     }
 

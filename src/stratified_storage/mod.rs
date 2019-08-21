@@ -109,6 +109,7 @@ impl StratifiedStorage {
     /// send its next sampled example to the memory buffer. After an example is processed, the `Sampler` also
     /// updates its weight, sends it to right stratum, and updates `Shared Weight Table` accordingly.
     pub fn new(
+        init_model: Model,
         num_examples: usize,
         feature_size: usize,
         positive: String,
@@ -186,6 +187,7 @@ impl StratifiedStorage {
             num_assigners,
         );
         let samplers = Samplers::new(
+            init_model,
             strata.clone(),
             sampled_examples.clone(),
             updated_examples_s.clone(),
