@@ -12,7 +12,6 @@ use commons::channel::Receiver;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
 use commons::Model;
-use commons::Signal;
 use super::Strata;
 use super::WeightTableRead;
 use super::SPEED_TEST;
@@ -41,10 +40,8 @@ pub struct Samplers {
     updated_examples: Sender<ExampleWithScore>,
     next_model: Receiver<Model>,
     model: Arc<RwLock<Model>>,
-    sampling_signal: Arc<RwLock<Signal>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
-    // sampling_signal_channel: Receiver<Signal>,
     num_threads: usize,
 }
 
@@ -60,7 +57,6 @@ impl Samplers {
         next_model: Receiver<Model>,
         stats_update_s: Sender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
-        _sampling_signal_channel: Receiver<Signal>,
         num_threads: usize,
     ) -> Samplers {
         Samplers {
@@ -69,10 +65,8 @@ impl Samplers {
             updated_examples: updated_examples,
             next_model: next_model,
             model: Arc::new(RwLock::new(init_model)),
-            sampling_signal: Arc::new(RwLock::new(Signal::STOP)),
             stats_update_s: stats_update_s,
             weights_table: weights_table,
-            // sampling_signal_channel: sampling_signal_channel,
             num_threads: num_threads,
         }
     }
@@ -91,44 +85,27 @@ impl Samplers {
             }
         });
 
-        // let signal_channel   = self.sampling_signal_channel.clone();
         let num_threads      = self.num_threads;
         let strata           = self.strata.clone();
         let sampled_examples = self.sampled_examples.clone();
         let updated_examples = self.updated_examples.clone();
         let model            = self.model.clone();
-        let sampling_signal  = self.sampling_signal.clone();
         let stats_update_s   = self.stats_update_s.clone();
         let weights_table    = self.weights_table.clone();
-        // TODO: This should be a feature only enable in the debugging mode
-        // spawn(move || {
-        //     while let Some(new_signal) = signal_channel.recv() {
-                // debug!("updating sampling signal, {:?}", new_signal);
-                let start = {
-                    let mut signal = sampling_signal.write().unwrap();
-                    // assert!(*signal != new_signal);
-                    *signal = Signal::START;  // new_signal;
-                    *signal == Signal::START
-                };
-                if start {
-                    for _ in 0..num_threads {
-                        let strata           = strata.clone();
-                        let sampled_examples = sampled_examples.clone();
-                        let updated_examples = updated_examples.clone();
-                        let model            = model.clone();
-                        let sampling_signal  = sampling_signal.clone();
-                        let stats_update_s   = stats_update_s.clone();
-                        let weights_table    = weights_table.clone();
-                        spawn(move || {
-                            sampler(
-                                strata, sampled_examples, updated_examples,
-                                model, sampling_signal, stats_update_s, weights_table,
-                            );
-                        });
-                    }
-                }
-        //     }
-        // });
+        for _ in 0..num_threads {
+            let strata           = strata.clone();
+            let sampled_examples = sampled_examples.clone();
+            let updated_examples = updated_examples.clone();
+            let model            = model.clone();
+            let stats_update_s   = stats_update_s.clone();
+            let weights_table    = weights_table.clone();
+            spawn(move || {
+                sampler(
+                    strata, sampled_examples, updated_examples,
+                    model, stats_update_s, weights_table,
+                );
+            });
+        }
     }
 }
 
@@ -138,8 +115,6 @@ fn sampler(
     sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
-    // TODO: remove sampling signal if serial sampling is removed
-    _sampling_signal: Arc<RwLock<Signal>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
 ) {
@@ -284,16 +259,5 @@ fn sampler(
             num_sampled = 0;
             pm_total.start();
         }
-
-        /*
-        TODO: set a flag to enable this block
-        {
-            let signal = sampling_signal.read().unwrap();
-            if *signal == Signal::STOP {
-                debug!("sampler exits");
-                break;
-            }
-        }
-        */
     }
 }

@@ -3,6 +3,7 @@ use std::sync::RwLock;
 
 use std::thread::spawn;
 
+use commons::channel;
 use commons::channel::Sender;
 use commons::channel::Receiver;
 use commons::ExampleWithScore;
@@ -14,6 +15,7 @@ use commons::get_weight;
 
 
 pub struct Assigners {
+    pub updated_examples_s: Sender<ExampleWithScore>,
     updated_examples_r: Receiver<ExampleWithScore>,
     strata: Arc<RwLock<Strata>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
@@ -23,12 +25,15 @@ pub struct Assigners {
 
 impl Assigners {
     pub fn new(
-        updated_examples_r: Receiver<ExampleWithScore>,
         strata: Arc<RwLock<Strata>>,
         stats_update_s: Sender<(i8, (i32, f64))>,
         num_threads: usize,
+        channel_size: usize,
     ) -> Assigners {
+        let (updated_examples_s, updated_examples_r) =
+            channel::bounded(channel_size, "updated-examples");
         Assigners {
+            updated_examples_s: updated_examples_s,
             updated_examples_r: updated_examples_r,
             strata: strata,
             stats_update_s: stats_update_s,

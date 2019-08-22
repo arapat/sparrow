@@ -5,18 +5,20 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 
+use bincode::serialize;
 use std::fs::remove_file;
 use super::bitmap::BitMap;
 
 // TODO: implement in-memory I/O buffer for both reading and writing
 
 
+#[derive(Serialize, Deserialize)]
 pub struct DiskBuffer {
     bitmap: BitMap,
     block_size: usize,
     capacity: usize,
     size: usize,
-    file: File,
+    #[serde(skip)] file: Option<File>,
     filename: String,
 }
 
@@ -34,7 +36,7 @@ impl DiskBuffer {
             block_size: block_size,
             capacity: capacity,
             size: 0,
-            file: file,
+            file: Some(file),
             filename: String::from(filename),
         }
     }
@@ -54,25 +56,31 @@ impl DiskBuffer {
         }
         assert!(self.size <= self.capacity);
         let offset = position * self.block_size;
-        self.file.seek(SeekFrom::Start(offset as u64)).expect(
+        let file = self.file.as_mut().unwrap();
+        file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while writing.", offset));
-        self.file.write_all(data).unwrap();
-        self.file.flush().unwrap();
+        file.write_all(data).unwrap();
+        file.flush().unwrap();
         position
     }
 
     pub fn read(&mut self, position: usize) -> Vec<u8> {
         assert!(position < self.size);
         let offset = position * self.block_size;
-        self.file.seek(SeekFrom::Start(offset as u64)).expect(
+        let file = self.file.as_mut().unwrap();
+        file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while reading.", offset));
         let mut block_buffer: Vec<u8> = vec![0; self.block_size];
-        self.file.read_exact(block_buffer.as_mut_slice()).expect(
+        file.read_exact(block_buffer.as_mut_slice()).expect(
             &format!("Read from disk failed. Disk buffer size is `{}`. Position to read is `{}`.",
                      self.size, position)
         );
         self.bitmap.mark_free(position);
         block_buffer
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        serialize(self).unwrap()
     }
 }
 

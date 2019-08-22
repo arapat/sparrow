@@ -1,4 +1,5 @@
 
+#[derive(Serialize, Deserialize)]
 pub struct BitMap {
     size: usize,
     is_free: Vec<i32>

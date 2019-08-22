@@ -34,7 +34,7 @@ pub struct Strata {
     disk_buffer: Arc<RwLock<DiskBuffer>>,
 
     in_queues: Arc<RwLock<HashMapSenders>>,
-    out_queues: Arc<RwLock<HashMapReceiver>>
+    out_queues: Arc<RwLock<HashMapReceiver>>,
 }
 
 
@@ -51,7 +51,7 @@ impl Strata {
             num_examples_per_block: num_examples_per_block,
             disk_buffer: Arc::new(RwLock::new(disk_buffer)),
             in_queues: Arc::new(RwLock::new(HashMap::new())),
-            out_queues: Arc::new(RwLock::new(HashMap::new()))
+            out_queues: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
@@ -86,6 +86,23 @@ impl Strata {
             out_queues.insert(index, out_queue.clone());
             (in_queue, out_queue)
         }
+    }
+
+    // pub fn serialize(&self) -> (usize, Vec<u8>, Vec<u8>, Vec<u8>) {
+    pub fn serialize(&self) -> Vec<u8> {
+        let ser_disk_buffer = {
+            let disk_buffer = self.disk_buffer.read().unwrap();
+            disk_buffer.serialize()
+        };
+        serialize(&(self.num_examples_per_block, ser_disk_buffer)).unwrap()
+        // let in_queues = {
+        //     let t = self.in_queues.read().unwrap();
+        //     serialize(&(*t)).unwrap()
+        // };
+        // let out_queues = {
+        //     let t = self.out_queues.read().unwrap();
+        //     serialize(&(*t)).unwrap()
+        // };
     }
 }
 

@@ -276,7 +276,6 @@ pub fn training(config_file: String) {
             config.num_assigners,
             config.num_samplers,
             buffer_loader.sampled_examples_s.clone(),
-            buffer_loader.sampling_signal_r.clone(),
             next_model_r,
             config.channel_size,
             config.debug_mode,

@@ -18,7 +18,6 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleInSampleSet;
 use commons::ExampleWithScore;
 use commons::Model;
-use commons::Signal;
 use self::gatherer::Gatherer;
 use self::loader::Loader;
 
@@ -53,8 +52,6 @@ pub struct BufferLoader {
     new_examples: LockedBuffer,
     gatherer: Gatherer,
     loader: Loader,
-    sampling_signal_s: Sender<Signal>,
-    pub sampling_signal_r: Receiver<Signal>,
     pub sampled_examples_s: Sender<((ExampleWithScore, u32), u32)>,
     _sampled_examples_r: Receiver<((ExampleWithScore, u32), u32)>,
     pub current_sample_version: Arc<RwLock<usize>>,
@@ -108,8 +105,6 @@ impl BufferLoader {
             sampled_examples_r.clone(), size.clone(), new_examples.clone(),
             current_sample_version.clone(), exp_name.clone());
         let loader = Loader::new(new_examples.clone(), sleep_duration, exp_name);
-        // BufferLoader -> Strata
-        let (sampling_signal_s, sampling_signal_r) = channel::bounded(10, "sampling-signal");
         let mut buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
@@ -122,8 +117,6 @@ impl BufferLoader {
             loader: loader,
             sampled_examples_s: sampled_examples_s,
             _sampled_examples_r: sampled_examples_r,
-            sampling_signal_s: sampling_signal_s,
-            sampling_signal_r: sampling_signal_r,
             current_sample_version: current_sample_version,
 
             ess: 0.0,
@@ -131,7 +124,6 @@ impl BufferLoader {
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
-        buffer_loader.sampling_signal_s.send(Signal::START);
         match sampler_scanner.to_lowercase().as_str() {
             "sampler" => {
                 buffer_loader.gatherer.run(sample_mode.clone());
