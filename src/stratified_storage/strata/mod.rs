@@ -100,14 +100,6 @@ impl Strata {
             disk_buffer.serialize()
         };
         serialize(&(self.num_examples_per_block, ser_disk_buffer)).unwrap()
-        // let in_queues = {
-        //     let t = self.in_queues.read().unwrap();
-        //     serialize(&(*t)).unwrap()
-        // };
-        // let out_queues = {
-        //     let t = self.out_queues.read().unwrap();
-        //     serialize(&(*t)).unwrap()
-        // };
     }
 }
 
