@@ -43,6 +43,7 @@ pub struct Samplers {
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
     num_threads: usize,
+    sampler_state: Arc<RwLock<bool>>,
 }
 
 
@@ -58,6 +59,7 @@ impl Samplers {
         stats_update_s: Sender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
         num_threads: usize,
+        sampler_state: Arc<RwLock<bool>>,
     ) -> Samplers {
         Samplers {
             strata: strata,
@@ -68,6 +70,7 @@ impl Samplers {
             stats_update_s: stats_update_s,
             weights_table: weights_table,
             num_threads: num_threads,
+            sampler_state: sampler_state,
         }
     }
 
@@ -92,6 +95,7 @@ impl Samplers {
         let model            = self.model.clone();
         let stats_update_s   = self.stats_update_s.clone();
         let weights_table    = self.weights_table.clone();
+        let sampler_state    = self.sampler_state.clone();
         for _ in 0..num_threads {
             let strata           = strata.clone();
             let sampled_examples = sampled_examples.clone();
@@ -99,10 +103,11 @@ impl Samplers {
             let model            = model.clone();
             let stats_update_s   = stats_update_s.clone();
             let weights_table    = weights_table.clone();
+            let sampler_state    = sampler_state.clone();
             spawn(move || {
                 sampler(
                     strata, sampled_examples, updated_examples,
-                    model, stats_update_s, weights_table,
+                    model, stats_update_s, weights_table, sampler_state,
                 );
             });
         }
@@ -117,6 +122,7 @@ fn sampler(
     model: Arc<RwLock<Model>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
+    sampler_state: Arc<RwLock<bool>>,
 ) {
     let mut pm_update = PerformanceMonitor::new();
     let mut pm_sample = PerformanceMonitor::new();
@@ -258,6 +264,13 @@ fn sampler(
             num_updated = 0;
             num_sampled = 0;
             pm_total.start();
+        }
+
+        {
+            let sampler_state = sampler_state.read().unwrap();
+            if *sampler_state == false {
+                break;
+            }
         }
     }
 }

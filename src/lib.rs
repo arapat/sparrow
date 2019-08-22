@@ -49,6 +49,8 @@ mod model_sync;
 
 use std::io::Write;
 use std::path::Path;
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -64,11 +66,12 @@ use testing::validate;
 use commons::bins::create_bins;
 use commons::bins::Bins;
 use commons::channel;
+use commons::io::clear_s3_bucket;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::load_s3;
+use commons::io::raw_read_all;
 use commons::io::write_s3;
-use commons::io::clear_s3_bucket;
 use commons::performance_monitor::PerformanceMonitor;
 use tree::Tree;
 
@@ -258,6 +261,7 @@ pub fn training(config_file: String) {
         booster.set_root_tree();
         booster.training(training_perf_mon.get_duration());
     } else { // if config.sampler_scanner == "sampler" {
+        let sampler_state = Arc::new(RwLock::new(true));
         info!("Starting the model sync.");
         // Pass the models between the network to the Strata
         let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
@@ -278,6 +282,7 @@ pub fn training(config_file: String) {
             buffer_loader.sampled_examples_s.clone(),
             next_model_r,
             config.channel_size,
+            sampler_state.clone(),
             config.debug_mode,
         );
         info!("Initializing the stratified structure.");
@@ -289,13 +294,14 @@ pub fn training(config_file: String) {
             bins.clone(),
         );
         loop {
-            sleep(Duration::from_secs(10));
-            let filename = format!("models/model_{}-v{}.json",
-                                   config.num_iterations, config.num_iterations);
-            if Path::new(&filename).exists() {
+            let filename = "status.txt".to_string();
+            if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
+                *(sampler_state.write().unwrap()) = false;
                 break;
             }
+            sleep(Duration::from_secs(10));
         }
+        sleep(Duration::from_secs(20));
     }
 }
 

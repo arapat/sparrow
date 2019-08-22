@@ -116,6 +116,7 @@ impl StratifiedStorage {
         sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         models: Receiver<Model>,
         channel_size: usize,
+        sampler_state: Arc<RwLock<bool>>,
         debug_mode: bool,
     ) -> StratifiedStorage {
         // Weights table
@@ -123,7 +124,8 @@ impl StratifiedStorage {
         let (weights_table_r, weights_table_w) = evmap::new();
         // Maintains all example on disk and in memory
         let strata = Strata::new(
-            num_examples, feature_size, num_examples_per_block, disk_buffer_filename);
+            num_examples, feature_size, num_examples_per_block, disk_buffer_filename,
+            sampler_state.clone());
         // Maintains weight tables
         let stats_update_s = start_update_weights_table(
             counts_table_r.clone(), counts_table_w, weights_table_r.clone(), weights_table_w,
@@ -146,12 +148,13 @@ impl StratifiedStorage {
             stats_update_s.clone(),
             weights_table_r.clone(),
             num_samplers,
+            sampler_state.clone(),
         );
         assigners.run();
         samplers.run();
 
         run_snapshot_thread(
-            "stratified.serde".to_string(), strata, counts_table_r, weights_table_r);
+            "stratified.serde".to_string(), strata, counts_table_r, weights_table_r, sampler_state);
 
         StratifiedStorage {
             updated_examples_s: assigners.updated_examples_s.clone(),
@@ -264,24 +267,31 @@ fn run_snapshot_thread(
     strata: Arc<RwLock<Strata>>,
     counts_table_r: CountTableRead,
     weights_table_r: WeightTableRead,
+    sampler_state: Arc<RwLock<bool>>,
 ) {
     spawn(move || {
         loop {
-            let ser_strata = {
-                let strata = strata.read().unwrap();
-                strata.serialize()
+            let state = {
+                *(sampler_state.read().unwrap())
             };
-            let ser_tables = {
-                let counts_table: HashMap<_, Vec<_>> =
-                    counts_table_r.map_into(|&k, vs| (k, vs.to_vec()));
-                let weights_table: HashMap<_, Vec<_>> =
-                    weights_table_r.map_into(|&k, vs| (k, vs.to_vec()));
-                serialize(&(counts_table, weights_table)).unwrap()
-            };
-            let data = serialize(&(ser_strata, ser_tables)).unwrap();
-            write_all(&filename, &data)
-                .expect("Failed to write the serialized stratified storage");
-            sleep(Duration::from_secs(60));
+            if !state {
+                let ser_strata = {
+                    let strata = strata.read().unwrap();
+                    strata.serialize()
+                };
+                let ser_tables = {
+                    let counts_table: HashMap<_, Vec<_>> =
+                        counts_table_r.map_into(|&k, vs| (k, vs.to_vec()));
+                    let weights_table: HashMap<_, Vec<_>> =
+                        weights_table_r.map_into(|&k, vs| (k, vs.to_vec()));
+                    serialize(&(counts_table, weights_table)).unwrap()
+                };
+                let data = serialize(&(ser_strata, ser_tables)).unwrap();
+                write_all(&filename, &data)
+                    .expect("Failed to write the serialized stratified storage");
+            } else {
+                sleep(Duration::from_secs(60));
+            }
         }
     });
 }

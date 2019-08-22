@@ -6,6 +6,7 @@ use bincode::deserialize;
 use commons::channel;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
+use commons::io::write_all;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -30,6 +31,7 @@ impl Stratum {
         index: i8,
         num_examples_per_block: usize,
         disk_buffer: Arc<RwLock<DiskBuffer>>,
+        sampler_state: Arc<RwLock<bool>>,
     ) -> Stratum {
         // memory buffer for incoming examples
         let (in_queue_s, in_queue_r) =
@@ -45,6 +47,7 @@ impl Stratum {
         {
             let in_queue_r = in_queue_r.clone();
             let disk_buffer = disk_buffer.clone();
+            let sampler_state = sampler_state.clone();
             spawn(move || {
                 loop {
                     if in_queue_r.len() >= num_examples_per_block {
@@ -59,18 +62,36 @@ impl Stratum {
                         slot_s.send(slot_index);
                     } else {
                         sleep(Duration::from_millis(100));
+                        let state = {
+                            let sampler_state = sampler_state.read().unwrap();
+                            *sampler_state
+                        };
+                        if !state {
+                            let mut ret = Vec::with_capacity(in_queue_r.len());
+                            let mut example = in_queue_r.try_recv();
+                            while example.is_some() {
+                                ret.push(example.unwrap());
+                                example = in_queue_r.try_recv();
+                            }
+                            let data = serialize(&ret).unwrap();
+                            let filename = format!("inqueue_{}.ser", index);
+                            write_all(&filename, &data)
+                                .expect("Failed to write the serialized in-queue to disk");
+                        }
                     }
                 }
             });
         }
 
         // Reading out data to outside
+        let out_queue_r_snap = out_queue_r.clone();
         spawn(move || {
             let mut pm = PerformanceMonitor::new();
             // let mut num_stealed = 0;
             let mut out_block_ptr = (vec![]).into_iter();
+            let mut state = true;
             pm.start();
-            loop {
+            while state {
                 let mut example = out_block_ptr.next();
                 if example.is_none() {
                     if let Some(block_index) = slot_r.try_recv() {
@@ -92,20 +113,36 @@ impl Stratum {
                         // num_stealed += 1;
                     }
                 }
-                if example.is_some() {
-                    out_queue_s.send(example.unwrap());
-                    pm.update(1);
-                } else {
+                let example = example.unwrap();
+                loop {
+                    if out_queue_s.try_send(example.clone()) {
+                        pm.update(1);
+                        break;
+                    }
                     sleep(Duration::from_millis(100));
+                    state = {
+                        let sampler_state = sampler_state.read().unwrap();
+                        *sampler_state
+                    };
+                    if !state {
+                        let mut ret: Vec<ExampleWithScore> = vec![example.clone()];
+                        let mut example = out_block_ptr.next();
+                        while example.is_some() {
+                            ret.push(example.unwrap());
+                            example = out_block_ptr.next();
+                        }
+                        example = out_queue_r_snap.try_recv();
+                        while example.is_some() {
+                            ret.push(example.unwrap());
+                            example = out_queue_r_snap.try_recv();
+                        }
+                        let data = serialize(&ret).unwrap();
+                        let filename = format!("outqueue_{}.ser", index);
+                        write_all(&filename, &data)
+                            .expect("Failed to write the serialized out-queue to disk");
+                        break;
+                    }
                 }
-                /*
-                if pm.get_duration() >= 5.0 {
-                    debug!("stratum-queries, {}, {}, {}", index, pm.get_counts(), num_stealed);
-                    pm.reset();
-                    pm.start();
-                    num_stealed = 0;
-                }
-                */
             }
         });
 

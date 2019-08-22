@@ -35,6 +35,7 @@ pub struct Strata {
 
     in_queues: Arc<RwLock<HashMapSenders>>,
     out_queues: Arc<RwLock<HashMapReceiver>>,
+    sampler_state: Arc<RwLock<bool>>,
 }
 
 
@@ -44,6 +45,7 @@ impl Strata {
         feature_size: usize,
         num_examples_per_block: usize,
         disk_buffer_name: &str,
+        sampler_state: Arc<RwLock<bool>>,
     ) -> Strata {
         let disk_buffer = get_disk_buffer(
             disk_buffer_name, feature_size, num_examples, num_examples_per_block);
@@ -52,6 +54,7 @@ impl Strata {
             disk_buffer: Arc::new(RwLock::new(disk_buffer)),
             in_queues: Arc::new(RwLock::new(HashMap::new())),
             out_queues: Arc::new(RwLock::new(HashMap::new())),
+            sampler_state: sampler_state,
         }
     }
 
@@ -80,7 +83,9 @@ impl Strata {
         } else {
             // Each stratum will create two threads for writing in and reading out examples
             // TODO: create a systematic approach to manage stratum threads
-            let stratum = Stratum::new(index, self.num_examples_per_block, self.disk_buffer.clone());
+            let stratum = Stratum::new(
+                index, self.num_examples_per_block, self.disk_buffer.clone(),
+                self.sampler_state.clone());
             let (in_queue, out_queue) = (stratum.in_queue_s.clone(), stratum.out_queue_r.clone());
             in_queues.insert(index, in_queue.clone());
             out_queues.insert(index, out_queue.clone());
