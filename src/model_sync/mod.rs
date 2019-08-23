@@ -27,12 +27,15 @@ pub const ASSIGN_FILENAME: &str = "assign.bin";
 pub fn start_model_sync(
     init_tree: Tree,
     name: String,
+    num_iterations: usize,
     remote_ips: Vec<String>,
     port: u16,
     next_model: Sender<Model>,
     default_gamma: f32,
+    min_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
     exp_name: String,
+    sampler_state: Arc<RwLock<bool>>,
 ) {
     upload_model(&init_tree, &"init".to_string(), default_gamma, &exp_name);
     let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
@@ -40,8 +43,9 @@ pub fn start_model_sync(
     start_network_only_recv(name.as_ref(), &remote_ips, port, local_s);
     spawn(move || {
         model_sync_main(
-            init_tree, remote_ips.len(), local_r, next_model, default_gamma,
-            current_sample_version, &exp_name);
+            init_tree, num_iterations, remote_ips.len(), local_r, next_model,
+            default_gamma, min_gamma,
+            current_sample_version, &exp_name, sampler_state);
     });
 }
 
@@ -96,12 +100,15 @@ fn upload_model(model: &Model, sig: &String, gamma: f32, exp_name: &String) -> b
 
 fn model_sync_main(
     model: Model,
+    num_iterations: usize,
     num_machines: usize,
     receiver: mpsc::Receiver<ModelSig>,
     next_model_sender: Sender<Model>,
     default_gamma: f32,
+    min_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
     exp_name: &String,
+    sampler_state: Arc<RwLock<bool>>,
 ) {
     // TODO: make duration and fraction config parameters
     const DURATION: f32 = 15.0;
@@ -133,7 +140,7 @@ fn model_sync_main(
         node_status[i] = (model.depth[i], gamma, Some(i));
         worker_assign[i] = Some(i);
     }
-    loop {
+    while gamma >= min_gamma && (num_iterations <= 0 || model.size() < num_iterations) {
         // adjust gamma
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
@@ -260,6 +267,12 @@ fn model_sync_main(
             node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
         }
     }
+    {
+        let mut state = sampler_state.write().unwrap();
+        *state = false;
+    }
+    info!("Model sync quits. Model length: {}. Is gamma significant? {}.",
+            model.size(), gamma >= min_gamma);
 }
 
 

@@ -279,9 +279,11 @@ pub fn training(config_file: String) {
         // Pass the models between the network to the Strata
         let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
         start_model_sync(
-            init_tree.clone(), config.local_name.clone(), config.network.clone(),
-            config.port, next_model_s, config.default_gamma,
-            buffer_loader.current_sample_version.clone(), config.exp_name.clone());
+            init_tree.clone(), config.local_name.clone(), config.num_iterations,
+            config.network.clone(), config.port, next_model_s,
+            config.default_gamma, config.min_gamma,
+            buffer_loader.current_sample_version.clone(), config.exp_name.clone(),
+            sampler_state.clone());
         info!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
             init_tree,
@@ -309,12 +311,16 @@ pub fn training(config_file: String) {
                 bins.clone(),
             );
         }
-        loop {
+        let mut state = true;
+        while state {
             let filename = "status.txt".to_string();
             if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
                 *(sampler_state.write().unwrap()) = false;
-                break;
             }
+            state = {
+                let t = sampler_state.read().unwrap();
+                *t
+            };
             sleep(Duration::from_secs(10));
         }
         sleep(Duration::from_secs(20));
