@@ -25,20 +25,16 @@ pub struct DiskBuffer {
 
 impl DiskBuffer {
     pub fn new(filename: &str, block_size: usize, capacity: usize) -> DiskBuffer {
-        let file = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(filename).expect(
-                        &format!("Cannot create the buffer file at {}", filename));
-        DiskBuffer {
+        let mut disk_buffer = DiskBuffer {
             bitmap: BitMap::new(capacity.clone(), false),
             block_size: block_size,
             capacity: capacity,
             size: 0,
-            file: Some(file),
+            file: None,
             filename: String::from(filename),
-        }
+        };
+        disk_buffer.init_file();
+        disk_buffer
     }
 
     pub fn write(&mut self, data: &[u8]) -> usize {
@@ -81,6 +77,17 @@ impl DiskBuffer {
 
     pub fn serialize(&self) -> Vec<u8> {
         serialize(self).unwrap()
+    }
+
+    pub fn init_file(&mut self) {
+        self.file = Some(
+            OpenOptions::new()
+             .read(true)
+             .write(true)
+             .create(true)
+             .open(self.filename.clone()).expect(
+                 &format!("Cannot create the buffer file at {}", self.filename))
+        );
     }
 }
 

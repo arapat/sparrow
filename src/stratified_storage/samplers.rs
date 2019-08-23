@@ -161,18 +161,6 @@ fn sampler(
             read_strata.get_out_queue(index)
         };
         let receiver = existing_receiver.unwrap();
-        /*
-        TODO: validate this block is unnecessary
-        let receiver = {
-            if let Some(receiver) = existing_receiver {
-                receiver
-            } else {
-                let mut strata = strata.write().unwrap();
-                let (_, receiver) = strata.create(index);
-                receiver
-            }
-        };
-        */
         // STEP 3: Sample one example using minimum variance sampling
         // meanwhile update the weights of all accessed examples
         let grid_size = {

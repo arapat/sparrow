@@ -6,23 +6,25 @@ use bincode::deserialize;
 use commons::channel;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
-use commons::io::write_all;
 
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::time::Duration;
 
 use super::Block;
-use super::InQueueSender;
-use super::OutQueueReceiver;
+use super::ArcBlockIter;
+use super::QueueSender;
+use super::QueueReceiver;
 use super::disk_buffer::DiskBuffer;
 
 
 pub struct Stratum {
     // num_examples_per_block: usize,
     // disk_buffer: Arc<RwLock<DiskBuffer>>,
-    pub in_queue_s: InQueueSender,
-    pub out_queue_r: OutQueueReceiver,
+    pub in_queue_s: QueueSender,
+    pub in_queue_r: QueueReceiver,
+    pub out_queue_r: QueueReceiver,
+    pub out_block: ArcBlockIter,
 }
 
 
@@ -49,7 +51,8 @@ impl Stratum {
             let disk_buffer = disk_buffer.clone();
             let sampler_state = sampler_state.clone();
             spawn(move || {
-                loop {
+                let mut state = true;
+                while state {
                     if in_queue_r.len() >= num_examples_per_block {
                         let in_block: Vec<ExampleWithScore> =
                             (0..num_examples_per_block).map(|_| in_queue_r.recv().unwrap())
@@ -62,95 +65,70 @@ impl Stratum {
                         slot_s.send(slot_index);
                     } else {
                         sleep(Duration::from_millis(100));
-                        let state = {
+                        state = {
                             let sampler_state = sampler_state.read().unwrap();
                             *sampler_state
                         };
-                        if !state {
-                            let mut ret = Vec::with_capacity(in_queue_r.len());
-                            let mut example = in_queue_r.try_recv();
-                            while example.is_some() {
-                                ret.push(example.unwrap());
-                                example = in_queue_r.try_recv();
-                            }
-                            let data = serialize(&ret).unwrap();
-                            let filename = format!("inqueue_{}.ser", index);
-                            write_all(&filename, &data)
-                                .expect("Failed to write the serialized in-queue to disk");
-                        }
                     }
                 }
             });
         }
 
         // Reading out data to outside
-        let out_queue_r_snap = out_queue_r.clone();
-        spawn(move || {
-            let mut pm = PerformanceMonitor::new();
-            // let mut num_stealed = 0;
-            let mut out_block_ptr = (vec![]).into_iter();
-            let mut state = true;
-            pm.start();
-            while state {
-                let mut example = out_block_ptr.next();
-                if example.is_none() {
-                    if let Some(block_index) = slot_r.try_recv() {
-                        let out_block: Block = {
-                            let mut disk = disk_buffer.write().unwrap();
-                            let block_data: Vec<u8> = disk.read(block_index);
-                            drop(disk);
-                            deserialize(&block_data).expect(
-                                "Cannot deserialize block."
-                            )
-                        };
-                        out_block_ptr = out_block.into_iter();
-                        example = out_block_ptr.next();
-                    } else {
-                        // if the number of examples is less than what requires to form a block,
-                        // they would stay in `in_queue` forever and never write to disk.
-                        // We read from `in_queue` directly in this case.
-                        example = in_queue_r.recv();
-                        // num_stealed += 1;
+        let out_block = Arc::new(RwLock::new((vec![]).into_iter()));
+        {
+            let in_queue_r = in_queue_r.clone();
+            let out_block_ptr = out_block.clone();
+            spawn(move || {
+                let mut pm = PerformanceMonitor::new();
+                let mut state = true;
+                pm.start();
+                while state {
+                    let mut example = {
+                        let mut ptr = out_block_ptr.write().unwrap();
+                        ptr.next()
+                    };
+                    if example.is_none() {
+                        if let Some(block_index) = slot_r.try_recv() {
+                            let out_block: Block = {
+                                let mut disk = disk_buffer.write().unwrap();
+                                let block_data: Vec<u8> = disk.read(block_index);
+                                drop(disk);
+                                deserialize(&block_data).expect(
+                                    "Cannot deserialize block."
+                                )
+                            };
+                            let mut new_ptr = out_block.into_iter();
+                            example = new_ptr.next();
+                            {
+                                let mut ptr = out_block_ptr.write().unwrap();
+                                *ptr = new_ptr;
+                            }
+                        } else {
+                            // if the number of examples is less than what requires to form a block,
+                            // they would stay in `in_queue` forever and never write to disk.
+                            // We read from `in_queue` directly in this case.
+                            example = in_queue_r.recv();
+                        }
                     }
-                }
-                let example = example.unwrap();
-                loop {
-                    if out_queue_s.try_send(example.clone()) {
-                        pm.update(1);
-                        break;
-                    }
-                    sleep(Duration::from_millis(100));
+                    let example = example.unwrap();
+                    out_queue_s.send(example.clone());
+                    pm.update(1);
                     state = {
                         let sampler_state = sampler_state.read().unwrap();
                         *sampler_state
                     };
-                    if !state {
-                        let mut ret: Vec<ExampleWithScore> = vec![example.clone()];
-                        let mut example = out_block_ptr.next();
-                        while example.is_some() {
-                            ret.push(example.unwrap());
-                            example = out_block_ptr.next();
-                        }
-                        example = out_queue_r_snap.try_recv();
-                        while example.is_some() {
-                            ret.push(example.unwrap());
-                            example = out_queue_r_snap.try_recv();
-                        }
-                        let data = serialize(&ret).unwrap();
-                        let filename = format!("outqueue_{}.ser", index);
-                        write_all(&filename, &data)
-                            .expect("Failed to write the serialized out-queue to disk");
-                        break;
-                    }
                 }
-            }
-        });
+            });
+        }
 
         Stratum {
             // num_examples_per_block: num_examples_per_block,
             // disk_buffer: disk_buffer,
             in_queue_s: in_queue_s,
+            in_queue_r: in_queue_r,
             out_queue_r: out_queue_r,
+            out_block: out_block,
         }
     }
 }
@@ -165,8 +143,8 @@ mod tests {
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use super::Stratum;
-    use super::InQueueSender;
-    use super::OutQueueReceiver;
+    use super::QueueSender;
+    use super::QueueReceiver;
     use super::super::get_disk_buffer;
     use ::TFeature;
 
@@ -212,7 +190,7 @@ mod tests {
         (example, (1.0, 0))
     }
 
-    fn get_in_out_queues(filename: &str, size: usize) -> (InQueueSender, OutQueueReceiver) {
+    fn get_in_out_queues(filename: &str, size: usize) -> (QueueSender, QueueReceiver) {
         let disk_buffer = get_disk_buffer(filename, 3, size, 10);
         let stratum = Stratum::new(0, 10, Arc::new(RwLock::new(disk_buffer)));
         (stratum.in_queue_s.clone(), stratum.out_queue_r.clone())

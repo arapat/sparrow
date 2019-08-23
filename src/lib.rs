@@ -63,6 +63,7 @@ use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
 
+use commons::Model;
 use commons::bins::create_bins;
 use commons::bins::Bins;
 use commons::channel;
@@ -171,6 +172,9 @@ pub struct Config {
     /// Flag for validation mode, set to true to output raw scores of testing examples,
     /// and set to false for printing the validation scores but not raw scores
     pub testing_scores_only: bool,
+
+    /// Continous training from an interupted training process
+    pub resume_training: bool,
 }
 
 
@@ -241,7 +245,16 @@ pub fn training(config_file: String) {
     training_perf_mon.start();
 
     let (config, buffer_loader, bins) = prep_training(&config_file);
-    let init_tree = Tree::new(config.num_iterations, 0.0, 0.0);
+    let init_tree = {
+        if config.resume_training {
+            let (_, _, model): (f32, usize, Model) =
+                serde_json::from_str(&raw_read_all(&"model.json".to_string()))
+                        .expect(&format!("Cannot parse the model in `model.json`"));
+            model
+        } else {
+            Tree::new(config.num_iterations, 0.0, 0.0)
+        }
+    };
     if config.sampler_scanner == "scanner" {
         info!("Starting the booster.");
         let mut booster = Boosting::new(
@@ -284,15 +297,18 @@ pub fn training(config_file: String) {
             config.channel_size,
             sampler_state.clone(),
             config.debug_mode,
+            config.resume_training,
         );
-        info!("Initializing the stratified structure.");
-        stratified_structure.init_stratified_from_file(
-            config.training_filename.clone(),
-            config.num_examples,
-            config.batch_size,
-            config.num_features,
-            bins.clone(),
-        );
+        if !config.resume_training {
+            info!("Initializing the stratified structure.");
+            stratified_structure.init_stratified_from_file(
+                config.training_filename.clone(),
+                config.num_examples,
+                config.batch_size,
+                config.num_features,
+                bins.clone(),
+            );
+        }
         loop {
             let filename = "status.txt".to_string();
             if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {

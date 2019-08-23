@@ -3,7 +3,9 @@ mod disk_buffer;
 mod stratum;
 
 use bincode::serialize;
+use bincode::deserialize;
 
+use std::vec::IntoIter;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -22,19 +24,22 @@ use self::stratum::Stratum;
 
 
 type Block = Vec<ExampleWithScore>;
-type InQueueSender = Sender<ExampleWithScore>;
-type OutQueueReceiver = Receiver<ExampleWithScore>;
+type ArcBlockIter = Arc<RwLock<IntoIter<ExampleWithScore>>>;
+type QueueSender = Sender<ExampleWithScore>;
+type QueueReceiver = Receiver<ExampleWithScore>;
 
-type HashMapSenders = HashMap<i8, InQueueSender>;
-type HashMapReceiver = HashMap<i8, OutQueueReceiver>;
-
+type HashMapSenders = HashMap<i8, QueueSender>;
+type HashMapReceiver = HashMap<i8, QueueReceiver>;
+type HashMapBlockIters = HashMap<i8, ArcBlockIter>;
 
 pub struct Strata {
     num_examples_per_block: usize,
     disk_buffer: Arc<RwLock<DiskBuffer>>,
 
     in_queues: Arc<RwLock<HashMapSenders>>,
+    in_queues_receivers: HashMapReceiver,
     out_queues: Arc<RwLock<HashMapReceiver>>,
+    out_block: HashMapBlockIters,
     sampler_state: Arc<RwLock<bool>>,
 }
 
@@ -46,19 +51,40 @@ impl Strata {
         num_examples_per_block: usize,
         disk_buffer_name: &str,
         sampler_state: Arc<RwLock<bool>>,
+        serialized_data: Option<Vec<u8>>,
     ) -> Strata {
-        let disk_buffer = get_disk_buffer(
-            disk_buffer_name, feature_size, num_examples, num_examples_per_block);
-        Strata {
+        let (ser_num_examples_per_block, disk_buffer, data_in_queues) = {
+            if serialized_data.is_some() {
+                get_deserialize(serialized_data.unwrap())
+            } else {
+                (
+                    num_examples_per_block,
+                    get_disk_buffer(
+                        disk_buffer_name, feature_size, num_examples, num_examples_per_block),
+                    HashMap::new(),
+                )
+            }
+        };
+        assert_eq!(ser_num_examples_per_block, num_examples_per_block);
+        let mut strata = Strata {
             num_examples_per_block: num_examples_per_block,
-            disk_buffer: Arc::new(RwLock::new(disk_buffer)),
-            in_queues: Arc::new(RwLock::new(HashMap::new())),
-            out_queues: Arc::new(RwLock::new(HashMap::new())),
-            sampler_state: sampler_state,
+            disk_buffer:            Arc::new(RwLock::new(disk_buffer)),
+            in_queues:              Arc::new(RwLock::new(HashMap::new())),
+            in_queues_receivers:    HashMap::new(),
+            out_queues:             Arc::new(RwLock::new(HashMap::new())),
+            out_block:              HashMap::new(),
+            sampler_state:          sampler_state,
+        };
+        for (key, vals) in data_in_queues {
+            let (in_queue, _) = strata.create(key);
+            for example in vals {
+                in_queue.send(example);
+            }
         }
+        strata
     }
 
-    pub fn get_in_queue(&self, index: i8) -> Option<InQueueSender> {
+    pub fn get_in_queue(&self, index: i8) -> Option<QueueSender> {
         if let Some(t) = self.in_queues.read().unwrap().get(&index) {
             Some(t.clone())
         } else {
@@ -66,7 +92,7 @@ impl Strata {
         }
     }
 
-    pub fn get_out_queue(&self, index: i8) -> Option<OutQueueReceiver> {
+    pub fn get_out_queue(&self, index: i8) -> Option<QueueReceiver> {
         if let Some(t) = self.out_queues.read().unwrap().get(&index) {
             Some(t.clone())
         } else {
@@ -74,7 +100,7 @@ impl Strata {
         }
     }
 
-    pub fn create(&mut self, index: i8) -> (InQueueSender, OutQueueReceiver) {
+    pub fn create(&mut self, index: i8) -> (QueueSender, QueueReceiver) {
         let (mut in_queues, mut out_queues) =
             (self.in_queues.write().unwrap(), self.out_queues.write().unwrap());
         if in_queues.contains_key(&index) {
@@ -88,19 +114,57 @@ impl Strata {
                 self.sampler_state.clone());
             let (in_queue, out_queue) = (stratum.in_queue_s.clone(), stratum.out_queue_r.clone());
             in_queues.insert(index, in_queue.clone());
+            self.in_queues_receivers.insert(index, stratum.in_queue_r.clone());
             out_queues.insert(index, out_queue.clone());
+            self.out_block.insert(index, stratum.out_block.clone());
             (in_queue, out_queue)
         }
     }
 
-    // pub fn serialize(&self) -> (usize, Vec<u8>, Vec<u8>, Vec<u8>) {
     pub fn serialize(&self) -> Vec<u8> {
         let ser_disk_buffer = {
             let disk_buffer = self.disk_buffer.read().unwrap();
             disk_buffer.serialize()
         };
-        serialize(&(self.num_examples_per_block, ser_disk_buffer)).unwrap()
+        let out_queues = self.out_queues.read().unwrap();
+        let mut data_in_queues = HashMap::new();
+        for key in out_queues.keys() {
+            let in_queue: QueueReceiver = self.in_queues_receivers[key].clone();
+            let out_queue: QueueReceiver = out_queues[key].clone();
+
+            let mut ret = Vec::with_capacity(in_queue.len() + out_queue.len());
+            let mut example = in_queue.try_recv();
+            while example.is_some() {
+                ret.push(example.unwrap());
+                example = in_queue.try_recv();
+            }
+            {
+                let mut out_block_ptr = self.out_block[key].write().unwrap();
+                example = out_block_ptr.next();
+                while example.is_some() {
+                    ret.push(example.unwrap());
+                    example = out_block_ptr.next();
+                }
+            }
+            example = out_queue.try_recv();
+            while example.is_some() {
+                ret.push(example.unwrap());
+                example = out_queue.try_recv();
+            }
+            data_in_queues.insert(*key, ret);
+        }
+        let data: (usize, Vec<u8>, HashMap<i8, Vec<ExampleWithScore>>) =
+            (self.num_examples_per_block, ser_disk_buffer, data_in_queues);
+        serialize(&data).unwrap()
     }
+}
+
+
+fn get_deserialize(data: Vec<u8>) -> (usize, DiskBuffer, HashMap<i8, Vec<ExampleWithScore>>) {
+    let (num_examples_per_block, ser_disk_buffer, data_in_queues) = deserialize(&data).unwrap();
+    let mut disk_buffer: DiskBuffer = deserialize(ser_disk_buffer).unwrap();
+    disk_buffer.init_file();
+    (num_examples_per_block, disk_buffer, data_in_queues)
 }
 
 

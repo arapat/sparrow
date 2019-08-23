@@ -12,11 +12,13 @@ use std::thread::sleep;
 use std::time::Duration;
 use rand;
 use bincode::serialize;
+use bincode::deserialize;
 use commons::bins::Bins;
 use commons::channel;
 use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_sign;
+use commons::io::read_all;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::Model;
@@ -118,14 +120,37 @@ impl StratifiedStorage {
         channel_size: usize,
         sampler_state: Arc<RwLock<bool>>,
         debug_mode: bool,
+        resume_training: bool,
     ) -> StratifiedStorage {
+        let snapshot_filename = "stratified.serde".to_string();
         // Weights table
-        let (counts_table_r, counts_table_w) = evmap::new();
-        let (weights_table_r, weights_table_w) = evmap::new();
+        let (counts_table_r, mut counts_table_w): (CountTableRead, CountTableWrite) = evmap::new();
+        let (weights_table_r, mut weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
+        let ser_strata = {
+            if resume_training {
+                let (ser_strata, tables): (Vec<u8>, _) =
+                    deserialize(&read_all(&snapshot_filename)).unwrap();
+                let (counts_table, weights_table): (HashMap<_, Vec<_>>, HashMap<_, Vec<Box<F64>>>) =
+                    tables;
+                for (key, vals) in counts_table.iter() {
+                    for val in vals.iter() {
+                        counts_table_w.update(*key, *val);
+                    }
+                }
+                for (key, vals) in weights_table.iter() {
+                    for val in vals.iter() {
+                        weights_table_w.update(*key, val.clone());
+                    }
+                }
+                Some(ser_strata)
+            } else {
+                None
+            }
+        };
         // Maintains all example on disk and in memory
         let strata = Strata::new(
             num_examples, feature_size, num_examples_per_block, disk_buffer_filename,
-            sampler_state.clone());
+            sampler_state.clone(), ser_strata);
         // Maintains weight tables
         let stats_update_s = start_update_weights_table(
             counts_table_r.clone(), counts_table_w, weights_table_r.clone(), weights_table_w,
@@ -153,8 +178,7 @@ impl StratifiedStorage {
         assigners.run();
         samplers.run();
 
-        run_snapshot_thread(
-            "stratified.serde".to_string(), strata, counts_table_r, weights_table_r, sampler_state);
+        run_snapshot_thread(snapshot_filename, strata, counts_table_r, weights_table_r, sampler_state);
 
         StratifiedStorage {
             updated_examples_s: assigners.updated_examples_s.clone(),
@@ -270,8 +294,9 @@ fn run_snapshot_thread(
     sampler_state: Arc<RwLock<bool>>,
 ) {
     spawn(move || {
-        loop {
-            let state = {
+        let mut state = true;
+        while state {
+            state = {
                 *(sampler_state.read().unwrap())
             };
             if !state {
@@ -279,14 +304,14 @@ fn run_snapshot_thread(
                     let strata = strata.read().unwrap();
                     strata.serialize()
                 };
-                let ser_tables = {
-                    let counts_table: HashMap<_, Vec<_>> =
+                let tables = {
+                    let counts_table: HashMap<i8, Vec<i32>> =
                         counts_table_r.map_into(|&k, vs| (k, vs.to_vec()));
-                    let weights_table: HashMap<_, Vec<_>> =
+                    let weights_table: HashMap<i8, Vec<Box<F64>>> =
                         weights_table_r.map_into(|&k, vs| (k, vs.to_vec()));
-                    serialize(&(counts_table, weights_table)).unwrap()
+                    (counts_table, weights_table)
                 };
-                let data = serialize(&(ser_strata, ser_tables)).unwrap();
+                let data = serialize(&(ser_strata, tables)).unwrap();
                 write_all(&filename, &data)
                     .expect("Failed to write the serialized stratified storage");
             } else {
