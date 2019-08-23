@@ -68,7 +68,7 @@ impl Gatherer {
                             new_sample_capacity,
                             new_sample_buffer.clone(),
                             gather_new_sample.clone(),
-                            &write_memory,
+                            write_memory,
                             version,
                             exp_name.as_str(),
                         );
@@ -78,7 +78,7 @@ impl Gatherer {
                             new_sample_capacity,
                             new_sample_buffer.clone(),
                             gather_new_sample.clone(),
-                            &write_local,
+                            write_local,
                             version,
                             exp_name.as_str(),
                         );
@@ -88,7 +88,7 @@ impl Gatherer {
                             new_sample_capacity,
                             new_sample_buffer.clone(),
                             gather_new_sample.clone(),
-                            &write_s3,
+                            write_s3,
                             version,
                             exp_name.as_str(),
                         );
@@ -103,14 +103,14 @@ impl Gatherer {
 }
 
 
-fn gather(
+fn gather<F>(
     new_sample_capacity: usize,
     new_sample_buffer: LockedBuffer,
     gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
-    handler: &Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str),
+    handler: F,
     version: usize,
     exp_name: &str,
-) {
+) where F: Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str) {
     debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
     pm.start();

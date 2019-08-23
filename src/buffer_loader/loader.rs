@@ -47,7 +47,7 @@ impl Loader {
                     SampleMode::LOCAL => {
                         loader(
                             buffer.clone(),
-                            &load_local,
+                            load_local,
                             last_version,
                             exp_name.as_str(),
                         )
@@ -55,7 +55,7 @@ impl Loader {
                     SampleMode::S3 => {
                         loader(
                             buffer.clone(),
-                            &load_s3,
+                            load_s3,
                             last_version,
                             exp_name.as_str(),
                         )
@@ -72,12 +72,13 @@ impl Loader {
 }
 
 
-fn loader(
+fn loader<F>(
     new_sample_buffer: LockedBuffer,
-    handler: &Fn(LockedBuffer, usize, &str) -> Option<usize>,
+    handler: F,
     last_version: usize,
     exp_name: &str,
-) -> usize {
+) -> usize
+where F: Fn(LockedBuffer, usize, &str) -> Option<usize> {
     let mut pm = PerformanceMonitor::new();
     pm.start();
     let version = handler(new_sample_buffer, last_version, exp_name);
