@@ -137,12 +137,21 @@ impl Boosting {
         let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
             mpsc::channel();
         start_network_only_send(name.as_ref(), port, local_r);
+        let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
+        start_network_only_send(name.as_ref(), port + 1, hb_r);
         self.network_sender = Some(local_s);
-        self.local_name = name;
+        self.local_name = name.clone();
         self.local_id = {
             let t: Vec<&str> = self.local_name.rsplitn(2, '_').collect();
             t[0].parse().unwrap()
         };
+        // heartbeat
+        {
+            loop {
+                hb_s.send(name.clone()).unwrap();
+                sleep(Duration::from_secs(5));
+            }
+        }
     }
 
 

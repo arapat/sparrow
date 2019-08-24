@@ -53,6 +53,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
+use tmsn::network::start_network_only_recv;
 
 use bincode::serialize;
 use bincode::deserialize;
@@ -63,6 +64,7 @@ use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
 
+use std::sync::mpsc;
 use commons::Model;
 use commons::bins::create_bins;
 use commons::bins::Bins;
@@ -245,6 +247,13 @@ pub fn training(config_file: String) {
     training_perf_mon.start();
 
     let (config, buffer_loader, bins) = prep_training(&config_file);
+    // Resuming from an earlier training:
+    //     The program needs three files to resume from an earlier training:
+    //         1. model file, `model.json`, which is being loaded below;
+    //         2. last sample, `lastest_sample.bin`, which is sent out to scanner as the first
+    //            sample;
+    //         3. strata snapshot, `stratified.serde`, which will be loaded during the
+    //            initialization of the `stratified_structure` object below.
     let init_tree = {
         if config.resume_training {
             let (_, _, model): (f32, usize, Model) =
@@ -311,18 +320,33 @@ pub fn training(config_file: String) {
                 bins.clone(),
             );
         }
+        let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
+            mpsc::channel();
+        start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);
         let mut state = true;
         while state {
+            // Check if termination is manually requested
             let filename = "status.txt".to_string();
             if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
+                info!("Change in the status.txt has been detected.");
+                *(sampler_state.write().unwrap()) = false;
+            }
+            // Check if any one of the scanners is still working
+            let mut hb_count = 0;
+            while hb_r.try_recv().is_ok() {
+                hb_count += 1;
+            }
+            if hb_count == 0 {
+                info!("All scanners are dead.");
                 *(sampler_state.write().unwrap()) = false;
             }
             state = {
                 let t = sampler_state.read().unwrap();
                 *t
             };
-            sleep(Duration::from_secs(10));
+            sleep(Duration::from_secs(20));
         }
+        info!("State has been set to false. Main process to exit in 20 seconds.");
         sleep(Duration::from_secs(20));
     }
 }

@@ -300,10 +300,12 @@ fn run_snapshot_thread(
                 *(sampler_state.read().unwrap())
             };
             if !state {
+                info!("Sampler has stopped. Prepare to take a snapshot of the stratified storage.");
                 let ser_strata = {
                     let strata = strata.read().unwrap();
                     strata.serialize()
                 };
+                info!("Snapshot of the strata has been taken");
                 let tables = {
                     let counts_table: HashMap<i8, Vec<i32>> =
                         counts_table_r.map_into(|&k, vs| (k, vs.to_vec()));
@@ -314,6 +316,7 @@ fn run_snapshot_thread(
                 let data = serialize(&(ser_strata, tables)).unwrap();
                 write_all(&filename, &data)
                     .expect("Failed to write the serialized stratified storage");
+                info!("Snapshot of the stratified storage has been taken.");
             } else {
                 sleep(Duration::from_secs(60));
             }

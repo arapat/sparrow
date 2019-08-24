@@ -126,6 +126,7 @@ impl Strata {
             let disk_buffer = self.disk_buffer.read().unwrap();
             disk_buffer.serialize()
         };
+        info!("Snapshot of the disk buffer has been taken.");
         let out_queues = self.out_queues.read().unwrap();
         let mut data_in_queues = HashMap::new();
         for key in out_queues.keys() {
@@ -153,6 +154,7 @@ impl Strata {
             }
             data_in_queues.insert(*key, ret);
         }
+        info!("Snapshot of the in/out queues has been taken.");
         let data: (usize, Vec<u8>, HashMap<i8, Vec<ExampleWithScore>>) =
             (self.num_examples_per_block, ser_disk_buffer, data_in_queues);
         serialize(&data).unwrap()
