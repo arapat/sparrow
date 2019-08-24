@@ -346,8 +346,8 @@ pub fn training(config_file: String) {
             };
             sleep(Duration::from_secs(20));
         }
-        info!("State has been set to false. Main process to exit in 20 seconds.");
-        sleep(Duration::from_secs(20));
+        info!("State has been set to false. Main process to exit in 120 seconds.");
+        sleep(Duration::from_secs(120));
     }
 }
 
