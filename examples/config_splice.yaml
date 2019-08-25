@@ -14,7 +14,7 @@ max_bin_size: 10
 min_gamma: 0.0001
 default_gamma: 0.25
 min_ess: 0.5
-num_iterations: 500
+num_iterations: 10
 max_leaves: 4
 max_trials_before_shrink: 1000000
 channel_size: 8
@@ -28,7 +28,7 @@ num_examples_per_block: 40960
 disk_buffer_filename: stratified.bin
 num_assigners: 1
 num_samplers: 3
-network: ["54.147.179.150"]
+network: []
 port: 8888
 local_name: local_worker
 save_process: true
@@ -40,4 +40,5 @@ save_interval: 1
 sampling_mode: s3
 sampler_scanner: sampler
 sleep_duration: 5
-exp_name: one-scanner
+exp_name: five-scanner
+resume_training: false

@@ -191,7 +191,7 @@ fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
         clear_s3_bucket(REGION, BUCKET, config.exp_name.as_str());
     }
 
-    info!("Creating bins.");
+    debug!("Creating bins.");
     let s3_path = format!("{}/{}", config.exp_name, S3_PATH);
     let bins = {
         if config.sampler_scanner == "sampler" {
@@ -226,7 +226,7 @@ fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
             bins
         }
     };
-    info!("Starting the buffered loader.");
+    debug!("Starting the buffered loader.");
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
@@ -265,7 +265,7 @@ pub fn training(config_file: String) {
         }
     };
     if config.sampler_scanner == "scanner" {
-        info!("Starting the booster.");
+        debug!("Starting the booster.");
         let mut booster = Boosting::new(
             config.exp_name.clone(),
             init_tree.clone(),
@@ -284,7 +284,7 @@ pub fn training(config_file: String) {
         booster.training(training_perf_mon.get_duration());
     } else { // if config.sampler_scanner == "sampler" {
         let sampler_state = Arc::new(RwLock::new(true));
-        info!("Starting the model sync.");
+        debug!("Starting the model sync.");
         // Pass the models between the network to the Strata
         let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
         start_model_sync(
@@ -293,7 +293,7 @@ pub fn training(config_file: String) {
             config.default_gamma, config.min_gamma,
             buffer_loader.current_sample_version.clone(), config.exp_name.clone(),
             sampler_state.clone());
-        info!("Starting the stratified structure.");
+        debug!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
             init_tree,
             config.num_examples,
@@ -311,7 +311,7 @@ pub fn training(config_file: String) {
             config.resume_training,
         );
         if !config.resume_training {
-            info!("Initializing the stratified structure.");
+            debug!("Initializing the stratified structure.");
             stratified_structure.init_stratified_from_file(
                 config.training_filename.clone(),
                 config.num_examples,
@@ -328,7 +328,7 @@ pub fn training(config_file: String) {
             // Check if termination is manually requested
             let filename = "status.txt".to_string();
             if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
-                info!("Change in the status.txt has been detected.");
+                debug!("Change in the status.txt has been detected.");
                 *(sampler_state.write().unwrap()) = false;
             }
             // Check if any one of the scanners is still working
@@ -337,7 +337,7 @@ pub fn training(config_file: String) {
                 hb_count += 1;
             }
             if hb_count == 0 {
-                info!("All scanners are dead.");
+                debug!("All scanners are dead.");
                 *(sampler_state.write().unwrap()) = false;
             }
             state = {
@@ -346,7 +346,7 @@ pub fn training(config_file: String) {
             };
             sleep(Duration::from_secs(20));
         }
-        info!("State has been set to false. Main process to exit in 120 seconds.");
+        debug!("State has been set to false. Main process to exit in 120 seconds.");
         sleep(Duration::from_secs(120));
     }
 }
