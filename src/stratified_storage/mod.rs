@@ -128,10 +128,12 @@ impl StratifiedStorage {
         let (weights_table_r, mut weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
         let ser_strata = {
             if resume_training {
+                // read snapshot
                 let (ser_strata, tables): (Vec<u8>, _) =
                     deserialize(&read_all(&snapshot_filename)).unwrap();
                 let (counts_table, weights_table): (HashMap<_, Vec<_>>, HashMap<_, Vec<Box<F64>>>) =
                     tables;
+                // initialize the weight tables from the snapshot
                 for (key, vals) in counts_table.iter() {
                     for val in vals.iter() {
                         counts_table_w.update(*key, *val);
@@ -142,6 +144,18 @@ impl StratifiedStorage {
                         weights_table_w.update(*key, val.clone());
                     }
                 }
+                // Send out the last sample before creating the snapshot to the scanners
+                {
+                    let (version, last_sample): (usize, Vec<ExampleWithScore>) =
+                        deserialize(&read_all(&"latest_sample.bin".to_string())).unwrap();
+                    debug!("Loaded examples from the Sample version {}. \
+                            Will send out to the scanners", version);
+                    let sampled_examples = sampled_examples.clone();
+                    spawn(move || {
+                        last_sample.into_iter().for_each(|t| sampled_examples.send(((t, 1), 1)));
+                    });
+                }
+                // serialized strata will be used for initialization in its `new` func
                 Some(ser_strata)
             } else {
                 None

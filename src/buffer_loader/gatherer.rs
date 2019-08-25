@@ -115,7 +115,7 @@ fn gather<F>(
     let mut pm = PerformanceMonitor::new();
     pm.start();
 
-    let mut new_sample = Vec::with_capacity(new_sample_capacity);
+    let mut new_sample: Vec<ExampleWithScore> = Vec::with_capacity(new_sample_capacity);
     let mut total_scanned = 0;
     let mut num_unique = 0;
     let mut num_unique_positive = 0;

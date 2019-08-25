@@ -324,6 +324,7 @@ pub fn training(config_file: String) {
             mpsc::channel();
         start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);
         let mut state = true;
+        let mut num_fails = 0;
         while state {
             // Check if termination is manually requested
             let filename = "status.txt".to_string();
@@ -337,8 +338,12 @@ pub fn training(config_file: String) {
                 hb_count += 1;
             }
             if hb_count == 0 {
-                debug!("All scanners are dead.");
-                *(sampler_state.write().unwrap()) = false;
+                debug!("No scanner responded.");
+                num_fails += 1;
+                if num_fails >= 2 {
+                    debug!("All scanners are dead. Number of fails: {}", num_fails);
+                    *(sampler_state.write().unwrap()) = false;
+                }
             }
             state = {
                 let t = sampler_state.read().unwrap();
