@@ -333,6 +333,7 @@ pub fn training(config_file: String) {
                 *(sampler_state.write().unwrap()) = false;
             }
             // Check if any one of the scanners is still working
+            /*
             let mut hb_count = 0;
             while hb_r.try_recv().is_ok() {
                 hb_count += 1;
@@ -345,6 +346,7 @@ pub fn training(config_file: String) {
                     *(sampler_state.write().unwrap()) = false;
                 }
             }
+            */
             state = {
                 let t = sampler_state.read().unwrap();
                 *t
