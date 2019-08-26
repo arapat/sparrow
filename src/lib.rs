@@ -320,11 +320,11 @@ pub fn training(config_file: String) {
                 bins.clone(),
             );
         }
-        let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
-            mpsc::channel();
-        start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);
+        // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
+        //     mpsc::channel();
+        // start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);
         let mut state = true;
-        let mut num_fails = 0;
+        // let mut num_fails = 0;
         while state {
             // Check if termination is manually requested
             let filename = "status.txt".to_string();
