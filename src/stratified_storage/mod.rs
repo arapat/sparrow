@@ -34,7 +34,7 @@ use self::strata::Strata;
 
 pub const SPEED_TEST: bool = false;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct F64 {
     pub val: f64
 }
@@ -134,15 +134,17 @@ impl StratifiedStorage {
                 let (counts_table, weights_table): (HashMap<_, Vec<_>>, HashMap<_, Vec<Box<F64>>>) =
                     tables;
                 // initialize the weight tables from the snapshot
+                debug!("resume counts_table, {:?}", counts_table);
+                debug!("resume weights_table, {:?}", weights_table);
                 for (key, vals) in counts_table.iter() {
-                    for val in vals.iter() {
-                        counts_table_w.update(*key, *val);
-                    }
+                    counts_table_w.update(*key, vals[0]);
                 }
                 for (key, vals) in weights_table.iter() {
-                    for val in vals.iter() {
-                        weights_table_w.update(*key, val.clone());
-                    }
+                    weights_table_w.update(*key, vals[0].clone());
+                }
+                {
+                    counts_table_w.refresh();
+                    weights_table_w.refresh();
                 }
                 // Send out the last sample before creating the snapshot to the scanners
                 {
