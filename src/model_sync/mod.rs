@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::cmp::min;
 use std::io::Write;
 use std::sync::Arc;
@@ -144,8 +145,8 @@ fn model_sync_main(
         // adjust gamma
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
-            let threshold = min(num_machines, node_status.len()) as f32 * 0.5;
-            if failed_searches >= threshold as usize {
+            let threshold = max(3, (min(num_machines, node_status.len()) as f32 * 0.5) as usize);
+            if failed_searches >= threshold {
                 // alternative: if total_packets == 0
                 current_condition = -1;
             } else if (rejected_packets as f32) / (total_packets as f32) >= FRACTION {
