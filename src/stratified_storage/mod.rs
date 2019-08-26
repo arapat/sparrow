@@ -144,6 +144,10 @@ impl StratifiedStorage {
                         weights_table_w.update(*key, val.clone());
                     }
                 }
+                {
+                    counts_table_w.refresh();
+                    weights_table_w.refresh();
+                }
                 // Send out the last sample before creating the snapshot to the scanners
                 {
                     let (version, last_sample): (usize, Vec<ExampleWithScore>) =
