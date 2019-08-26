@@ -123,33 +123,34 @@ impl StratifiedStorage {
         resume_training: bool,
     ) -> StratifiedStorage {
         let snapshot_filename = "stratified.serde".to_string();
+        if resume_training {
+            debug!("prepare to resume an earlier stratified structure");
+        }
         // Weights table
         let (counts_table_r, mut counts_table_w): (CountTableRead, CountTableWrite) = evmap::new();
         let (weights_table_r, mut weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
         let ser_strata = {
             if resume_training {
                 // read snapshot
+                debug!("reading the snapshot");
                 let (ser_strata, tables): (Vec<u8>, _) =
                     deserialize(&read_all(&snapshot_filename)).unwrap();
-                let (counts_table, weights_table): (HashMap<_, Vec<_>>, HashMap<_, Vec<Box<F64>>>) =
-                    tables;
+                debug!("reading the tables");
+                let (counts_table, weights_table): (HashMap<_, _>, HashMap<_, f64>) = tables;
                 // initialize the weight tables from the snapshot
                 debug!("resume counts_table, {:?}", counts_table);
                 debug!("resume weights_table, {:?}", weights_table);
-                for (key, vals) in counts_table.iter() {
-                    counts_table_w.update(*key, vals[0]);
+                for (key, val) in counts_table.iter() {
+                    counts_table_w.update(*key, *val);
                 }
-                for (key, vals) in weights_table.iter() {
-                    weights_table_w.update(*key, vals[0].clone());
-                }
-                {
-                    counts_table_w.refresh();
-                    weights_table_w.refresh();
+                for (key, val) in weights_table.iter() {
+                    weights_table_w.update(*key, Box::new(F64 { val: *val }));
                 }
                 {
                     counts_table_w.refresh();
                     weights_table_w.refresh();
                 }
+                debug!("refreshed table");
                 // Send out the last sample before creating the snapshot to the scanners
                 {
                     let (version, last_sample): (usize, Vec<ExampleWithScore>) =
@@ -327,10 +328,10 @@ fn run_snapshot_thread(
                 };
                 info!("Snapshot of the strata has been taken");
                 let tables = {
-                    let counts_table: HashMap<i8, Vec<i32>> =
-                        counts_table_r.map_into(|&k, vs| (k, vs.to_vec()));
-                    let weights_table: HashMap<i8, Vec<Box<F64>>> =
-                        weights_table_r.map_into(|&k, vs| (k, vs.to_vec()));
+                    let counts_table: HashMap<i8, i32> =
+                        counts_table_r.map_into(|&k, vs| (k, vs[0]));
+                    let weights_table: HashMap<i8, f64> =
+                        weights_table_r.map_into(|&k, vs| (k, vs[0].val));
                     (counts_table, weights_table)
                 };
                 let data = serialize(&(ser_strata, tables)).unwrap();

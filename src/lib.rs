@@ -254,13 +254,18 @@ pub fn training(config_file: String) {
     //            sample;
     //         3. strata snapshot, `stratified.serde`, which will be loaded during the
     //            initialization of the `stratified_structure` object below.
+    if  config.resume_training {
+        debug!("resume_training is enabled");
+    }
     let init_tree = {
         if config.resume_training {
             let (_, _, model): (f32, usize, Model) =
                 serde_json::from_str(&raw_read_all(&"model.json".to_string()))
                         .expect(&format!("Cannot parse the model in `model.json`"));
+            debug!("Load an existing tree");
             model
         } else {
+            debug!("Created a new tree");
             Tree::new(config.num_iterations, 0.0, 0.0)
         }
     };
