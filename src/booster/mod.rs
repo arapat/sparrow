@@ -305,5 +305,9 @@ impl Boosting {
             buf.seek(SeekFrom::Start(0)).unwrap();
             buf.write(json.as_ref()).unwrap();
         }
+        {
+            let mut file_buffer = create_bufwriter(&"model.json".to_string());
+            file_buffer.write(json.as_ref()).unwrap();
+        }
     }
 }
