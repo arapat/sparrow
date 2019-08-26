@@ -355,6 +355,9 @@ pub fn training(config_file: String) {
         }
         debug!("State has been set to false. Main process to exit in 120 seconds.");
         sleep(Duration::from_secs(120));
+        if std::fs::remove_file("status.txt").is_ok() {
+            debug!("removed `status.txt`");
+        }
     }
 }
 

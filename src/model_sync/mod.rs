@@ -141,6 +141,7 @@ fn model_sync_main(
         node_status[i] = (model.depth[i], gamma, Some(i));
         worker_assign[i] = Some(i);
     }
+    let mut last_timestamp = global_timer.get_duration();
     while gamma >= min_gamma && (num_iterations <= 0 || model.size() < num_iterations) {
         // adjust gamma
         if timer.get_duration() >= DURATION {
@@ -259,7 +260,8 @@ fn model_sync_main(
                 debug!("model_manager, upload failed, {}, {}, {}, {}",
                        old_sig, model_sig, machine_name, patch.size);
             }
-            handle_persistent(&model, model.size(), global_timer.get_duration());
+            last_timestamp = global_timer.get_duration();
+            handle_persistent(&model, model.size(), last_timestamp);
             for depth in new_nodes_depth {
                 node_status.push((depth, default_gamma, None));
                 node_sum_gamma_sq.push(0.0);
@@ -267,6 +269,13 @@ fn model_sync_main(
             }
             node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
         }
+    }
+    {
+        let json = serde_json::to_string(&(last_timestamp, model.size(), &model)).expect(
+            "Local model cannot be serialized."
+        );
+        let mut file_buffer = create_bufwriter(&"model.json".to_string());
+        file_buffer.write(json.as_ref()).unwrap();
     }
     {
         let mut state = sampler_state.write().unwrap();
