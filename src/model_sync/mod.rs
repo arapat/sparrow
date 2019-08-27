@@ -142,7 +142,12 @@ fn model_sync_main(
         worker_assign[i] = Some(i);
     }
     let mut last_timestamp = global_timer.get_duration();
-    while gamma >= min_gamma && (num_iterations <= 0 || model.size() < num_iterations) {
+    let mut state = true;
+    while state && gamma >= min_gamma && (num_iterations <= 0 || model.size() < num_iterations) {
+        state = {
+            let t = sampler_state.read().unwrap();
+            *t
+        };
         // adjust gamma
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;

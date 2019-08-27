@@ -35,6 +35,7 @@ pub struct Boosting {
     base_model_sig: String,
     base_model_size: usize,
     last_sent_model_sig: String,
+    last_sent_sample_version: usize,
 
     network_sender: Option<mpsc::Sender<ModelSig>>,
     local_name: String,
@@ -95,6 +96,7 @@ impl Boosting {
             base_model_sig: "".to_string(),
             base_model_size: 0,
             last_sent_model_sig: ".".to_string(),
+            last_sent_sample_version: 0,
 
             network_sender: None,
             local_name: "".to_string(),
@@ -256,7 +258,8 @@ impl Boosting {
                 debug!("model-replaced, {}, {}, {}",
                        self.model.size(), old_size, self.base_model_sig);
             } else if (self.model.size() > self.base_model_size || is_full_scanned) &&
-                    self.last_sent_model_sig != new_model_sig {
+                    (self.last_sent_model_sig != new_model_sig ||
+                     self.training_loader.current_version != self.last_sent_sample_version) {
                 // send out the local patch
                 let tree_slice = self.model.model_updates.create_slice(
                     self.last_remote_length..self.model.size());
@@ -270,8 +273,10 @@ impl Boosting {
                             Error: {}", err);
                 } else {
                     self.last_sent_model_sig = new_model_sig;
-                    info!("Sent the local model to the network module, {}, {}",
-                        self.last_sent_model_sig, self.model.size());
+                    self.last_sent_sample_version = self.training_loader.current_version;
+                    info!("Sent the local model to the network module, {}, {}, {}, {}",
+                        self.last_sent_model_sig, self.last_sent_sample_version,
+                        self.last_remote_length, self.model.size());
                 }
             }
             self.learner.set_gamma(current_gamma);
@@ -304,6 +309,10 @@ impl Boosting {
             let buf = self.persist_file_buffer.as_mut().unwrap();
             buf.seek(SeekFrom::Start(0)).unwrap();
             buf.write(json.as_ref()).unwrap();
+        }
+        {
+            let mut file_buffer = create_bufwriter(&"model.json".to_string());
+            file_buffer.write(json.as_ref()).unwrap();
         }
     }
 }
