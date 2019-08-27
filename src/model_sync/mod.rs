@@ -149,6 +149,7 @@ fn model_sync_main(
             *t
         };
         // adjust gamma
+        let mut verbose = false;
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
             let threshold = max(3, (min(num_machines, node_status.len()) as f32 * 0.5) as usize);
@@ -195,12 +196,16 @@ fn model_sync_main(
             num_updates_nodes.iter_mut().for_each(|t| *t = 0);
             timer.reset();
             timer.start();
+            verbose = true;
         }
         update_assignments(
             &mut node_status, &mut worker_assign, gamma, exp_name,
             &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         let packet = receiver.try_recv();
         if packet.is_err() {
+            if verbose {
+                debug!("model_manager, packet error, {:?}", packet);
+            }
             continue;
         }
         let (patch, remote_gamma, sample_version, old_sig, new_sig) = packet.unwrap();
