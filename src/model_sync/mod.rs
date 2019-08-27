@@ -132,8 +132,8 @@ fn model_sync_main(
     let mut num_updates_packs = vec![0; num_machines];
     let mut num_updates_rejs  = vec![0; num_machines];
     let mut num_updates_nodes = vec![0; num_machines];
-    let mut node_sum_gamma_sq = vec![0.0];
-    let mut node_timestamp = vec![0.0];
+    let mut node_sum_gamma_sq = vec![0.0; model.tree_size];
+    let mut node_timestamp = vec![0.0; model.tree_size];
     timer.start();
     global_timer.start();
     // initialize state variables based on `model`
