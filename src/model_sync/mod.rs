@@ -189,10 +189,11 @@ fn model_sync_main(
             let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
-            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
                    gamma, shrink_factor, failed_searches, total_packets, rejected_packets,
                    rejected_packets_model,
-                   packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "));
+                   packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "),
+                   node_status, worker_assign);
             last_condition = current_condition;
             total_packets = 0;
             rejected_packets = 0;
@@ -340,11 +341,7 @@ fn update_assignments(
                 did_something = true;
                 num_updates += 1;
                 debug!("model-manager, assign, {}, {}", valid_worker, node);
-            } else {
-                debug!("model-manager, no node needs assignment");
             }
-        } else {
-            debug!("model-mamanger, no worker available");
         }
     }
     if num_updates > 0 {
