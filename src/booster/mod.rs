@@ -36,6 +36,7 @@ pub struct Boosting {
     base_model_size: usize,
     last_sent_model_sig: String,
     last_sent_sample_version: usize,
+    last_expand_node: usize,
 
     network_sender: Option<mpsc::Sender<ModelSig>>,
     local_name: String,
@@ -97,6 +98,7 @@ impl Boosting {
             base_model_size: 0,
             last_sent_model_sig: ".".to_string(),
             last_sent_sample_version: 0,
+            last_expand_node: 0,
 
             network_sender: None,
             local_name: "".to_string(),
@@ -268,6 +270,7 @@ impl Boosting {
                        self.model.size(), old_size, self.base_model_sig);
             } else if (self.model.size() > self.base_model_size || is_full_scanned) &&
                     (self.last_sent_model_sig != new_model_sig ||
+                     self.last_expand_node != self.learner.expand_node ||
                      self.training_loader.current_version != self.last_sent_sample_version) {
                 // send out the local patch
                 let tree_slice = self.model.model_updates.create_slice(
@@ -282,6 +285,7 @@ impl Boosting {
                             Error: {}", err);
                 } else {
                     self.last_sent_model_sig = new_model_sig;
+                    self.last_expand_node = self.learner.expand_node;
                     self.last_sent_sample_version = self.training_loader.current_version;
                     info!("Sent the local model to the network module, {}, {}, {}, {}",
                         self.last_sent_model_sig, self.last_sent_sample_version,
