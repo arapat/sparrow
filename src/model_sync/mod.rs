@@ -139,7 +139,7 @@ fn model_sync_main(
     global_timer.start();
     // initialize state variables based on `model`
     for i in 0..min(node_status.len(), worker_assign.len()) {
-        node_status[i] = (model.depth[i], gamma, Some(i));
+        node_status[i] = (model.depth[i], 1.0, Some(i));
         worker_assign[i] = Some(i);
     }
     for i in node_status.len()..worker_assign.len() {
@@ -283,7 +283,7 @@ fn model_sync_main(
             last_timestamp = global_timer.get_duration();
             handle_persistent(&model, model.size(), last_timestamp);
             for depth in new_nodes_depth {
-                node_status.push((depth, default_gamma, None));
+                node_status.push((depth, 1.0, None));
                 node_sum_gamma_sq.push(0.0);
                 node_timestamp.push(0.0);
             }
