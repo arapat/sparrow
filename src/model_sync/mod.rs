@@ -250,6 +250,8 @@ fn model_sync_main(
                         machine_id, node_id, remote_gamma, failed_searches,
                         node_sum_gamma_sq[node_id], duration,
                         node_sum_gamma_sq[node_id] / duration);
+            } else {
+                debug!("model_manager, empty with no assignment, {}", machine_id);
             }
         } else {
             let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
