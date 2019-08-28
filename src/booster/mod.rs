@@ -12,6 +12,7 @@ use serde_json;
 use tmsn::network::start_network_only_send;
 
 use buffer_loader::BufferLoader;
+use commons::is_zero;
 use commons::io::create_bufwriter;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
@@ -37,6 +38,7 @@ pub struct Boosting {
     last_sent_model_sig: String,
     last_sent_sample_version: usize,
     last_expand_node: usize,
+    last_sent_gamma: f32,
 
     network_sender: Option<mpsc::Sender<ModelSig>>,
     local_name: String,
@@ -99,6 +101,7 @@ impl Boosting {
             last_sent_model_sig: ".".to_string(),
             last_sent_sample_version: 0,
             last_expand_node: 0,
+            last_sent_gamma: 1.0,
 
             network_sender: None,
             local_name: "".to_string(),
@@ -249,16 +252,22 @@ impl Boosting {
             let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
                 model_score.unwrap();
             let new_model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
+            let has_new_node = self.model.size() > self.base_model_size && (
+                self.last_sent_model_sig != new_model_sig ||
+                self.training_loader.current_version != self.last_sent_sample_version
+            );
+            let has_empty_message = is_full_scanned && (
+                self.last_expand_node != self.learner.expand_node ||
+                !is_zero(self.last_sent_gamma - self.learner.rho_gamma)
+            );
             {
-                let cond = (self.model.size() > self.base_model_size || is_full_scanned) &&
-                    (self.last_sent_model_sig != new_model_sig ||
-                     self.last_expand_node != self.learner.expand_node ||
-                     self.training_loader.current_version != self.last_sent_sample_version);
-                debug!("debug-empty, {}, {}, {}, {}, {}, {}, {}, {}",
-                        self.model.size(), self.base_model_size, is_full_scanned,
-                        self.last_sent_model_sig, new_model_sig,
-                    self.training_loader.current_version, self.last_sent_sample_version, cond);
-            }
+                debug!("debug-empty, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                       has_new_node, self.model.size(), self.base_model_size,
+                       self.last_sent_model_sig, new_model_sig,
+                       self.training_loader.current_version, self.last_sent_sample_version,
+                       has_empty_message, is_full_scanned, self.last_expand_node,
+                       self.learner.expand_node, self.last_sent_gamma, self.learner.rho_gamma);
+            };
             if remote_model_sig != self.base_model_sig {
                 // replace the existing model
                 let old_size = self.model.size();
@@ -269,10 +278,7 @@ impl Boosting {
                 self.learner.reset();
                 debug!("model-replaced, {}, {}, {}",
                        self.model.size(), old_size, self.base_model_sig);
-            } else if (self.model.size() > self.base_model_size || is_full_scanned) &&
-                    (self.last_sent_model_sig != new_model_sig ||
-                     self.last_expand_node != self.learner.expand_node ||
-                     self.training_loader.current_version != self.last_sent_sample_version) {
+            } else if has_new_node || has_empty_message {
                 // send out the local patch
                 let tree_slice = self.model.model_updates.create_slice(
                     self.last_remote_length..self.model.size());
@@ -287,6 +293,7 @@ impl Boosting {
                 } else {
                     self.last_sent_model_sig = new_model_sig;
                     self.last_expand_node = self.learner.expand_node;
+                    self.last_sent_gamma = self.learner.rho_gamma;
                     self.last_sent_sample_version = self.training_loader.current_version;
                     info!("Sent the local model to the network module, {}, {}, {}, {}",
                         self.last_sent_model_sig, self.last_sent_sample_version,

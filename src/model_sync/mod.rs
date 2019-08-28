@@ -232,6 +232,22 @@ fn model_sync_main(
         };
         num_updates_packs[machine_id] += 1;
         total_packets += 1;
+        if patch.size == 0 {
+            if worker_assign[machine_id].is_some() {
+                let node_id = worker_assign[machine_id].unwrap();
+                node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
+                worker_assign[machine_id] = None;
+                failed_searches += 1;
+                let duration = global_timer.get_duration() - node_timestamp[node_id];
+                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}",
+                        machine_id, node_id, remote_gamma, failed_searches,
+                        node_sum_gamma_sq[node_id], duration,
+                        node_sum_gamma_sq[node_id] / duration);
+            } else {
+                debug!("model_manager, empty with no assignment, {}", machine_id);
+            }
+            continue;
+        }
         if old_sig != model_sig {
             debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
             num_updates_rejs[machine_id] += 1;
@@ -249,52 +265,37 @@ fn model_sync_main(
             rejected_packets += 1;
             continue;
         }
-        if patch.size == 0 {
+        // accept the package
+        let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
+        num_updates_nodes[machine_id] += patch.size;
+        model_sig = new_sig;
+        next_model_sender.send(model.clone());
+        let node_id = {
             if worker_assign[machine_id].is_some() {
-                let node_id = worker_assign[machine_id].unwrap();
-                node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
-                worker_assign[machine_id] = None;
-                failed_searches += 1;
-                let duration = global_timer.get_duration() - node_timestamp[node_id];
-                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}",
-                        machine_id, node_id, remote_gamma, failed_searches,
-                        node_sum_gamma_sq[node_id], duration,
-                        node_sum_gamma_sq[node_id] / duration);
+                worker_assign[machine_id].unwrap()
             } else {
-                debug!("model_manager, empty with no assignment, {}", machine_id);
+                0
             }
+        };
+        let (count_new, count_updates) = patch.is_new.iter().fold(
+            (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
+        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}",
+                machine_id, node_id, remote_gamma, patch.size, count_new, count_updates);
+        if upload_model(&model, &model_sig, gamma, exp_name) {
+            debug!("model_manager, accept, {}, {}, {}, {}",
+                    old_sig, model_sig, machine_name, patch.size);
         } else {
-            let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
-            num_updates_nodes[machine_id] += patch.size;
-            model_sig = new_sig;
-            next_model_sender.send(model.clone());
-            let node_id = {
-                if worker_assign[machine_id].is_some() {
-                    worker_assign[machine_id].unwrap()
-                } else {
-                    0
-                }
-            };
-            let (count_new, count_updates) = patch.is_new.iter().fold(
-                (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
-            debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}",
-                    machine_id, node_id, remote_gamma, patch.size, count_new, count_updates);
-            if upload_model(&model, &model_sig, gamma, exp_name) {
-                debug!("model_manager, accept, {}, {}, {}, {}",
-                       old_sig, model_sig, machine_name, patch.size);
-            } else {
-                debug!("model_manager, upload failed, {}, {}, {}, {}",
-                       old_sig, model_sig, machine_name, patch.size);
-            }
-            last_timestamp = global_timer.get_duration();
-            handle_persistent(&model, model.size(), last_timestamp);
-            for depth in new_nodes_depth {
-                node_status.push((depth, 1.0, None));
-                node_sum_gamma_sq.push(0.0);
-                node_timestamp.push(0.0);
-            }
-            node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
+            debug!("model_manager, upload failed, {}, {}, {}, {}",
+                    old_sig, model_sig, machine_name, patch.size);
         }
+        last_timestamp = global_timer.get_duration();
+        handle_persistent(&model, model.size(), last_timestamp);
+        for depth in new_nodes_depth {
+            node_status.push((depth, 1.0, None));
+            node_sum_gamma_sq.push(0.0);
+            node_timestamp.push(0.0);
+        }
+        node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
     }
     {
         let json = serde_json::to_string(&(last_timestamp, model.size(), &model)).expect(
