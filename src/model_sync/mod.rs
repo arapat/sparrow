@@ -142,6 +142,9 @@ fn model_sync_main(
         node_status[i] = (model.depth[i], gamma, Some(i));
         worker_assign[i] = Some(i);
     }
+    for i in node_status.len()..worker_assign.len() {
+        worker_assign[i] = Some(0);
+    }
     let mut last_timestamp = global_timer.get_duration();
     let mut state = true;
     while state && gamma >= min_gamma && (num_iterations <= 0 || model.size() < num_iterations) {
