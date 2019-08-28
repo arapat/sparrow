@@ -128,6 +128,7 @@ fn model_sync_main(
     let mut timer = PerformanceMonitor::new();
     let mut total_packets = 0;
     let mut rejected_packets = 0;
+    let mut rejected_packets_model = 0;
     let mut failed_searches = 0;
     let mut num_updates_packs = vec![0; num_machines];
     let mut num_updates_rejs  = vec![0; num_machines];
@@ -152,11 +153,11 @@ fn model_sync_main(
         let mut verbose = false;
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
-            let threshold = max(3, (min(num_machines, node_status.len()) as f32 * 0.5) as usize);
+            let threshold = max(1, (node_status.len() as f32 * 0.5) as usize);
             if failed_searches >= threshold {
                 // alternative: if total_packets == 0
                 current_condition = -1;
-            } else if (rejected_packets as f32) / (total_packets as f32) >= FRACTION {
+            } else if (rejected_packets_model as f32) / (total_packets as f32) >= FRACTION {
                 current_condition = 1;
             }
             if current_condition == -1 {
@@ -185,12 +186,14 @@ fn model_sync_main(
             let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
-            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}, {}",
+            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                    gamma, shrink_factor, failed_searches, total_packets, rejected_packets,
+                   rejected_packets_model,
                    packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "));
             last_condition = current_condition;
             total_packets = 0;
             rejected_packets = 0;
+            rejected_packets_model = 0;
             num_updates_packs.iter_mut().for_each(|t| *t = 0);
             num_updates_rejs.iter_mut().for_each(|t| *t = 0);
             num_updates_nodes.iter_mut().for_each(|t| *t = 0);
@@ -223,6 +226,7 @@ fn model_sync_main(
             debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
             num_updates_rejs[machine_id] += 1;
             rejected_packets += 1;
+            rejected_packets_model += 1;
             continue;
         }
         let current_version: usize = {
