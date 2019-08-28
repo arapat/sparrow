@@ -339,12 +339,16 @@ fn update_assignments(
                 worker_assign[valid_worker] = Some(node);
                 did_something = true;
                 num_updates += 1;
-                info!("model-manager, assign, {}, {}", valid_worker, node);
+                debug!("model-manager, assign, {}, {}", valid_worker, node);
+            } else {
+                debug!("model-manager, no node needs assignment");
             }
+        } else {
+            debug!("model-mamanger, no worker available");
         }
     }
     if num_updates > 0 {
-        debug!("assign updates, {}", num_updates);
+        debug!("model-manager, assign updates, {}", num_updates);
         let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
         io_write_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME,
                     &serialize(worker_assign).unwrap());
