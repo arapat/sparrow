@@ -251,8 +251,9 @@ impl Boosting {
             let new_model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
             {
                 let cond = (self.model.size() > self.base_model_size || is_full_scanned) &&
-                           (self.last_sent_model_sig != new_model_sig ||
-                            self.training_loader.current_version != self.last_sent_sample_version);
+                    (self.last_sent_model_sig != new_model_sig ||
+                     self.last_expand_node != self.learner.expand_node ||
+                     self.training_loader.current_version != self.last_sent_sample_version);
                 debug!("debug-empty, {}, {}, {}, {}, {}, {}, {}, {}",
                         self.model.size(), self.base_model_size, is_full_scanned,
                         self.last_sent_model_sig, new_model_sig,

@@ -121,7 +121,7 @@ fn model_sync_main(
     let mut gamma = default_gamma.clone();
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
-    let mut node_status = vec![(0, default_gamma, None); model.tree_size];
+    let mut node_status = vec![(0, 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
     // Performance variables
     let mut global_timer = PerformanceMonitor::new();
@@ -156,7 +156,7 @@ fn model_sync_main(
         let mut verbose = false;
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
-            let threshold = max(1, (node_status.len() as f32 * 0.5) as usize);
+            let threshold = max(1, min(5, node_status.len()));
             if failed_searches >= threshold {
                 // alternative: if total_packets == 0
                 current_condition = -1;
@@ -184,7 +184,13 @@ fn model_sync_main(
                     debug!("model_manager, failed gamma broadcast, {}, {}, {}, {}",
                            current_condition, gamma, shrink_factor, old_gamma);
                 }
-                failed_searches = 0;
+                failed_searches = node_status.iter().map(|(_, last_gamma, avail)| {
+                    if avail.is_none() && *last_gamma <= gamma {
+                        1
+                    } else {
+                        0
+                    }
+                }).sum();
             }
             let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
