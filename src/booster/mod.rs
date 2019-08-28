@@ -247,6 +247,10 @@ impl Boosting {
             let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
                 model_score.unwrap();
             let new_model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
+            debug!("debug-empty, {}, {}, {}, {}, {}, {}, {}",
+                    self.model.size(), self.base_model_size, is_full_scanned,
+                    self.last_sent_model_sig, new_model_sig,
+                    self.training_loader.current_version, self.last_sent_model_sig);
             if remote_model_sig != self.base_model_sig {
                 // replace the existing model
                 let old_size = self.model.size();
