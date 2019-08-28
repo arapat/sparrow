@@ -1,6 +1,7 @@
 mod strata;
 mod assigners;
 mod samplers;
+mod gatherer;
 pub mod serial_storage;
 
 use std::cmp::max;
@@ -28,6 +29,7 @@ use super::TFeature;
 
 use self::assigners::Assigners;
 use self::samplers::Samplers;
+use self::gatherers::Gatherer;
 use self::serial_storage::SerialStorage;
 use self::strata::Strata;
 
@@ -178,7 +180,10 @@ impl StratifiedStorage {
             debug_mode);
         let strata = Arc::new(RwLock::new(strata));
 
-        // Start assigners and samplers
+        // Start assigners, samplers, and gatherers
+        let gatherer = Gatherer::new(
+            sampled_examples_r.clone(), size.clone(), new_examples.clone(),
+            current_sample_version.clone(), exp_name.clone());
         let assigners = Assigners::new(
             strata.clone(),
             stats_update_s.clone(),
@@ -196,6 +201,7 @@ impl StratifiedStorage {
             num_samplers,
             sampler_state.clone(),
         );
+        gatherer.run();
         assigners.run();
         samplers.run();
 

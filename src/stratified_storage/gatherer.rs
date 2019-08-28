@@ -13,11 +13,11 @@ use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 
-use super::LockedBuffer;
-use super::SampleMode;
-use super::io::write_memory;
-use super::io::write_local;
-use super::io::write_s3;
+use buffer_loader::LockedBuffer;
+use buffer_loader::SampleMode;
+use buffer_loader::io::write_memory;
+use buffer_loader::io::write_local;
+use buffer_loader::io::write_s3;
 
 
 pub struct Gatherer {

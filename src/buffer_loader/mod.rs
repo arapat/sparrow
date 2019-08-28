@@ -1,4 +1,3 @@
-mod gatherer;
 mod io;
 mod loader;
 
@@ -18,7 +17,6 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleInSampleSet;
 use commons::ExampleWithScore;
 use commons::Model;
-use self::gatherer::Gatherer;
 use self::loader::Loader;
 
 
@@ -50,7 +48,6 @@ pub struct BufferLoader {
     examples: Vec<ExampleInSampleSet>,
     pub current_version: usize,
     new_examples: LockedBuffer,
-    gatherer: Gatherer,
     loader: Loader,
     pub sampled_examples_s: Sender<((ExampleWithScore, u32), u32)>,
     _sampled_examples_r: Receiver<((ExampleWithScore, u32), u32)>,
@@ -101,9 +98,6 @@ impl BufferLoader {
         let (sampled_examples_s, sampled_examples_r) =
             channel::bounded(channel_size, "gather-samples");
         let current_sample_version = Arc::new(RwLock::new(0));
-        let gatherer = Gatherer::new(
-            sampled_examples_r.clone(), size.clone(), new_examples.clone(),
-            current_sample_version.clone(), exp_name.clone());
         let loader = Loader::new(new_examples.clone(), sleep_duration, exp_name);
         let mut buffer_loader = BufferLoader {
             size: size,
@@ -113,7 +107,6 @@ impl BufferLoader {
             examples: vec![],
             current_version: 0,
             new_examples: new_examples,
-            gatherer: gatherer,
             loader: loader,
             sampled_examples_s: sampled_examples_s,
             _sampled_examples_r: sampled_examples_r,
@@ -124,18 +117,8 @@ impl BufferLoader {
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
-        match sampler_scanner.to_lowercase().as_str() {
-            "sampler" => {
-                buffer_loader.gatherer.run(sample_mode.clone());
-            },
-            "scanner" => {
-                buffer_loader.loader.run(sample_mode.clone());
-            },
-            // "both"
-            _ => {
-                buffer_loader.gatherer.run(sample_mode.clone());
-                buffer_loader.loader.run(sample_mode.clone());
-            }
+        if sampler_scanner.to_lowercase().as_str() != "sampler" {
+            buffer_loader.loader.run(sample_mode.clone());
         }
         while init_block && !buffer_loader.try_switch() {
             sleep(Duration::from_millis(2000));

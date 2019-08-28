@@ -32,7 +32,7 @@ impl Loader {
         }
     }
 
-    /// Start the gatherer.
+    /// Start the loaders
     ///
     /// Fill the alternate memory buffer of the buffer loader
     pub fn run(&self, mode: SampleMode) {
