@@ -283,7 +283,7 @@ impl Boosting {
                 let tree_slice = self.model.model_updates.create_slice(
                     self.last_remote_length..self.model.size());
                 let packet: ModelSig = (
-                    tree_slice, self.model.last_gamma, self.training_loader.current_version,
+                    tree_slice, self.learner.rho_gamma, self.training_loader.current_version,
                     self.base_model_sig.clone(), new_model_sig.clone());
                 let send_result = self.network_sender.as_ref().unwrap()
                                         .send(packet);
