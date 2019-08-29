@@ -292,9 +292,11 @@ impl Boosting {
                             Error: {}", err);
                 } else {
                     self.last_sent_model_sig = new_model_sig;
-                    self.last_expand_node = self.learner.expand_node;
-                    self.last_sent_gamma = self.learner.rho_gamma;
                     self.last_sent_sample_version = self.training_loader.current_version;
+                    if !has_new_node {
+                        self.last_expand_node = self.learner.expand_node;
+                        self.last_sent_gamma = self.learner.rho_gamma;
+                    }
                     info!("Sent the local model to the network module, {}, {}, {}, {}",
                         self.last_sent_model_sig, self.last_sent_sample_version,
                         self.last_remote_length, self.model.size());
