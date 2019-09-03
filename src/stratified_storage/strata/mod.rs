@@ -19,6 +19,8 @@ use super::Example;
 
 use super::super::TFeature;
 use super::super::TLabel;
+use super::CountTableWrite;
+use super::WeightTableWrite;
 use labeled_data::LabeledData;
 
 use self::disk_buffer::DiskBuffer;
@@ -55,6 +57,7 @@ impl Strata {
         disk_buffer_name: &str,
         sampler_state: Arc<RwLock<bool>>,
         serialized_data: Option<Vec<u8>>,
+        stats_update_s: Sender<(i8, (i32, f64))>,
     ) -> Strata {
         let (ser_num_examples_per_block, disk_buffer, data_in_queues) = {
             if serialized_data.is_some() {
@@ -85,6 +88,7 @@ impl Strata {
         let slot_s = slot_s.unwrap();
         let mut disk_buffer = strata.disk_buffer.write().unwrap();
         let all_filled = disk_buffer.get_all_filled();
+        let total_count = all_filled.len() * num_examples_per_block;
         debug!("strata, init, total number of the blocks, {}", all_filled.len());
         for position in all_filled {
             let block = disk_buffer.read_at(position);
@@ -94,6 +98,7 @@ impl Strata {
         }
         drop(disk_buffer);
         debug!("strata, init, disk blocks are all reset");
+        stats_update_s.send((0, (total_count as i32, total_count as f64)));
         spawn(move || {
             for (_, vals) in data_in_queues {
                 for (example, _) in vals {

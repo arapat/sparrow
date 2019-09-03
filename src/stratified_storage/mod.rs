@@ -175,14 +175,14 @@ impl StratifiedStorage {
                 None
             }
         };
-        // Maintains all example on disk and in memory
-        let strata = Strata::new(
-            num_examples, feature_size, num_examples_per_block, disk_buffer_filename,
-            sampler_state.clone(), ser_strata);
         // Maintains weight tables
         let stats_update_s = start_update_weights_table(
             counts_table_r.clone(), counts_table_w, weights_table_r.clone(), weights_table_w,
             debug_mode);
+        // Maintains all example on disk and in memory
+        let strata = Strata::new(
+            num_examples, feature_size, num_examples_per_block, disk_buffer_filename,
+            sampler_state.clone(), ser_strata, stats_update_s.clone());
         let strata = Arc::new(RwLock::new(strata));
 
         // Start assigners and samplers
