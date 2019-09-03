@@ -157,7 +157,8 @@ fn model_sync_main(
         let mut verbose = false;
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
-            let threshold = max(1, min(5, node_status.len()));
+            // TODO: set decrease gamma threshold a parameter
+            let threshold = max(1, min(20, node_status.len()));
             if failed_searches >= threshold {
                 // alternative: if total_packets == 0
                 current_condition = -1;
