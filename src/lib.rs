@@ -315,7 +315,7 @@ pub fn training(config_file: String) {
             config.debug_mode,
             config.resume_training,
         );
-        if !config.resume_training {
+        // if !config.resume_training {
             debug!("Initializing the stratified structure.");
             stratified_structure.init_stratified_from_file(
                 config.training_filename.clone(),
@@ -324,7 +324,7 @@ pub fn training(config_file: String) {
                 config.num_features,
                 bins.clone(),
             );
-        }
+        // }
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
         //     mpsc::channel();
         // start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);
