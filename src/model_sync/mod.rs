@@ -127,6 +127,7 @@ fn model_sync_main(
     let mut global_timer = PerformanceMonitor::new();
     let mut timer = PerformanceMonitor::new();
     let mut total_packets = 0;
+    let mut nonempty_packets = 0;
     let mut rejected_packets = 0;
     let mut rejected_packets_model = 0;
     let mut failed_searches = 0;
@@ -160,7 +161,7 @@ fn model_sync_main(
             if failed_searches >= threshold {
                 // alternative: if total_packets == 0
                 current_condition = -1;
-            } else if (rejected_packets_model as f32) / (total_packets as f32) >= FRACTION {
+            } else if (rejected_packets_model as f32) / (nonempty_packets as f32) >= FRACTION {
                 current_condition = 1;
             }
             if current_condition == -1 {
@@ -195,13 +196,15 @@ fn model_sync_main(
             let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
-            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
-                   gamma, shrink_factor, failed_searches, total_packets, rejected_packets,
-                   rejected_packets_model,
+            debug!("model_manager, status update, \
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
+                   gamma, shrink_factor, failed_searches, total_packets, nonempty_packets,
+                   rejected_packets, rejected_packets_model,
                    packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "),
                    node_status, worker_assign);
             last_condition = current_condition;
             total_packets = 0;
+            nonempty_packets = 0;
             rejected_packets = 0;
             rejected_packets_model = 0;
             num_updates_packs.iter_mut().for_each(|t| *t = 0);
@@ -248,6 +251,7 @@ fn model_sync_main(
             }
             continue;
         }
+        nonempty_packets += 1;
         if old_sig != model_sig {
             debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
             num_updates_rejs[machine_id] += 1;

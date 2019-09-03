@@ -55,6 +55,14 @@ impl BitMap {
         self.is_free[div] = self.is_free[div] & !(1 << res);
     }
 
+    pub fn get_all_filled(&self) -> Vec<usize> {
+        (0..self.size).filter(|k| {
+            let div = k / 32;
+            let res = k % 32;
+            (self.is_free[div] >> res) & 1 == 0
+        }).collect()
+    }
+
     fn log(t: i64) -> usize {
         let mut left = 0;
         let mut right = 32 + 1;

@@ -4,6 +4,7 @@ mod stratum;
 
 use bincode::serialize;
 use bincode::deserialize;
+use crossbeam_channel::Sender as CrossbeamSender;
 
 use std::vec::IntoIter;
 use std::collections::HashMap;
@@ -21,6 +22,7 @@ use labeled_data::LabeledData;
 
 use self::disk_buffer::DiskBuffer;
 use self::stratum::Stratum;
+use self::stratum::reset_block_scores;
 
 
 type Block = Vec<ExampleWithScore>;
@@ -75,10 +77,21 @@ impl Strata {
             out_block:              HashMap::new(),
             sampler_state:          sampler_state,
         };
-        for (key, vals) in data_in_queues {
-            let (in_queue, _) = strata.create(key);
-            for example in vals {
-                in_queue.send(example);
+        // Send all examples to the stratum 0
+        // TODO: set flag to send examples to the strata other than the startum 0
+        let (in_queue, _, slot_s) = strata.create(0);
+        let slot_s = slot_s.unwrap();
+        let mut disk_buffer = strata.disk_buffer.write().unwrap();
+        for position in disk_buffer.get_all_filled() {
+            let block = disk_buffer.read_at(position);
+            let reset_block = reset_block_scores(&block);
+            disk_buffer.write_at(position, reset_block.as_ref());
+            slot_s.send(position);
+        }
+        drop(disk_buffer);
+        for (_, vals) in data_in_queues {
+            for (example, _) in vals {
+                in_queue.send((example, (0.0, 0)));
             }
         }
         strata
@@ -100,12 +113,14 @@ impl Strata {
         }
     }
 
-    pub fn create(&mut self, index: i8) -> (QueueSender, QueueReceiver) {
+    pub fn create(
+        &mut self, index: i8,
+    ) -> (QueueSender, QueueReceiver, Option<CrossbeamSender<usize>>) {
         let (mut in_queues, mut out_queues) =
             (self.in_queues.write().unwrap(), self.out_queues.write().unwrap());
         if in_queues.contains_key(&index) {
             // Other process have created the stratum before this process secures the writing lock
-            (in_queues[&index].clone(), out_queues[&index].clone())
+            (in_queues[&index].clone(), out_queues[&index].clone(), None)
         } else {
             // Each stratum will create two threads for writing in and reading out examples
             // TODO: create a systematic approach to manage stratum threads
@@ -117,7 +132,7 @@ impl Strata {
             self.in_queues_receivers.insert(index, stratum.in_queue_r.clone());
             out_queues.insert(index, out_queue.clone());
             self.out_block.insert(index, stratum.out_block.clone());
-            (in_queue, out_queue)
+            (in_queue, out_queue, Some(stratum.slot_s.clone()))
         }
     }
 
@@ -211,7 +226,7 @@ mod tests {
                     if let Some(t) = strata.get_in_queue(k as i8) {
                         t
                     } else {
-                        let (sender, _) = strata.create(k as i8);
+                        let (sender, _, _) = strata.create(k as i8);
                         sender
                     }
                 };

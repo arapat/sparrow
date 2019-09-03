@@ -51,6 +51,10 @@ impl DiskBuffer {
             self.size += 1;
         }
         assert!(self.size <= self.capacity);
+        self.write_at(position, data)
+    }
+
+    pub fn write_at(&mut self, position: usize, data: &[u8]) -> usize {
         let offset = position * self.block_size;
         let file = self.file.as_mut().unwrap();
         file.seek(SeekFrom::Start(offset as u64)).expect(
@@ -62,6 +66,12 @@ impl DiskBuffer {
 
     pub fn read(&mut self, position: usize) -> Vec<u8> {
         assert!(position < self.size);
+        let ret = self.read_at(position);
+        self.bitmap.mark_free(position);
+        ret
+    }
+
+    pub fn read_at(&mut self, position: usize) -> Vec<u8> {
         let offset = position * self.block_size;
         let file = self.file.as_mut().unwrap();
         file.seek(SeekFrom::Start(offset as u64)).expect(
@@ -71,7 +81,6 @@ impl DiskBuffer {
             &format!("Read from disk failed. Disk buffer size is `{}`. Position to read is `{}`.",
                      self.size, position)
         );
-        self.bitmap.mark_free(position);
         block_buffer
     }
 
@@ -88,6 +97,10 @@ impl DiskBuffer {
              .open(self.filename.clone()).expect(
                  &format!("Cannot create the buffer file at {}", self.filename))
         );
+    }
+
+    pub fn get_all_filled(&self) -> Vec<usize> {
+        self.bitmap.get_all_filled()
     }
 }
 

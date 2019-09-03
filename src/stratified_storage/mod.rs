@@ -127,14 +127,20 @@ impl StratifiedStorage {
             debug!("prepare to resume an earlier stratified structure");
         }
         // Weights table
-        let (counts_table_r, mut counts_table_w): (CountTableRead, CountTableWrite) = evmap::new();
-        let (weights_table_r, mut weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
+        let (counts_table_r, counts_table_w): (CountTableRead, CountTableWrite) = evmap::new();
+        let (weights_table_r, weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
         let ser_strata = {
             if resume_training {
                 // read snapshot
                 debug!("reading the snapshot");
-                let (ser_strata, tables): (Vec<u8>, _) =
+                let (ser_strata, _tables): (Vec<u8>, (HashMap<i8, i32>, HashMap<i8, f64>)) =
                     deserialize(&read_all(&snapshot_filename)).unwrap();
+                /* TODO: Set a flag to enable resuming weight tables and the latest sample  */
+                /* The backup mechanism does not back up the slot indices for each stratum  */
+                /* yet. Implement it before turning on this flag.                           */
+                /* For now, all examples will be reset their scores to 0 during the         */
+                /* initilization.                                                           */
+                /*
                 debug!("reading the tables");
                 let (counts_table, weights_table): (HashMap<_, _>, HashMap<_, f64>) = tables;
                 // initialize the weight tables from the snapshot
@@ -162,6 +168,7 @@ impl StratifiedStorage {
                         last_sample.into_iter().for_each(|t| sampled_examples.send(((t, 1), 1)));
                     });
                 }
+                */
                 // serialized strata will be used for initialization in its `new` func
                 Some(ser_strata)
             } else {
