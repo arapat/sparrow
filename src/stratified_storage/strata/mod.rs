@@ -10,6 +10,7 @@ use std::vec::IntoIter;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::thread::spawn;
 
 use commons::ExampleWithScore;
 use commons::channel::Sender;
@@ -79,21 +80,28 @@ impl Strata {
         };
         // Send all examples to the stratum 0
         // TODO: set flag to send examples to the strata other than the startum 0
+        debug!("strata, init, prepare to reset the strata");
         let (in_queue, _, slot_s) = strata.create(0);
         let slot_s = slot_s.unwrap();
         let mut disk_buffer = strata.disk_buffer.write().unwrap();
-        for position in disk_buffer.get_all_filled() {
+        let all_filled = disk_buffer.get_all_filled();
+        debug!("strata, init, total number of the blocks, {}", all_filled.len());
+        for position in all_filled {
             let block = disk_buffer.read_at(position);
             let reset_block = reset_block_scores(&block);
             disk_buffer.write_at(position, reset_block.as_ref());
             slot_s.send(position);
         }
         drop(disk_buffer);
-        for (_, vals) in data_in_queues {
-            for (example, _) in vals {
-                in_queue.send((example, (0.0, 0)));
+        debug!("strata, init, disk blocks are all reset");
+        spawn(move || {
+            for (_, vals) in data_in_queues {
+                for (example, _) in vals {
+                    in_queue.send((example, (0.0, 0)));
+                }
             }
-        }
+            debug!("strata, init, all examples in queue are sent to the stratum 0");
+        });
         strata
     }
 
