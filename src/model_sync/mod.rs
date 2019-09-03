@@ -302,6 +302,9 @@ fn model_sync_main(
         }
         node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
     }
+    info!("Model sync quits, {}, {}, {}, {}, Model length: {}, Is gamma significant? {}",
+            state, gamma >= min_gamma, num_iterations <= 0, model.size() < num_iterations,
+            model.size(), gamma >= min_gamma);
     {
         let json = serde_json::to_string(&(last_timestamp, model.size(), &model)).expect(
             "Local model cannot be serialized."
@@ -310,11 +313,10 @@ fn model_sync_main(
         file_buffer.write(json.as_ref()).unwrap();
     }
     {
+        debug!("sampler state, false, model sync quits");
         let mut state = sampler_state.write().unwrap();
         *state = false;
     }
-    info!("Model sync quits. Model length: {}. Is gamma significant? {}.",
-            model.size(), gamma >= min_gamma);
 }
 
 

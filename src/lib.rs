@@ -334,7 +334,7 @@ pub fn training(config_file: String) {
             // Check if termination is manually requested
             let filename = "status.txt".to_string();
             if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
-                debug!("Change in the status.txt has been detected.");
+                debug!("sampler state, false, change in the status.txt has been detected");
                 *(sampler_state.write().unwrap()) = false;
             }
             // Check if any one of the scanners is still working
