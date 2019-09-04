@@ -196,8 +196,28 @@ impl StratifiedStorage {
         let strata = Arc::new(RwLock::new(strata));
 
         // Start assigners, samplers, and gatherers
+        let model = Arc::new(RwLock::new(init_model));
+        {
+            let model = model.clone();
+            spawn(move || {
+                while let Some(new_model) = models.recv() {
+                    let model_len = new_model.size();
+                    {
+                        let mut model = model.write().unwrap();
+                        *model = new_model;
+                    }
+                    debug!("stratified, model updated, {}", model_len);
+                }
+            });
+        }
         let gatherer = Gatherer::new(
-            sampled_examples_r, sample_capacity, memory_buffer, current_sample_version, exp_name);
+            sampled_examples_r,
+            sample_capacity,
+            memory_buffer,
+            current_sample_version,
+            model.clone(),
+            exp_name,
+        );
         let assigners = Assigners::new(
             strata.clone(),
             stats_update_s.clone(),
@@ -205,11 +225,10 @@ impl StratifiedStorage {
             channel_size,
         );
         let samplers = Samplers::new(
-            init_model,
+            model,
             strata.clone(),
             sampled_examples_s,
             assigners.updated_examples_s.clone(),
-            models.clone(),
             stats_update_s.clone(),
             weights_table_r.clone(),
             num_samplers,

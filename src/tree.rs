@@ -200,6 +200,22 @@ impl Tree {
         prediction
     }
 
+    pub fn visit_tree(&self, data: &Example, counter: &mut Vec<u32>) {
+        let feature = &(data.feature);
+        let mut queue = VecDeque::new();
+        queue.push_back(0);
+        while !queue.is_empty() {
+            let node = queue.pop_front().unwrap();
+            counter[node] += 1;
+            self.children[node].iter().filter(|child| {
+                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
+                    self.evaluation[**child]
+            }).for_each(|t| {
+                queue.push_back(*t);
+            });
+        }
+    }
+
     pub fn get_prediction(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
         self.model_updates.get_prediction_ul(data, version)
     }

@@ -1,4 +1,3 @@
-
 use rand::Rng;
 
 use std::fs::rename;
@@ -9,6 +8,7 @@ use rand::thread_rng;
 
 use bincode::serialize;
 use commons::channel::Receiver;
+use commons::Model;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
@@ -25,6 +25,7 @@ pub struct Gatherer {
     new_sample_capacity:    usize,
     new_sample_buffer:      LockedBuffer,
     current_sample_version: Arc<RwLock<usize>>,
+    model:                  Arc<RwLock<Model>>,
     exp_name:               String,
 }
 
@@ -37,6 +38,7 @@ impl Gatherer {
         new_sample_capacity:    usize,
         new_sample_buffer:      LockedBuffer,
         current_sample_version: Arc<RwLock<usize>>,
+        model:                  Arc<RwLock<Model>>,
         exp_name:               String,
     ) -> Gatherer {
         Gatherer {
@@ -44,6 +46,7 @@ impl Gatherer {
             new_sample_capacity: new_sample_capacity,
             new_sample_buffer:   new_sample_buffer,
             current_sample_version: current_sample_version,
+            model:               model,
             exp_name:            exp_name,
         }
     }
@@ -56,6 +59,7 @@ impl Gatherer {
         let gather_new_sample = self.gather_new_sample.clone();
         let new_sample_buffer = self.new_sample_buffer.clone();
         let current_sample_version = self.current_sample_version.clone();
+        let model = self.model.clone();
         let exp_name = self.exp_name.clone();
         info!("Starting non-blocking gatherer");
         spawn(move || {
@@ -70,6 +74,7 @@ impl Gatherer {
                             gather_new_sample.clone(),
                             write_memory,
                             version,
+                            model.clone(),
                             exp_name.as_str(),
                         );
                     },
@@ -80,6 +85,7 @@ impl Gatherer {
                             gather_new_sample.clone(),
                             write_local,
                             version,
+                            model.clone(),
                             exp_name.as_str(),
                         );
                     },
@@ -90,6 +96,7 @@ impl Gatherer {
                             gather_new_sample.clone(),
                             write_s3,
                             version,
+                            model.clone(),
                             exp_name.as_str(),
                         );
                     },
@@ -109,6 +116,7 @@ fn gather<F>(
     gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
     handler: F,
     version: usize,
+    model: Arc<RwLock<Model>>,
     exp_name: &str,
 ) where F: Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str) {
     debug!("sampler, start, generate sample");
@@ -143,6 +151,15 @@ fn gather<F>(
     thread_rng().shuffle(&mut new_sample);
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}",
            total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive);
+    // TODO: count number of examples fall, make sure the numbering is the same as the assignments
+    let counts = {
+        let model = model.read().unwrap();
+        let mut c = vec![0; model.tree_size];
+        new_sample.iter().for_each(|(example, _)| model.visit_tree(example, &mut c));
+        c
+    };
+    let counts_str: Vec<String> = counts.into_iter().map(|t| t.to_string()).collect();
+    debug!("sampler, travel finished, {}, {}", new_sample.len(), counts_str.join(", "));
     // Create a snapshot for continous training
     let filename = "latest_sample.bin".to_string() + "_WRITING";
     write_all(&filename, &serialize(&(version, new_sample.clone())).unwrap())

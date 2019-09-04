@@ -38,7 +38,6 @@ pub struct Samplers {
     strata: Arc<RwLock<Strata>>,
     sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
-    next_model: Receiver<Model>,
     model: Arc<RwLock<Model>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
@@ -51,11 +50,10 @@ pub struct Samplers {
 // start signal, in which case we would loss control of the total number of sampler threads
 impl Samplers {
     pub fn new(
-        init_model: Model,
+        model: Arc<RwLock<Model>>,
         strata: Arc<RwLock<Strata>>,
         sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         updated_examples: Sender<ExampleWithScore>,
-        next_model: Receiver<Model>,
         stats_update_s: Sender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
         num_threads: usize,
@@ -65,8 +63,7 @@ impl Samplers {
             strata: strata,
             sampled_examples: sampled_examples,
             updated_examples: updated_examples,
-            next_model: next_model,
-            model: Arc::new(RwLock::new(init_model)),
+            model: model,
             stats_update_s: stats_update_s,
             weights_table: weights_table,
             num_threads: num_threads,
@@ -75,19 +72,6 @@ impl Samplers {
     }
 
     pub fn run(&self) {
-        let next_model = self.next_model.clone();
-        let model = self.model.clone();
-        spawn(move || {
-            while let Some(new_model) = next_model.recv() {
-                let model_len = new_model.size();
-                {
-                    let mut model = model.write().unwrap();
-                    *model = new_model;
-                }
-                debug!("sampler, model updated, {}", model_len);
-            }
-        });
-
         let num_threads      = self.num_threads;
         let strata           = self.strata.clone();
         let sampled_examples = self.sampled_examples.clone();
