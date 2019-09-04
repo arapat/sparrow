@@ -300,7 +300,7 @@ pub fn training(config_file: String) {
             sampler_state.clone());
         debug!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
-            init_tree,
+            init_tree.clone(),
             config.num_examples,
             config.num_features,
             config.positive.clone(),
@@ -323,6 +323,7 @@ pub fn training(config_file: String) {
                 config.batch_size,
                 config.num_features,
                 bins.clone(),
+                init_tree,
             );
         // }
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =

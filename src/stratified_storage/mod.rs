@@ -224,6 +224,7 @@ impl StratifiedStorage {
         batch_size: usize,
         feature_size: usize,
         bins: Vec<Bins>,
+        model: Model,
     ) {
         let mut reader = SerialStorage::new(
             filename.clone(),
@@ -236,6 +237,7 @@ impl StratifiedStorage {
         let updated_examples_s = self.updated_examples_s.clone();
         spawn(move || {
             let mut index = 0;
+            let mut last_report_length = 0;
             while index < size {
                 reader.read_raw(batch_size).into_iter().for_each(|data| {
                     let features: Vec<TFeature> =
@@ -244,9 +246,14 @@ impl StratifiedStorage {
                                 bins[idx].get_split_index(*val)
                             }).collect();
                     let mapped_data = LabeledData::new(features, data.label);
-                    updated_examples_s.send((mapped_data, (0.0, 0)));
+                    let (score, (model_size, _)) = model.get_prediction(&mapped_data, 0);
+                    updated_examples_s.send((mapped_data, (score, model_size)));
                 });
                 index += batch_size;
+                if index - last_report_length > size / 10 {
+                    debug!("init-stratified, progress, {}", index);
+                    last_report_length = index;
+                }
             }
             debug!("Raw data on disk has been loaded into the stratified storage, \
                     filename {}, capacity {}, feature size {}", filename, size, feature_size);
