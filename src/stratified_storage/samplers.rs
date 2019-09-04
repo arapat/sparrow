@@ -150,15 +150,19 @@ fn sampler(
         let index = super::sample_weights_table(&weights_table);
         if index.is_none() {
             // stratified storage is empty, wait for data loading
-            debug!("Sampler sleeps waiting for data loading");
+            debug!("sampler, Sampler sleeps waiting for data loading");
             sleep(Duration::from_millis(1000));
             continue;
         }
         let index = index.unwrap();
         // STEP 2: Access the queue for the sampled strata
         let existing_receiver = {
-            let read_strata = strata.read().unwrap();
-            read_strata.get_out_queue(index)
+            let read_strata = strata.try_read();
+            if read_strata.is_err() {
+                debug!("sampler, sampler cannot read the strata, {}", index);
+                continue;
+            }
+            read_strata.unwrap().get_out_queue(index)
         };
         let receiver = existing_receiver.unwrap();
         // STEP 3: Sample one example using minimum variance sampling
