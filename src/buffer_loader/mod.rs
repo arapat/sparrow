@@ -1,4 +1,4 @@
-mod io;
+pub mod io;
 mod loader;
 
 use rayon::prelude::*;
@@ -9,9 +9,6 @@ use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
 
-use commons::channel;
-use commons::channel::Receiver;
-use commons::channel::Sender;
 use commons::get_weight;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleInSampleSet;
@@ -47,11 +44,10 @@ pub struct BufferLoader {
 
     examples: Vec<ExampleInSampleSet>,
     pub current_version: usize,
-    new_examples: LockedBuffer,
+    pub new_examples: LockedBuffer,
     loader: Loader,
-    pub sampled_examples_s: Sender<((ExampleWithScore, u32), u32)>,
-    _sampled_examples_r: Receiver<((ExampleWithScore, u32), u32)>,
     pub current_sample_version: Arc<RwLock<usize>>,
+    pub sample_mode: SampleMode,
 
     ess: f32,
     _min_ess: f32,
@@ -73,7 +69,6 @@ impl BufferLoader {
     pub fn new(
         size: usize,
         batch_size: usize,
-        channel_size: usize,
         sampling_mode: String,
         sleep_duration: usize,
         init_block: bool,
@@ -95,8 +90,6 @@ impl BufferLoader {
             }
         };
         // Strata -> BufferLoader
-        let (sampled_examples_s, sampled_examples_r) =
-            channel::bounded(channel_size, "gather-samples");
         let current_sample_version = Arc::new(RwLock::new(0));
         let loader = Loader::new(new_examples.clone(), sleep_duration, exp_name);
         let mut buffer_loader = BufferLoader {
@@ -108,9 +101,8 @@ impl BufferLoader {
             current_version: 0,
             new_examples: new_examples,
             loader: loader,
-            sampled_examples_s: sampled_examples_s,
-            _sampled_examples_r: sampled_examples_r,
             current_sample_version: current_sample_version,
+            sample_mode: sample_mode.clone(),
 
             ess: 0.0,
             _min_ess: min_ess.unwrap_or(0.0),

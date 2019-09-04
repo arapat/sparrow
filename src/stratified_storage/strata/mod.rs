@@ -19,8 +19,6 @@ use super::Example;
 
 use super::super::TFeature;
 use super::super::TLabel;
-use super::CountTableWrite;
-use super::WeightTableWrite;
 use labeled_data::LabeledData;
 
 use self::disk_buffer::DiskBuffer;

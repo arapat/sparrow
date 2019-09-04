@@ -230,7 +230,6 @@ fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
-        config.channel_size,
         config.sampling_mode.clone(),
         config.sleep_duration,
         false, // config.sampler_scanner != "sampler",
@@ -303,18 +302,22 @@ pub fn training(config_file: String) {
         let stratified_structure = StratifiedStorage::new(
             init_tree.clone(),
             config.num_examples,
+            config.buffer_size,
             config.num_features,
             config.positive.clone(),
             config.num_examples_per_block,
             config.disk_buffer_filename.as_ref(),
+            buffer_loader.new_examples.clone(),
+            buffer_loader.current_sample_version.clone(),
+            buffer_loader.sample_mode.clone(),
             config.num_assigners,
             config.num_samplers,
-            buffer_loader.sampled_examples_s.clone(),
             next_model_r,
             config.channel_size,
             sampler_state.clone(),
             config.debug_mode,
             config.resume_training,
+            config.exp_name,
         );
         // if !config.resume_training {
             debug!("Initializing the stratified structure.");

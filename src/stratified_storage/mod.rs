@@ -13,13 +13,11 @@ use std::thread::sleep;
 use std::time::Duration;
 use rand;
 use bincode::serialize;
-use bincode::deserialize;
 use commons::bins::Bins;
 use commons::channel;
 use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_sign;
-use commons::io::read_all;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::Model;
@@ -27,9 +25,11 @@ use labeled_data::LabeledData;
 use super::Example;
 use super::TFeature;
 
+use buffer_loader::LockedBuffer;
+use buffer_loader::SampleMode;
 use self::assigners::Assigners;
 use self::samplers::Samplers;
-use self::gatherers::Gatherer;
+use self::gatherer::Gatherer;
 use self::serial_storage::SerialStorage;
 use self::strata::Strata;
 
@@ -111,18 +111,22 @@ impl StratifiedStorage {
     pub fn new(
         init_model: Model,
         num_examples: usize,
+        sample_capacity: usize,
         feature_size: usize,
         positive: String,
         num_examples_per_block: usize,
         disk_buffer_filename: &str,
+        memory_buffer: LockedBuffer,
+        current_sample_version: Arc<RwLock<usize>>,
+        sample_mode: SampleMode,
         num_assigners: usize,
         num_samplers: usize,
-        sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         models: Receiver<Model>,
         channel_size: usize,
         sampler_state: Arc<RwLock<bool>>,
         debug_mode: bool,
         resume_training: bool,
+        exp_name: String,
     ) -> StratifiedStorage {
         let snapshot_filename = "stratified.serde".to_string();
         if resume_training {
@@ -131,6 +135,9 @@ impl StratifiedStorage {
         // Weights table
         let (counts_table_r, counts_table_w): (CountTableRead, CountTableWrite) = evmap::new();
         let (weights_table_r, weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
+        // let (sampled_examples_s, sampled_examples_r): (Sender<((ExampleWithScore, u32), u32)>, _) =
+        let (sampled_examples_s, sampled_examples_r) =
+            channel::bounded(channel_size, "gather-samples");
         /* TODO: Set a flag to enable resuming weight tables and the latest sample  */
         /* The backup mechanism does not back up the slot indices for each stratum  */
         /* yet. Implement it before turning on this flag.                           */
@@ -190,8 +197,7 @@ impl StratifiedStorage {
 
         // Start assigners, samplers, and gatherers
         let gatherer = Gatherer::new(
-            sampled_examples_r.clone(), size.clone(), new_examples.clone(),
-            current_sample_version.clone(), exp_name.clone());
+            sampled_examples_r, sample_capacity, memory_buffer, current_sample_version, exp_name);
         let assigners = Assigners::new(
             strata.clone(),
             stats_update_s.clone(),
@@ -201,7 +207,7 @@ impl StratifiedStorage {
         let samplers = Samplers::new(
             init_model,
             strata.clone(),
-            sampled_examples.clone(),
+            sampled_examples_s,
             assigners.updated_examples_s.clone(),
             models.clone(),
             stats_update_s.clone(),
@@ -209,7 +215,7 @@ impl StratifiedStorage {
             num_samplers,
             sampler_state.clone(),
         );
-        gatherer.run();
+        gatherer.run(sample_mode);
         assigners.run();
         samplers.run();
 
