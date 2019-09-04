@@ -262,6 +262,7 @@ pub fn training(config_file: String) {
             let (_, _, model): (f32, usize, Model) =
                 serde_json::from_str(&raw_read_all(&"model.json".to_string()))
                         .expect(&format!("Cannot parse the model in `model.json`"));
+            model.base_version = 0;
             debug!("Load an existing tree");
             model
         } else {
