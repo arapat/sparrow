@@ -178,8 +178,10 @@ fn sampler(
         };
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
+        let mut sampled_trials = 0;
         pm3_total.resume();
         while sampled_example.is_none() {
+            sampled_trials += 1;
             pm1.resume();
             let recv = {
                 let mut failed_recv = 0;
@@ -219,6 +221,9 @@ fn sampler(
             updated_examples.send((example, (updated_score, model_size)));
             num_updated += 1;
             pm_update.update(1);
+            if sampled_trials % 100 == 0 {
+                debug!("sampler, keep failing, {}, {}", index, sampled_trials);
+            }
         }
         pm3_total.pause();
         // STEP 4: Send the sampled example to the buffer loader
