@@ -169,7 +169,13 @@ impl Boosting {
         &mut self,
         prep_time: f32,
     ) {
-        info!("Start training.");
+        debug!("Start training.");
+
+        while self.base_model_sig != "init" {
+            self.handle_network(false);
+            sleep(Duration::from_secs(2));
+        }
+        debug!("booster, remote model is downloaded");
 
         let init_sampling_duration = self.training_loader.get_sampling_duration();
         let mut global_timer = PerformanceMonitor::new();
