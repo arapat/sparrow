@@ -120,6 +120,7 @@ fn gather<F>(
     let mut num_unique = 0;
     let mut num_unique_positive = 0;
     let mut num_total_positive = 0;
+    let mut last_log_count = 0;
     while new_sample.len() < new_sample_capacity {
         if let Some(((example, mut c), num_scanned)) = gather_new_sample.recv() {
             // `c` is the number of times this example should be put into the sample set
@@ -133,6 +134,10 @@ fn gather<F>(
                 c -= 1;
             }
             total_scanned += num_scanned;
+        }
+        if new_sample.len() - last_log_count > new_sample_capacity / 10 {
+            debug!("sampler, progress, {}", new_sample.len());
+            last_log_count = new_sample.len();
         }
     }
     thread_rng().shuffle(&mut new_sample);

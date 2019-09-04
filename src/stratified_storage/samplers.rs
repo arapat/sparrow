@@ -150,15 +150,19 @@ fn sampler(
         let index = super::sample_weights_table(&weights_table);
         if index.is_none() {
             // stratified storage is empty, wait for data loading
-            debug!("Sampler sleeps waiting for data loading");
+            debug!("sampler, Sampler sleeps waiting for data loading");
             sleep(Duration::from_millis(1000));
             continue;
         }
         let index = index.unwrap();
         // STEP 2: Access the queue for the sampled strata
         let existing_receiver = {
-            let read_strata = strata.read().unwrap();
-            read_strata.get_out_queue(index)
+            let read_strata = strata.try_read();
+            if read_strata.is_err() {
+                debug!("sampler, sampler cannot read the strata, {}", index);
+                continue;
+            }
+            read_strata.unwrap().get_out_queue(index)
         };
         let receiver = existing_receiver.unwrap();
         // STEP 3: Sample one example using minimum variance sampling
@@ -174,8 +178,10 @@ fn sampler(
         };
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
+        let mut sampled_trials = 0;
         pm3_total.resume();
         while sampled_example.is_none() {
+            sampled_trials += 1;
             pm1.resume();
             let recv = {
                 let mut failed_recv = 0;
@@ -215,6 +221,9 @@ fn sampler(
             updated_examples.send((example, (updated_score, model_size)));
             num_updated += 1;
             pm_update.update(1);
+            if sampled_trials % 100 == 0 {
+                debug!("sampler, keep failing, {}, {}", index, sampled_trials);
+            }
         }
         pm3_total.pause();
         // STEP 4: Send the sampled example to the buffer loader

@@ -258,10 +258,11 @@ pub fn training(config_file: String) {
         debug!("resume_training is enabled");
     }
     let init_tree = {
-        if config.resume_training {
-            let (_, _, model): (f32, usize, Model) =
+        if config.resume_training && config.sampler_scanner == "sampler" {
+            let (_, _, mut model): (f32, usize, Model) =
                 serde_json::from_str(&raw_read_all(&"model.json".to_string()))
                         .expect(&format!("Cannot parse the model in `model.json`"));
+            model.base_version = 0;
             debug!("Load an existing tree");
             model
         } else {
@@ -300,7 +301,7 @@ pub fn training(config_file: String) {
             sampler_state.clone());
         debug!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
-            init_tree,
+            init_tree.clone(),
             config.num_examples,
             config.num_features,
             config.positive.clone(),
@@ -315,7 +316,7 @@ pub fn training(config_file: String) {
             config.debug_mode,
             config.resume_training,
         );
-        if !config.resume_training {
+        // if !config.resume_training {
             debug!("Initializing the stratified structure.");
             stratified_structure.init_stratified_from_file(
                 config.training_filename.clone(),
@@ -323,8 +324,9 @@ pub fn training(config_file: String) {
                 config.batch_size,
                 config.num_features,
                 bins.clone(),
+                init_tree,
             );
-        }
+        // }
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
         //     mpsc::channel();
         // start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);
@@ -334,7 +336,7 @@ pub fn training(config_file: String) {
             // Check if termination is manually requested
             let filename = "status.txt".to_string();
             if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
-                debug!("Change in the status.txt has been detected.");
+                debug!("sampler state, false, change in the status.txt has been detected");
                 *(sampler_state.write().unwrap()) = false;
             }
             // Check if any one of the scanners is still working

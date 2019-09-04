@@ -129,13 +129,19 @@ impl StratifiedStorage {
             debug!("prepare to resume an earlier stratified structure");
         }
         // Weights table
-        let (counts_table_r, mut counts_table_w): (CountTableRead, CountTableWrite) = evmap::new();
-        let (weights_table_r, mut weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
+        let (counts_table_r, counts_table_w): (CountTableRead, CountTableWrite) = evmap::new();
+        let (weights_table_r, weights_table_w): (WeightTableRead, WeightTableWrite) = evmap::new();
+        /* TODO: Set a flag to enable resuming weight tables and the latest sample  */
+        /* The backup mechanism does not back up the slot indices for each stratum  */
+        /* yet. Implement it before turning on this flag.                           */
+        /* For now, all examples will be reset their scores to 0 during the         */
+        /* initilization.                                                           */
+        /*
         let ser_strata = {
             if resume_training {
                 // read snapshot
                 debug!("reading the snapshot");
-                let (ser_strata, tables): (Vec<u8>, _) =
+                let (ser_strata, _tables): (Vec<u8>, (HashMap<i8, i32>, HashMap<i8, f64>)) =
                     deserialize(&read_all(&snapshot_filename)).unwrap();
                 debug!("reading the tables");
                 let (counts_table, weights_table): (HashMap<_, _>, HashMap<_, f64>) = tables;
@@ -170,14 +176,16 @@ impl StratifiedStorage {
                 None
             }
         };
-        // Maintains all example on disk and in memory
-        let strata = Strata::new(
-            num_examples, feature_size, num_examples_per_block, disk_buffer_filename,
-            sampler_state.clone(), ser_strata);
+        */
+        let ser_strata = None;
         // Maintains weight tables
         let stats_update_s = start_update_weights_table(
             counts_table_r.clone(), counts_table_w, weights_table_r.clone(), weights_table_w,
             debug_mode);
+        // Maintains all example on disk and in memory
+        let strata = Strata::new(
+            num_examples, feature_size, num_examples_per_block, disk_buffer_filename,
+            sampler_state.clone(), ser_strata, stats_update_s.clone());
         let strata = Arc::new(RwLock::new(strata));
 
         // Start assigners, samplers, and gatherers
@@ -222,6 +230,7 @@ impl StratifiedStorage {
         batch_size: usize,
         feature_size: usize,
         bins: Vec<Bins>,
+        model: Model,
     ) {
         let mut reader = SerialStorage::new(
             filename.clone(),
@@ -234,6 +243,7 @@ impl StratifiedStorage {
         let updated_examples_s = self.updated_examples_s.clone();
         spawn(move || {
             let mut index = 0;
+            let mut last_report_length = 0;
             while index < size {
                 reader.read_raw(batch_size).into_iter().for_each(|data| {
                     let features: Vec<TFeature> =
@@ -242,9 +252,14 @@ impl StratifiedStorage {
                                 bins[idx].get_split_index(*val)
                             }).collect();
                     let mapped_data = LabeledData::new(features, data.label);
-                    updated_examples_s.send((mapped_data, (0.0, 0)));
+                    let (score, (model_size, _)) = model.get_prediction(&mapped_data, 0);
+                    updated_examples_s.send((mapped_data, (score, model_size)));
                 });
                 index += batch_size;
+                if index - last_report_length > size / 10 {
+                    debug!("init-stratified, progress, {}", index);
+                    last_report_length = index;
+                }
             }
             debug!("Raw data on disk has been loaded into the stratified storage, \
                     filename {}, capacity {}, feature size {}", filename, size, feature_size);

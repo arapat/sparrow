@@ -4,11 +4,13 @@ mod stratum;
 
 use bincode::serialize;
 use bincode::deserialize;
+use crossbeam_channel::Sender as CrossbeamSender;
 
 use std::vec::IntoIter;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::thread::spawn;
 
 use commons::ExampleWithScore;
 use commons::channel::Sender;
@@ -17,10 +19,13 @@ use super::Example;
 
 use super::super::TFeature;
 use super::super::TLabel;
+use super::CountTableWrite;
+use super::WeightTableWrite;
 use labeled_data::LabeledData;
 
 use self::disk_buffer::DiskBuffer;
 use self::stratum::Stratum;
+use self::stratum::reset_block_scores;
 
 
 type Block = Vec<ExampleWithScore>;
@@ -52,6 +57,7 @@ impl Strata {
         disk_buffer_name: &str,
         sampler_state: Arc<RwLock<bool>>,
         serialized_data: Option<Vec<u8>>,
+        stats_update_s: Sender<(i8, (i32, f64))>,
     ) -> Strata {
         let (ser_num_examples_per_block, disk_buffer, data_in_queues) = {
             if serialized_data.is_some() {
@@ -75,12 +81,32 @@ impl Strata {
             out_block:              HashMap::new(),
             sampler_state:          sampler_state,
         };
-        for (key, vals) in data_in_queues {
-            let (in_queue, _) = strata.create(key);
-            for example in vals {
-                in_queue.send(example);
-            }
+        // Send all examples to the stratum 0
+        // TODO: set flag to send examples to the strata other than the startum 0
+        debug!("strata, init, prepare to reset the strata");
+        let (in_queue, _, slot_s) = strata.create(0);
+        let slot_s = slot_s.unwrap();
+        let mut disk_buffer = strata.disk_buffer.write().unwrap();
+        let all_filled = disk_buffer.get_all_filled();
+        let total_count = all_filled.len() * num_examples_per_block;
+        debug!("strata, init, total number of the blocks, {}", all_filled.len());
+        for position in all_filled {
+            let block = disk_buffer.read_at(position);
+            let reset_block = reset_block_scores(&block);
+            disk_buffer.write_at(position, reset_block.as_ref());
+            slot_s.send(position);
         }
+        drop(disk_buffer);
+        debug!("strata, init, disk blocks are all reset");
+        stats_update_s.send((0, (total_count as i32, total_count as f64)));
+        spawn(move || {
+            for (_, vals) in data_in_queues {
+                for (example, _) in vals {
+                    in_queue.send((example, (0.0, 0)));
+                }
+            }
+            debug!("strata, init, all examples in queue are sent to the stratum 0");
+        });
         strata
     }
 
@@ -100,12 +126,14 @@ impl Strata {
         }
     }
 
-    pub fn create(&mut self, index: i8) -> (QueueSender, QueueReceiver) {
+    pub fn create(
+        &mut self, index: i8,
+    ) -> (QueueSender, QueueReceiver, Option<CrossbeamSender<usize>>) {
         let (mut in_queues, mut out_queues) =
             (self.in_queues.write().unwrap(), self.out_queues.write().unwrap());
         if in_queues.contains_key(&index) {
             // Other process have created the stratum before this process secures the writing lock
-            (in_queues[&index].clone(), out_queues[&index].clone())
+            (in_queues[&index].clone(), out_queues[&index].clone(), None)
         } else {
             // Each stratum will create two threads for writing in and reading out examples
             // TODO: create a systematic approach to manage stratum threads
@@ -117,7 +145,7 @@ impl Strata {
             self.in_queues_receivers.insert(index, stratum.in_queue_r.clone());
             out_queues.insert(index, out_queue.clone());
             self.out_block.insert(index, stratum.out_block.clone());
-            (in_queue, out_queue)
+            (in_queue, out_queue, Some(stratum.slot_s.clone()))
         }
     }
 
@@ -211,7 +239,7 @@ mod tests {
                     if let Some(t) = strata.get_in_queue(k as i8) {
                         t
                     } else {
-                        let (sender, _) = strata.create(k as i8);
+                        let (sender, _, _) = strata.create(k as i8);
                         sender
                     }
                 };

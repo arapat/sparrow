@@ -55,13 +55,13 @@ pub fn write_s3(
     exp_name: &str,
 ) {
     let data: VersionedSample = (version, new_sample);
-    debug!("sampler, start, write new sample to s3");
+    debug!("sampler, start, write new sample to s3, {}", version);
     let s3_path = format!("{}/{}", exp_name, S3_PATH);
     io_write_s3(REGION, BUCKET, s3_path.as_str(), FILENAME, &serialize(&data).unwrap());
-    debug!("sampler, finished, write new sample to s3");
+    debug!("sampler, finished, write new sample to s3, {}", version);
     let filename = FILENAME.to_string() + "_WRITING";
     write_all(&filename, &serialize(&data).unwrap())
-        .expect("Failed to write the sample set to file");
+        .expect(format!("Failed to write the sample set to file, {}", version).as_str());
     rename(filename, format!("{}_{}", FILENAME, version)).unwrap();
 }
 

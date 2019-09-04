@@ -1,6 +1,7 @@
 use std::thread::sleep;
 use std::thread::spawn;
 use crossbeam_channel;
+use crossbeam_channel::Sender;
 use bincode::serialize;
 use bincode::deserialize;
 use commons::channel;
@@ -25,6 +26,7 @@ pub struct Stratum {
     pub in_queue_r: QueueReceiver,
     pub out_queue_r: QueueReceiver,
     pub out_block: ArcBlockIter,
+    pub slot_s: Sender<usize>,
 }
 
 
@@ -50,6 +52,7 @@ impl Stratum {
             let in_queue_r = in_queue_r.clone();
             let disk_buffer = disk_buffer.clone();
             let sampler_state = sampler_state.clone();
+            let slot_s = slot_s.clone();
             spawn(move || {
                 let mut state = true;
                 while state {
@@ -78,6 +81,7 @@ impl Stratum {
         let out_block = Arc::new(RwLock::new((vec![]).into_iter()));
         {
             let in_queue_r = in_queue_r.clone();
+            let slot_r = slot_r.clone();
             let out_block_ptr = out_block.clone();
             spawn(move || {
                 let mut pm = PerformanceMonitor::new();
@@ -129,8 +133,16 @@ impl Stratum {
             in_queue_r: in_queue_r,
             out_queue_r: out_queue_r,
             out_block: out_block,
+            slot_s: slot_s,
         }
     }
+}
+
+
+pub fn reset_block_scores(block_data: &[u8]) -> Vec<u8> {
+    let block: Block = deserialize(&block_data).expect("Cannot deserialize block.");
+    let new_block: Block = block.into_iter().map(|(example, (_, _))| (example, (0.0, 0))).collect();
+    serialize(&(*new_block)).unwrap()
 }
 
 

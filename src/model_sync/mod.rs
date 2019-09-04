@@ -121,12 +121,13 @@ fn model_sync_main(
     let mut gamma = default_gamma.clone();
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
-    let mut node_status = vec![(0, default_gamma, None); model.tree_size];
+    let mut node_status = vec![(0, 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
     // Performance variables
     let mut global_timer = PerformanceMonitor::new();
     let mut timer = PerformanceMonitor::new();
     let mut total_packets = 0;
+    let mut nonempty_packets = 0;
     let mut rejected_packets = 0;
     let mut rejected_packets_model = 0;
     let mut failed_searches = 0;
@@ -139,8 +140,11 @@ fn model_sync_main(
     global_timer.start();
     // initialize state variables based on `model`
     for i in 0..min(node_status.len(), worker_assign.len()) {
-        node_status[i] = (model.depth[i], gamma, Some(i));
+        node_status[i] = (model.depth[i], 1.0, Some(i));
         worker_assign[i] = Some(i);
+    }
+    for i in node_status.len()..worker_assign.len() {
+        worker_assign[i] = Some(0);
     }
     let mut last_timestamp = global_timer.get_duration();
     let mut state = true;
@@ -153,11 +157,12 @@ fn model_sync_main(
         let mut verbose = false;
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
-            let threshold = max(1, (node_status.len() as f32 * 0.5) as usize);
+            // TODO: set decrease gamma threshold a parameter
+            let threshold = max(1, min(20, node_status.len()));
             if failed_searches >= threshold {
                 // alternative: if total_packets == 0
                 current_condition = -1;
-            } else if (rejected_packets_model as f32) / (total_packets as f32) >= FRACTION {
+            } else if (rejected_packets_model as f32) / (nonempty_packets as f32) >= FRACTION {
                 current_condition = 1;
             }
             if current_condition == -1 {
@@ -181,17 +186,26 @@ fn model_sync_main(
                     debug!("model_manager, failed gamma broadcast, {}, {}, {}, {}",
                            current_condition, gamma, shrink_factor, old_gamma);
                 }
-                failed_searches = 0;
+                failed_searches = node_status.iter().map(|(_, last_gamma, avail)| {
+                    if avail.is_none() && *last_gamma <= gamma {
+                        1
+                    } else {
+                        0
+                    }
+                }).sum();
             }
             let packs_stats: Vec<String> = num_updates_packs.iter().map(|t| t.to_string()).collect();
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
-            debug!("model_manager, status update, {}, {}, {}, {}, {}, {}, {}, {}, {}",
-                   gamma, shrink_factor, failed_searches, total_packets, rejected_packets,
-                   rejected_packets_model,
-                   packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "));
+            debug!("model_manager, status update, \
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
+                   gamma, shrink_factor, failed_searches, total_packets, nonempty_packets,
+                   rejected_packets, rejected_packets_model,
+                   packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "),
+                   node_status, worker_assign);
             last_condition = current_condition;
             total_packets = 0;
+            nonempty_packets = 0;
             rejected_packets = 0;
             rejected_packets_model = 0;
             num_updates_packs.iter_mut().for_each(|t| *t = 0);
@@ -222,6 +236,23 @@ fn model_sync_main(
         };
         num_updates_packs[machine_id] += 1;
         total_packets += 1;
+        if patch.size == 0 {
+            if worker_assign[machine_id].is_some() {
+                let node_id = worker_assign[machine_id].unwrap();
+                node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
+                worker_assign[machine_id] = None;
+                failed_searches += 1;
+                let duration = global_timer.get_duration() - node_timestamp[node_id];
+                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}",
+                        machine_id, node_id, remote_gamma, failed_searches,
+                        node_sum_gamma_sq[node_id], duration,
+                        node_sum_gamma_sq[node_id] / duration);
+            } else {
+                debug!("model_manager, empty with no assignment, {}", machine_id);
+            }
+            continue;
+        }
+        nonempty_packets += 1;
         if old_sig != model_sig {
             debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
             num_updates_rejs[machine_id] += 1;
@@ -239,51 +270,41 @@ fn model_sync_main(
             rejected_packets += 1;
             continue;
         }
-        if patch.size == 0 {
+        // accept the package
+        let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
+        num_updates_nodes[machine_id] += patch.size;
+        model_sig = new_sig;
+        next_model_sender.send(model.clone());
+        let node_id = {
             if worker_assign[machine_id].is_some() {
-                let node_id = worker_assign[machine_id].unwrap();
-                node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
-                worker_assign[machine_id] = None;
-                failed_searches += 1;
-                let duration = global_timer.get_duration() - node_timestamp[node_id];
-                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}",
-                        machine_id, node_id, remote_gamma, failed_searches,
-                        node_sum_gamma_sq[node_id], duration,
-                        node_sum_gamma_sq[node_id] / duration);
-            }
-        } else {
-            let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
-            num_updates_nodes[machine_id] += patch.size;
-            model_sig = new_sig;
-            next_model_sender.send(model.clone());
-            let node_id = {
-                if worker_assign[machine_id].is_some() {
-                    worker_assign[machine_id].unwrap()
-                } else {
-                    0
-                }
-            };
-            let (count_new, count_updates) = patch.is_new.iter().fold(
-                (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
-            debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}",
-                    machine_id, node_id, remote_gamma, patch.size, count_new, count_updates);
-            if upload_model(&model, &model_sig, gamma, exp_name) {
-                debug!("model_manager, accept, {}, {}, {}, {}",
-                       old_sig, model_sig, machine_name, patch.size);
+                worker_assign[machine_id].unwrap()
             } else {
-                debug!("model_manager, upload failed, {}, {}, {}, {}",
-                       old_sig, model_sig, machine_name, patch.size);
+                0
             }
-            last_timestamp = global_timer.get_duration();
-            handle_persistent(&model, model.size(), last_timestamp);
-            for depth in new_nodes_depth {
-                node_status.push((depth, default_gamma, None));
-                node_sum_gamma_sq.push(0.0);
-                node_timestamp.push(0.0);
-            }
-            node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
+        };
+        let (count_new, count_updates) = patch.is_new.iter().fold(
+            (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
+        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}",
+                machine_id, node_id, remote_gamma, patch.size, count_new, count_updates);
+        if upload_model(&model, &model_sig, gamma, exp_name) {
+            debug!("model_manager, accept, {}, {}, {}, {}",
+                    old_sig, model_sig, machine_name, patch.size);
+        } else {
+            debug!("model_manager, upload failed, {}, {}, {}, {}",
+                    old_sig, model_sig, machine_name, patch.size);
         }
+        last_timestamp = global_timer.get_duration();
+        handle_persistent(&model, model.size(), last_timestamp);
+        for depth in new_nodes_depth {
+            node_status.push((depth, 1.0, None));
+            node_sum_gamma_sq.push(0.0);
+            node_timestamp.push(0.0);
+        }
+        node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
     }
+    info!("Model sync quits, {}, {}, {}, {}, Model length: {}, Is gamma significant? {}",
+            state, gamma >= min_gamma, num_iterations <= 0, model.size() < num_iterations,
+            model.size(), gamma >= min_gamma);
     {
         let json = serde_json::to_string(&(last_timestamp, model.size(), &model)).expect(
             "Local model cannot be serialized."
@@ -292,11 +313,10 @@ fn model_sync_main(
         file_buffer.write(json.as_ref()).unwrap();
     }
     {
+        debug!("sampler state, false, model sync quits");
         let mut state = sampler_state.write().unwrap();
         *state = false;
     }
-    info!("Model sync quits. Model length: {}. Is gamma significant? {}.",
-            model.size(), gamma >= min_gamma);
 }
 
 
@@ -334,12 +354,12 @@ fn update_assignments(
                 worker_assign[valid_worker] = Some(node);
                 did_something = true;
                 num_updates += 1;
-                info!("model-manager, assign, {}, {}", valid_worker, node);
+                debug!("model-manager, assign, {}, {}", valid_worker, node);
             }
         }
     }
     if num_updates > 0 {
-        debug!("assign updates, {}", num_updates);
+        debug!("model-manager, assign updates, {}", num_updates);
         let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
         io_write_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME,
                     &serialize(worker_assign).unwrap());

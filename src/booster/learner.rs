@@ -96,8 +96,8 @@ pub struct Learner {
     _default_gamma: f32,
     min_gamma: f32,
 
-    rho_gamma:        f32,
-    expand_node:      usize,
+    pub rho_gamma:        f32,
+    pub expand_node:      usize,
     // global trackers
     pub total_count:  usize,
     total_weight:     f32,
