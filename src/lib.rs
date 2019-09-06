@@ -289,15 +289,8 @@ pub fn training(config_file: String) {
         booster.training(training_perf_mon.get_duration());
     } else { // if config.sampler_scanner == "sampler" {
         let sampler_state = Arc::new(RwLock::new(true));
-        debug!("Starting the model sync.");
         // Pass the models between the network to the Strata
         let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
-        start_model_sync(
-            init_tree.clone(), config.local_name.clone(), config.num_iterations,
-            config.network.clone(), config.port, next_model_s,
-            config.default_gamma, config.min_gamma,
-            buffer_loader.current_sample_version.clone(), config.exp_name.clone(),
-            sampler_state.clone());
         debug!("Starting the stratified structure.");
         let stratified_structure = StratifiedStorage::new(
             init_tree.clone(),
@@ -317,8 +310,16 @@ pub fn training(config_file: String) {
             sampler_state.clone(),
             config.debug_mode,
             config.resume_training,
-            config.exp_name,
+            config.exp_name.clone(),
         );
+        debug!("Starting the model sync.");
+        start_model_sync(
+            init_tree.clone(), config.local_name.clone(), config.num_iterations,
+            config.network.clone(), config.port, next_model_s,
+            config.default_gamma, config.min_gamma,
+            buffer_loader.current_sample_version.clone(), stratified_structure.node_counts.clone(),
+            config.exp_name.clone(), sampler_state.clone());
+        {
         // if !config.resume_training {
             debug!("Initializing the stratified structure.");
             stratified_structure.init_stratified_from_file(
@@ -330,6 +331,7 @@ pub fn training(config_file: String) {
                 init_tree,
             );
         // }
+        }
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
         //     mpsc::channel();
         // start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);

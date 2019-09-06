@@ -63,6 +63,7 @@ pub type CountTableWrite = evmap::WriteHandle<i8, i32>;
 pub struct StratifiedStorage {
     updated_examples_s: Sender<ExampleWithScore>,
     positive: String,
+    pub node_counts: Arc<RwLock<Vec<u32>>>,
 }
 
 
@@ -238,11 +239,13 @@ impl StratifiedStorage {
         assigners.run();
         samplers.run();
 
-        run_snapshot_thread(snapshot_filename, strata, counts_table_r, weights_table_r, sampler_state);
+        run_snapshot_thread(
+            snapshot_filename, strata, counts_table_r, weights_table_r, sampler_state);
 
         StratifiedStorage {
             updated_examples_s: assigners.updated_examples_s.clone(),
             positive: positive,
+            node_counts: gatherer.counter.clone(),
             // core objects (that are not saved as the fields):
             //     strata, counts_table_r, weights_table_r
         }

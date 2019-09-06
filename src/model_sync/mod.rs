@@ -35,6 +35,7 @@ pub fn start_model_sync(
     default_gamma: f32,
     min_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
+    node_counts: Arc<RwLock<Vec<u32>>>,
     exp_name: String,
     sampler_state: Arc<RwLock<bool>>,
 ) {
@@ -46,7 +47,7 @@ pub fn start_model_sync(
         model_sync_main(
             init_tree, num_iterations, remote_ips.len(), local_r, next_model,
             default_gamma, min_gamma,
-            current_sample_version, &exp_name, sampler_state);
+            current_sample_version, node_counts, &exp_name, sampler_state);
     });
 }
 
@@ -108,6 +109,7 @@ fn model_sync_main(
     default_gamma: f32,
     min_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
+    node_counts: Arc<RwLock<Vec<u32>>>,
     exp_name: &String,
     sampler_state: Arc<RwLock<bool>>,
 ) {
@@ -284,8 +286,17 @@ fn model_sync_main(
         };
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
-        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}",
-                machine_id, node_id, remote_gamma, patch.size, count_new, count_updates);
+        let node_count = {
+            let c = node_counts.read().unwrap();
+            if node_id >= c.len() {
+                0
+            } else {
+                c[node_id]
+            }
+        };
+        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}",
+                machine_id, node_id, node_count, remote_gamma, patch.size, count_new,
+                count_updates);
         if upload_model(&model, &model_sig, gamma, exp_name) {
             debug!("model_manager, accept, {}, {}, {}, {}",
                     old_sig, model_sig, machine_name, patch.size);
