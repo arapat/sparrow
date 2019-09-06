@@ -239,15 +239,29 @@ fn model_sync_main(
         };
         num_updates_packs[machine_id] += 1;
         total_packets += 1;
+        let node_id = {
+            if worker_assign[machine_id].is_some() {
+                worker_assign[machine_id].unwrap()
+            } else {
+                0
+            }
+        };
+        let node_count = {
+            let c = node_counts.read().unwrap();
+            if node_id >= c.len() {
+                0
+            } else {
+                c[node_id]
+            }
+        };
         if patch.size == 0 {
             if worker_assign[machine_id].is_some() {
-                let node_id = worker_assign[machine_id].unwrap();
                 node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
                 let duration = global_timer.get_duration() - node_timestamp[node_id];
-                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}",
-                        machine_id, node_id, remote_gamma, failed_searches,
+                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}, {}",
+                        machine_id, node_id, node_count, remote_gamma, failed_searches,
                         node_sum_gamma_sq[node_id], duration,
                         node_sum_gamma_sq[node_id] / duration);
             } else {
@@ -278,23 +292,8 @@ fn model_sync_main(
         num_updates_nodes[machine_id] += patch.size;
         model_sig = new_sig;
         next_model_sender.send(model.clone());
-        let node_id = {
-            if worker_assign[machine_id].is_some() {
-                worker_assign[machine_id].unwrap()
-            } else {
-                0
-            }
-        };
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
-        let node_count = {
-            let c = node_counts.read().unwrap();
-            if node_id >= c.len() {
-                0
-            } else {
-                c[node_id]
-            }
-        };
         debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}",
                 machine_id, node_id, node_count, remote_gamma, patch.size, count_new,
                 count_updates);
