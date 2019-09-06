@@ -5,6 +5,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::mpsc;
 use std::thread::spawn;
+use rand::Rng;
 use bincode::serialize;
 use bincode::deserialize;
 use commons::Model;
@@ -349,6 +350,7 @@ fn update_assignments(
             valid_worker += 1;
         }
         if valid_worker < worker_assign.len() {
+            /*
             let mut min_depth = 9999;
             let mut node = 0;
             for i in 0..node_status.len() {
@@ -360,6 +362,18 @@ fn update_assignments(
             }
             if min_depth < 9999 {
                 node_status[node] = (min_depth, gamma, Some(valid_worker));
+            */
+            let mut nodes: Vec<usize> = vec![];
+            for i in 0..node_status.len() {
+                let (_, old_gamma, status) = node_status[i];
+                if status.is_none() && old_gamma > gamma {
+                    nodes.push(i);
+                }
+            }
+            if nodes.len() > 0 {
+                let index = rand::thread_rng().gen::<usize>() % nodes.len();
+                let node: usize = nodes[index];
+                node_status[node] = (0, gamma, Some(valid_worker));
                 node_sum_gamma_sq[node] = 0.0;
                 node_timestamp[node] = cur_timestamp;
                 worker_assign[valid_worker] = Some(node);
