@@ -260,9 +260,9 @@ fn model_sync_main(
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
                 let duration = global_timer.get_duration() - node_timestamp[node_id];
-                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}, {}",
-                        machine_id, node_id, node_count, remote_gamma, failed_searches,
-                        node_sum_gamma_sq[node_id], duration,
+                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                        machine_id, node_id, node_count, model.depth[node_id], remote_gamma,
+                        failed_searches, node_sum_gamma_sq[node_id], duration,
                         node_sum_gamma_sq[node_id] / duration);
             } else {
                 debug!("model_manager, empty with no assignment, {}", machine_id);
@@ -294,9 +294,9 @@ fn model_sync_main(
         next_model_sender.send(model.clone());
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
-        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}",
-                machine_id, node_id, node_count, remote_gamma, patch.size, count_new,
-                count_updates);
+        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}",
+                machine_id, node_id, node_count, model.depth[node_id], remote_gamma, patch.size,
+                count_new, count_updates);
         if upload_model(&model, &model_sig, gamma, exp_name) {
             debug!("model_manager, accept, {}, {}, {}, {}",
                     old_sig, model_sig, machine_name, patch.size);

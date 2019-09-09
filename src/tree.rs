@@ -73,7 +73,7 @@ impl Tree {
             base_version:   0,
             model_updates:  UpdateList::new(),
         };
-        tree.add_node(0, 0, 0, false, base_pred, base_gamma);
+        tree.add_node(-1, 0, 0, false, base_pred, base_gamma);
         tree
     }
 
