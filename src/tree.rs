@@ -1,4 +1,5 @@
 use rayon::prelude::*;
+use std::cmp::max;
 use std::ops::Range;
 use std::collections::VecDeque;
 use super::Example;
@@ -19,7 +20,7 @@ Why JSON but not binary?
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tree {
     pub tree_size:       usize,
-    parent:         Vec<usize>,
+    pub parent:         Vec<usize>,
     children:       Vec<Vec<usize>>,
     split_feature:  Vec<usize>,
     threshold:      Vec<TFeature>,
@@ -73,7 +74,7 @@ impl Tree {
             base_version:   0,
             model_updates:  UpdateList::new(),
         };
-        tree.add_node(0, 0, 0, false, base_pred, base_gamma);
+        tree.add_node(-1, 0, 0, false, base_pred, base_gamma);
         tree
     }
 
@@ -95,7 +96,7 @@ impl Tree {
             }
         };
         let node = self.find_child_node(parent, feature, threshold, evaluation);
-        let parent = parent as usize;
+        let parent = max(0, parent) as usize;
         let (new_index, is_new) = {
             if let Some(index) = node {
                 self.predicts[index] += pred_value;
@@ -143,7 +144,11 @@ impl Tree {
         &self, parent: i32, feature: usize, threshold: TFeature, evaluation: bool,
     ) -> Option<usize> {
         if parent < 0 {
-            return Some(0);
+            if self.tree_size > 0 {
+                return Some(0);
+            } else {
+                return None;
+            }
         }
         let mut ret = None;
         if parent >= self.children.len() as i32 {

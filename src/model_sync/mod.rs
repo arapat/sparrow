@@ -221,7 +221,7 @@ fn model_sync_main(
         }
         update_assignments(
             &mut node_status, &mut worker_assign, gamma, exp_name,
-            &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
+            &model.parent, &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         let packet = receiver.try_recv();
         if packet.is_err() {
             if verbose {
@@ -257,8 +257,8 @@ fn model_sync_main(
         };
         if patch.size == 0 {
             if worker_assign[machine_id].is_some() {
-                let (depth, _) = node_status[node_id].0;
-                node_status[node_id] = ((depth, 0), remote_gamma, None);
+                let (depth, count) = node_status[node_id].0;
+                node_status[node_id] = ((depth, count), remote_gamma, None);
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
                 let duration = global_timer.get_duration() - node_timestamp[node_id];
@@ -340,6 +340,7 @@ fn update_assignments(
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
     exp_name: &String,
+    parents: &Vec<usize>,
     node_sum_gamma_sq: &mut Vec<f32>,
     node_timestamp: &mut Vec<f32>,
     cur_timestamp: f32,
@@ -372,6 +373,7 @@ fn update_assignments(
                 let ((_, ext), old_gamma, status) = node_status[i];
                 if status.is_none() && old_gamma > gamma {
                     nodes.push(i);
+                    let ext = max(ext, (node_status[parents[i]].0).1);
                     if ext > max_ext {
                         node_ext = i;
                         max_ext = ext;
@@ -397,7 +399,7 @@ fn update_assignments(
                 worker_assign[valid_worker] = Some(node);
                 did_something = true;
                 num_updates += 1;
-                debug!("model-manager, assign, {}, {}", valid_worker, node);
+                debug!("model-manager, assign, {}, {}, {}", valid_worker, node, max_ext > 0);
             }
         }
     }
