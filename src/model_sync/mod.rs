@@ -124,7 +124,8 @@ fn model_sync_main(
     let mut gamma = default_gamma.clone();
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
-    let mut node_status = vec![(0, 1.0, None); model.tree_size];
+    // Node status: ((depth, num_recent_success), last_failed_gamma, current_scanner_id)
+    let mut node_status = vec![((0, 0), 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
     // Performance variables
     let mut global_timer = PerformanceMonitor::new();
@@ -143,7 +144,7 @@ fn model_sync_main(
     global_timer.start();
     // initialize state variables based on `model`
     for i in 0..min(node_status.len(), worker_assign.len()) {
-        node_status[i] = (model.depth[i], 1.0, Some(i));
+        node_status[i] = ((model.depth[i], 0), 1.0, Some(i));
         worker_assign[i] = Some(i);
     }
     for i in node_status.len()..worker_assign.len() {
@@ -256,7 +257,8 @@ fn model_sync_main(
         };
         if patch.size == 0 {
             if worker_assign[machine_id].is_some() {
-                node_status[node_id] = (node_status[node_id].0, remote_gamma, None);
+                let (depth, _) = node_status[node_id].0;
+                node_status[node_id] = ((depth, 0), remote_gamma, None);
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
                 let duration = global_timer.get_duration() - node_timestamp[node_id];
@@ -307,11 +309,13 @@ fn model_sync_main(
         last_timestamp = global_timer.get_duration();
         handle_persistent(&model, model.size(), last_timestamp);
         for depth in new_nodes_depth {
-            node_status.push((depth, 1.0, None));
+            node_status.push(((depth, 0), 1.0, None));
             node_sum_gamma_sq.push(0.0);
             node_timestamp.push(0.0);
         }
         node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
+        let ((depth, count), gamma, machine_id) = node_status[node_id];
+        node_status[node_id] = ((depth, count + 1), gamma, machine_id);
     }
     info!("Model sync quits, {}, {}, {}, {}, Model length: {}, Is gamma significant? {}",
             state, gamma >= min_gamma, num_iterations <= 0, model.size() < num_iterations,
@@ -332,7 +336,7 @@ fn model_sync_main(
 
 
 fn update_assignments(
-    node_status: &mut Vec<(usize, f32, Option<usize>)>,
+    node_status: &mut Vec<((usize, usize), f32, Option<usize>)>,
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
     exp_name: &String,
@@ -360,19 +364,34 @@ fn update_assignments(
                 }
             }
             if min_depth < 9999 {
-                node_status[node] = (min_depth, gamma, Some(valid_worker));
             */
             let mut nodes: Vec<usize> = vec![];
+            let mut max_ext = 0;
+            let mut node_ext = 0;
             for i in 0..node_status.len() {
-                let (_, old_gamma, status) = node_status[i];
+                let ((_, ext), old_gamma, status) = node_status[i];
                 if status.is_none() && old_gamma > gamma {
                     nodes.push(i);
+                    if ext > max_ext {
+                        node_ext = i;
+                        max_ext = ext;
+                    }
                 }
             }
-            if nodes.len() > 0 {
-                let index = rand::thread_rng().gen::<usize>() % nodes.len();
-                let node: usize = nodes[index];
-                node_status[node] = (0, gamma, Some(valid_worker));
+            let node = {
+                if max_ext > 0 {
+                    Some(node_ext)
+                } else if nodes.len() > 0 {
+                    let index = rand::thread_rng().gen::<usize>() % nodes.len();
+                    Some(nodes[index])
+                } else {
+                    None
+                }
+            };
+            if node.is_some() {
+                let node = node.unwrap();
+                let (status, gamma, _) = node_status[node];
+                node_status[node] = (status, gamma, Some(valid_worker));
                 node_sum_gamma_sq[node] = 0.0;
                 node_timestamp[node] = cur_timestamp;
                 worker_assign[valid_worker] = Some(node);
