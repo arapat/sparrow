@@ -166,9 +166,9 @@ fn model_sync_main(
             if failed_searches >= threshold {
                 // alternative: if total_packets == 0
                 current_condition = -1;
-            } else if (rejected_packets_model as f32) / (nonempty_packets as f32) >= FRACTION ||
-                      ((nonempty_packets - rejected_packets) as f32) / (total_packets as f32)
-                        >= (1.0 - FRACTION) {
+            } else if nonempty_packets > 0 && (
+                (rejected_packets_model as f32) / (nonempty_packets as f32) >= FRACTION ||
+                1.0 - (nonempty_packets as f32) / (total_packets as f32) <= FRACTION) {
                 current_condition = 1;
             }
             if current_condition == -1 {
