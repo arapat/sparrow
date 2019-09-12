@@ -171,10 +171,10 @@ fn model_sync_main(
                 1.0 - (nonempty_packets as f32) / (total_packets as f32) <= FRACTION) {
                 current_condition = 1;
             }
-            if current_condition == -1 {
-                if last_condition == 1 {
+            if current_condition != 0 && last_condition != 0 {
+                if current_condition != last_condition {
                     shrink_factor = (1.0 + shrink_factor) / 2.0;
-                } else if last_condition == -1 {
+                } else {
                     shrink_factor = (0.8 + shrink_factor) / 2.0;
                 }
             }
@@ -183,6 +183,13 @@ fn model_sync_main(
                 1  => gamma = gamma / shrink_factor,
                 -1 => gamma = gamma * shrink_factor,
                 _  => {},
+            }
+            if current_condition == 1 {
+                // allow re-assessing all tree nodes if we increase gamma
+                for node_id in 0..node_status.len() {
+                    let (status, remote_gamma, assignment) = node_status[node_id];
+                    node_status[node_id] = (status, 1.0, assignment);
+                }
             }
             if current_condition != 0 {
                 if upload_model(&model, &model_sig, gamma, exp_name) {
