@@ -151,6 +151,7 @@ fn model_sync_main(
         worker_assign[i] = Some(0);
     }
     let mut last_timestamp = global_timer.get_duration();
+    let mut avg_empty_rate = 2.0;
     let mut state = true;
     while state && gamma >= min_gamma && (num_iterations <= 0 || model.size() < num_iterations) {
         state = {
@@ -162,13 +163,20 @@ fn model_sync_main(
         if timer.get_duration() >= DURATION {
             let mut current_condition = 0;
             // TODO: set decrease gamma threshold a parameter
-            let threshold = max(1, min(20, node_status.len()));
-            if failed_searches >= threshold {
+            let empty_rate = 1.0 - (nonempty_packets as f32) / (max(1, total_packets) as f32);
+            avg_empty_rate = {
+                if avg_empty_rate > 1.0 {
+                    empty_rate
+                } else {
+                    let alpha = 0.1;
+                    (1.0 - alpha) * avg_empty_rate + alpha * empty_rate
+                }
+            };
+            if empty_rate >= 1.0 - FRACTION {
                 // alternative: if total_packets == 0
                 current_condition = -1;
-            } else if nonempty_packets > 0 && (
-                (rejected_packets_model as f32) / (nonempty_packets as f32) >= FRACTION ||
-                1.0 - (nonempty_packets as f32) / (total_packets as f32) <= FRACTION) {
+            } else if empty_rate <= FRACTION ||
+                    (rejected_packets_model as f32) / (max(1, nonempty_packets) as f32) >= 0.5 {
                 current_condition = 1;
             }
             if current_condition != 0 && last_condition != 0 {
@@ -187,7 +195,7 @@ fn model_sync_main(
             if current_condition == 1 {
                 // allow re-assessing all tree nodes if we increase gamma
                 for node_id in 0..node_status.len() {
-                    let (status, remote_gamma, assignment) = node_status[node_id];
+                    let (status, _remote_gamma, assignment) = node_status[node_id];
                     node_status[node_id] = (status, 1.0, assignment);
                 }
             }
