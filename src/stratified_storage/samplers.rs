@@ -8,7 +8,6 @@ use std::sync::RwLock;
 use std::time::Duration;
 
 use commons::channel::Sender;
-use commons::channel::Receiver;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
 use commons::Model;

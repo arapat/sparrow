@@ -53,7 +53,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
-use tmsn::network::start_network_only_recv;
 
 use bincode::serialize;
 use bincode::deserialize;
@@ -64,7 +63,6 @@ use stratified_storage::StratifiedStorage;
 use stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
 
-use std::sync::mpsc;
 use commons::Model;
 use commons::bins::create_bins;
 use commons::bins::Bins;
@@ -332,6 +330,8 @@ pub fn training(config_file: String) {
             );
         // }
         }
+        // use tmsn::network::start_network_only_recv;
+        // use std::sync::mpsc;
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
         //     mpsc::channel();
         // start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);

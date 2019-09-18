@@ -233,7 +233,9 @@ impl Boosting {
 
             iteration += 1;
             let data_size = self.training_loader.size;
-            self.handle_network(total_data_size >= data_size);
+            if self.handle_network(total_data_size >= data_size) {
+                total_data_size = 0;
+            }
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
@@ -245,11 +247,12 @@ impl Boosting {
               self.model.size(), self.learner.is_gamma_significant());
     }
 
-    fn handle_network(&mut self, is_full_scanned: bool) {
+    fn handle_network(&mut self, is_full_scanned: bool) -> bool {
         if self.network_sender.is_none() {
-            return;
+            return false;
         }
 
+        let mut is_packet_sent = false;
         // 0. Get the latest model
         // 1. If it is newer, overwrite local model
         // 2. Otherwise, push the current update to remote
@@ -303,6 +306,7 @@ impl Boosting {
                         self.last_expand_node = self.learner.expand_node;
                         self.last_sent_gamma = self.learner.rho_gamma;
                     }
+                    is_packet_sent = true;
                     info!("Sent the local model to the network module, {}, {}, {}, {}",
                         self.last_sent_model_sig, self.last_sent_sample_version,
                         self.last_remote_length, self.model.size());
@@ -323,6 +327,7 @@ impl Boosting {
                 }
             }
         }
+        is_packet_sent
     }
 
     fn handle_persistent(&mut self, iteration: usize, timestamp: f32) {
