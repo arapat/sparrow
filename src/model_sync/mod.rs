@@ -132,7 +132,7 @@ fn model_sync_main(
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
     // Node status: ((depth, num_recent_success), last_failed_gamma, current_scanner_id)
-    let mut node_status = vec![((0, 0), 1.0, None); model.tree_size];
+    let mut node_status = vec![((0, 0, 0), 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
     let mut cur_num_trees = 0;
     // Performance variables
@@ -152,7 +152,7 @@ fn model_sync_main(
     global_timer.start();
     // initialize state variables based on `model`
     for i in 0..min(node_status.len(), worker_assign.len()) {
-        node_status[i] = ((model.depth[i], 0), 1.0, Some(i));
+        node_status[i] = ((model.depth[i], 0, model.children[i].len()), 1.0, Some(i));
         worker_assign[i] = Some(i);
     }
     for i in node_status.len()..worker_assign.len() {
@@ -283,8 +283,8 @@ fn model_sync_main(
         };
         if patch.size == 0 {
             if worker_assign[machine_id].is_some() {
-                let (depth, count) = node_status[node_id].0;
-                node_status[node_id] = ((depth, count), remote_gamma, None);
+                let (depth, count, num_child) = node_status[node_id].0;
+                node_status[node_id] = ((depth, count, num_child), remote_gamma, None);
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
                 let duration = global_timer.get_duration() - node_timestamp[node_id];
@@ -347,13 +347,14 @@ fn model_sync_main(
         last_timestamp = global_timer.get_duration();
         handle_persistent(&model, model.size(), last_timestamp);
         for depth in new_nodes_depth {
-            node_status.push(((depth, 0), 1.0, None));
+            node_status.push(((depth, 0, 0), 1.0, None));
             node_sum_gamma_sq.push(0.0);
             node_timestamp.push(0.0);
         }
         node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
-        let ((depth, count), gamma, machine_id) = node_status[node_id];
-        node_status[node_id] = ((depth, count + 1), gamma, machine_id);
+        let ((depth, count, _), gamma, machine_id) = node_status[node_id];
+        node_status[node_id] =
+            ((depth, count + 1, model.children[node_id].len()), gamma, machine_id);
     }
     info!("Model sync quits, {}, {}, {}, {}, Model length: {}, Is gamma significant? {}",
             state, gamma >= min_gamma, num_iterations <= 0, model.size() < num_iterations,
@@ -374,7 +375,7 @@ fn model_sync_main(
 
 
 fn update_assignments(
-    node_status: &mut Vec<((usize, usize), f32, Option<usize>)>,
+    node_status: &mut Vec<((usize, usize, usize), f32, Option<usize>)>,
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
     root_gamma: f32,
@@ -410,9 +411,9 @@ fn update_assignments(
             let mut pri_nodes: Vec<usize> = vec![];
             let mut other_nodes: Vec<usize> = vec![];
             for i in 0..node_status.len() {
-                let ((depth, ext), old_gamma, status) = node_status[i];
+                let ((depth, ext, num_child), old_gamma, status) = node_status[i];
                 let prt_ext = (node_status[parents[i]].0).1;
-                if depth < max_depth && status.is_none() &&
+                if depth < max_depth && status.is_none() && (i == 0 || num_child <= 0) &&
                         (i > 0 && old_gamma > gamma || i == 0 && old_gamma > root_gamma) &&
                         (max_num_trees > 0 || depth > 0) {
                     if ext > 0 || prt_ext > 0 {

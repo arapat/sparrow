@@ -21,7 +21,7 @@ Why JSON but not binary?
 pub struct Tree {
     pub tree_size:       usize,
     pub parent:         Vec<usize>,
-    children:       Vec<Vec<usize>>,
+    pub children:       Vec<Vec<usize>>,
     split_feature:  Vec<usize>,
     threshold:      Vec<TFeature>,
     evaluation:     Vec<bool>,
