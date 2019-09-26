@@ -15,7 +15,8 @@ min_gamma: 0.0001
 default_gamma: 0.25
 min_ess: 0.5
 num_iterations: 10
-max_leaves: 4
+num_trees: 20
+max_depth: 2
 max_trials_before_shrink: 1000000
 channel_size: 8
 buffer_size: 1000000
