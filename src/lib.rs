@@ -122,8 +122,10 @@ pub struct Config {
 
     /// Number of boosting iterations
     pub num_iterations: usize,
-    /// Maximum number of tree leaves in each boosted tree
-    pub max_leaves: usize,
+    /// Number of decision trees (i.e. second-layer tree nodes)
+    pub num_trees: usize,
+    /// Maximum depth of the tree leaves
+    pub max_depth: usize,
 
     /// Maximum number of elements in the channel connecting scanner and sampler
     pub channel_size: usize,
@@ -313,6 +315,7 @@ pub fn training(config_file: String) {
         debug!("Starting the model sync.");
         start_model_sync(
             init_tree.clone(), config.local_name.clone(), config.num_iterations,
+            config.num_trees, config.max_depth,
             config.network.clone(), config.port, next_model_s,
             config.default_gamma, config.min_gamma,
             buffer_loader.current_sample_version.clone(), stratified_structure.node_counts.clone(),

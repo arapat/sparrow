@@ -97,6 +97,7 @@ pub struct Learner {
     min_gamma: f32,
 
     pub rho_gamma:        f32,
+    pub root_gamma:       f32,
     pub expand_node:      usize,
     // global trackers
     pub total_count:  usize,
@@ -132,6 +133,7 @@ impl Learner {
             min_gamma: min_gamma,
 
             rho_gamma:        default_gamma.clone(),
+            root_gamma:       default_gamma.clone(),
             expand_node:      0,
             total_count:      0,
             total_weight:     0.0,
@@ -225,8 +227,14 @@ impl Learner {
         self.total_weight_sq   += data.par_iter().map(|t| ((t.1).0) * ((t.1).0)).sum::<f32>();
 
         // preprocess examples - Complexity: O(Examples * NumRules)
-        let rho_gamma = self.rho_gamma;
         let expand_node = self.expand_node;
+        let rho_gamma = {
+            if expand_node == 0 {
+                self.root_gamma
+            } else {
+                self.rho_gamma
+            }
+        };
         let data: Vec<(f32, (&Example, RuleStats))> = {
             data.par_iter().map(|(example, (weight, _, _, _))| {
                 let labeled_weight = weight * (example.label as f32);
@@ -380,10 +388,11 @@ impl Learner {
         tree_node
     }
 
-    pub fn set_gamma(&mut self, gamma: f32) {
-        if !is_zero(gamma - self.rho_gamma) {
-            debug!("set-gamma, {}, {}", self.rho_gamma, gamma);
+    pub fn set_gamma(&mut self, gamma: f32, root_gamma: f32) {
+        if !is_zero(gamma - self.rho_gamma) || !is_zero(root_gamma - self.root_gamma) {
+            debug!("set-gamma, {}, {}, {}, {}", self.rho_gamma, self.root_gamma, gamma, root_gamma);
             self.rho_gamma = gamma;
+            self.root_gamma = root_gamma;
             self.reset();
         }
     }

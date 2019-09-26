@@ -258,7 +258,7 @@ impl Boosting {
         // 2. Otherwise, push the current update to remote
         let model_score = download_model(&self.exp_name);
         if model_score.is_some() {
-            let (remote_model, remote_model_sig, current_gamma): (Model, String, f32) =
+            let (remote_model, remote_model_sig, current_gamma, root_gamma): (Model, String, f32, f32) =
                 model_score.unwrap();
             let new_model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
             let has_new_node = self.model.size() > self.base_model_size && (
@@ -312,7 +312,7 @@ impl Boosting {
                         self.last_remote_length, self.model.size());
                 }
             }
-            self.learner.set_gamma(current_gamma);
+            self.learner.set_gamma(current_gamma, root_gamma);
         } else {
             debug!("booster, download-model, failed");
         }

@@ -30,6 +30,8 @@ pub fn start_model_sync(
     init_tree: Tree,
     name: String,
     num_iterations: usize,
+    num_trees: usize,
+    max_depth: usize,
     remote_ips: Vec<String>,
     port: u16,
     next_model: Sender<Model>,
@@ -40,13 +42,14 @@ pub fn start_model_sync(
     exp_name: String,
     sampler_state: Arc<RwLock<bool>>,
 ) {
-    upload_model(&init_tree, &"init".to_string(), default_gamma, &exp_name);
+    upload_model(&init_tree, &"init".to_string(), default_gamma, default_gamma, &exp_name);
     let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
         mpsc::channel();
     start_network_only_recv(name.as_ref(), &remote_ips, port, local_s);
     spawn(move || {
         model_sync_main(
-            init_tree, num_iterations, remote_ips.len(), local_r, next_model,
+            init_tree, num_iterations, num_trees, max_depth,
+            remote_ips.len(), local_r, next_model,
             default_gamma, min_gamma,
             current_sample_version, node_counts, &exp_name, sampler_state);
     });
@@ -54,7 +57,7 @@ pub fn start_model_sync(
 
 
 // Worker download models
-pub fn download_model(exp_name: &String) -> Option<(Model, String, f32)> {
+pub fn download_model(exp_name: &String) -> Option<(Model, String, f32, f32)> {
     // debug!("sampler, start, download model");
     let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
     let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME);
@@ -94,8 +97,9 @@ pub fn download_assignments(exp_name: &String) -> Option<Vec<Option<usize>>> {
 
 
 // Server upload models
-fn upload_model(model: &Model, sig: &String, gamma: f32, exp_name: &String) -> bool {
-    let data = (model.clone(), sig.clone(), gamma);
+fn upload_model(model: &Model, sig: &String, gamma: f32, root_gamma: f32, exp_name: &String) -> bool
+{
+    let data: (Model, String, f32, f32) = (model.clone(), sig.clone(), gamma, root_gamma);
     let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
     io_write_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME, &serialize(&data).unwrap())
 }
@@ -104,6 +108,8 @@ fn upload_model(model: &Model, sig: &String, gamma: f32, exp_name: &String) -> b
 fn model_sync_main(
     model: Model,
     num_iterations: usize,
+    num_trees: usize,
+    max_depth: usize,
     num_machines: usize,
     receiver: mpsc::Receiver<ModelSig>,
     next_model_sender: Sender<Model>,
@@ -122,11 +128,13 @@ fn model_sync_main(
     let mut model = model;
     let mut model_sig = "init".to_string();
     let mut gamma = default_gamma.clone();
+    let mut root_gamma = default_gamma.clone();
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
     // Node status: ((depth, num_recent_success), last_failed_gamma, current_scanner_id)
     let mut node_status = vec![((0, 0), 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
+    let mut cur_num_trees = 0;
     // Performance variables
     let mut global_timer = PerformanceMonitor::new();
     let mut timer = PerformanceMonitor::new();
@@ -200,12 +208,12 @@ fn model_sync_main(
                 }
             }
             if current_condition != 0 {
-                if upload_model(&model, &model_sig, gamma, exp_name) {
-                    debug!("model_manager, broadcast gamma, {}, {}, {}, {}",
-                           current_condition, gamma, shrink_factor, old_gamma);
+                if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
+                    debug!("model_manager, broadcast gamma, {}, {}, {}, {}, {}",
+                           current_condition, gamma, root_gamma, shrink_factor, old_gamma);
                 } else {
-                    debug!("model_manager, failed gamma broadcast, {}, {}, {}, {}",
-                           current_condition, gamma, shrink_factor, old_gamma);
+                    debug!("model_manager, failed gamma broadcast, {}, {}, {}, {}, {}",
+                           current_condition, gamma, root_gamma, shrink_factor, old_gamma);
                 }
                 failed_searches = node_status.iter().map(|(_, last_gamma, avail)| {
                     if avail.is_none() && *last_gamma <= gamma {
@@ -219,9 +227,9 @@ fn model_sync_main(
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
             debug!("model_manager, status update, \
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
-                   gamma, shrink_factor, failed_searches, total_packets, nonempty_packets,
-                   rejected_packets, rejected_packets_model,
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
+                   gamma, root_gamma, shrink_factor, failed_searches,
+                   total_packets, nonempty_packets, rejected_packets, rejected_packets_model,
                    packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "),
                    node_status, worker_assign);
             last_condition = current_condition;
@@ -237,7 +245,8 @@ fn model_sync_main(
             verbose = true;
         }
         update_assignments(
-            &mut node_status, &mut worker_assign, gamma, exp_name,
+            &mut node_status, &mut worker_assign, gamma, root_gamma, max_depth,
+            num_trees - max(num_trees, cur_num_trees), exp_name,
             &model.parent, &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         let packet = receiver.try_recv();
         if packet.is_err() {
@@ -283,6 +292,17 @@ fn model_sync_main(
                         machine_id, node_id, node_count, model.depth[node_id], remote_gamma,
                         failed_searches, node_sum_gamma_sq[node_id], duration,
                         node_sum_gamma_sq[node_id] / duration);
+                if node_id == 0 {
+                    let old_gamma = root_gamma;
+                    root_gamma *= 0.8;
+                    if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
+                        debug!("model_manager, broadcast gamma, {}, {}, {}, {}, {}",
+                               -1, gamma, root_gamma, shrink_factor, old_gamma);
+                    } else {
+                        debug!("model_manager, failed gamma broadcast, {}, {}, {}, {}, {}",
+                               -1, gamma, root_gamma, shrink_factor, old_gamma);
+                    }
+                }
             } else {
                 debug!("model_manager, empty with no assignment, {}", machine_id);
             }
@@ -308,6 +328,7 @@ fn model_sync_main(
         }
         // accept the package
         let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
+        cur_num_trees += new_nodes_depth.iter().filter(|t| (**t) == 1).count();
         num_updates_nodes[machine_id] += patch.size;
         model_sig = new_sig;
         next_model_sender.send(model.clone());
@@ -316,7 +337,7 @@ fn model_sync_main(
         debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}",
                 machine_id, node_id, node_count, model.depth[node_id], remote_gamma, patch.size,
                 count_new, count_updates);
-        if upload_model(&model, &model_sig, gamma, exp_name) {
+        if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
             debug!("model_manager, accept, {}, {}, {}, {}",
                     old_sig, model_sig, machine_name, patch.size);
         } else {
@@ -356,6 +377,9 @@ fn update_assignments(
     node_status: &mut Vec<((usize, usize), f32, Option<usize>)>,
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
+    root_gamma: f32,
+    max_depth: usize,
+    max_num_trees: usize,
     exp_name: &String,
     parents: &Vec<usize>,
     node_sum_gamma_sq: &mut Vec<f32>,
@@ -383,26 +407,28 @@ fn update_assignments(
             }
             if min_depth < 9999 {
             */
-            let mut nodes: Vec<usize> = vec![];
-            let mut max_ext = 0;
-            let mut node_ext = 0;
+            let mut pri_nodes: Vec<usize> = vec![];
+            let mut other_nodes: Vec<usize> = vec![];
             for i in 0..node_status.len() {
-                let ((_, ext), old_gamma, status) = node_status[i];
-                if status.is_none() && old_gamma > gamma {
-                    nodes.push(i);
-                    let ext = max(ext, (node_status[parents[i]].0).1);
-                    if ext > max_ext {
-                        node_ext = i;
-                        max_ext = ext;
+                let ((depth, ext), old_gamma, status) = node_status[i];
+                let prt_ext = (node_status[parents[i]].0).1;
+                if depth < max_depth && status.is_none() &&
+                        (i > 0 && old_gamma > gamma || i == 0 && old_gamma > root_gamma) &&
+                        (max_num_trees > 0 || depth > 0) {
+                    if ext > 0 || prt_ext > 0 {
+                        pri_nodes.push(i);
+                    } else {
+                        other_nodes.push(i);
                     }
                 }
             }
             let node = {
-                if max_ext > 0 {
-                    Some(node_ext)
-                } else if nodes.len() > 0 {
-                    let index = rand::thread_rng().gen::<usize>() % nodes.len();
-                    Some(nodes[index])
+                if pri_nodes.len() > 0 {
+                    let index = rand::thread_rng().gen::<usize>() % pri_nodes.len();
+                    Some(pri_nodes[index])
+                } else if other_nodes.len() > 0 {
+                    let index = rand::thread_rng().gen::<usize>() % other_nodes.len();
+                    Some(other_nodes[index])
                 } else {
                     None
                 }
@@ -416,7 +442,8 @@ fn update_assignments(
                 worker_assign[valid_worker] = Some(node);
                 did_something = true;
                 num_updates += 1;
-                debug!("model-manager, assign, {}, {}, {}", valid_worker, node, max_ext > 0);
+                debug!("model-manager, assign, {}, {}, {}",
+                       valid_worker, node, pri_nodes.len() > 0);
             }
         }
     }
