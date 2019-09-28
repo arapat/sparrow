@@ -135,6 +135,7 @@ fn model_sync_main(
     let mut node_status = vec![((0, 0, 0), 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
     let mut cur_num_trees = 0;
+    let mut avail_nodes = 0;
     // Performance variables
     let mut global_timer = PerformanceMonitor::new();
     let mut timer = PerformanceMonitor::new();
@@ -168,7 +169,8 @@ fn model_sync_main(
         };
         // adjust gamma
         let mut verbose = false;
-        if timer.get_duration() >= DURATION {
+        // wait for enough number of packets, and adjust gamma accordingly
+        if total_packet >= max(5, min(avail_nodes, num_machines)) {
             let mut current_condition = 0;
             // TODO: set decrease gamma threshold a parameter
             let empty_rate = 1.0 - (nonempty_packets as f32) / (max(1, total_packets) as f32);
