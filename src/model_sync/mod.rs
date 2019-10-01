@@ -5,7 +5,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::mpsc;
 use std::thread::spawn;
-use rand::Rng;
 use bincode::serialize;
 use bincode::deserialize;
 use commons::Model;
@@ -108,7 +107,7 @@ fn upload_model(model: &Model, sig: &String, gamma: f32, root_gamma: f32, exp_na
 fn model_sync_main(
     model: Model,
     num_iterations: usize,
-    num_trees: usize,
+    max_num_trees: usize,
     max_depth: usize,
     num_machines: usize,
     receiver: mpsc::Receiver<ModelSig>,
@@ -121,7 +120,6 @@ fn model_sync_main(
     sampler_state: Arc<RwLock<bool>>,
 ) {
     // TODO: make duration and fraction config parameters
-    const DURATION: f32 = 15.0;
     const FRACTION: f32 = 0.1;
     // State variables
     // TODO: Infer all state variables based on `model`
@@ -132,9 +130,8 @@ fn model_sync_main(
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
     // Node status: ((depth, num_recent_success), last_failed_gamma, current_scanner_id)
-    let mut node_status = vec![((0, 0, 0), 1.0, None); model.tree_size];
+    let mut node_status = vec![((0, 0), 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
-    let mut cur_num_trees = 0;
     let mut avail_nodes = 0;
     // Performance variables
     let mut global_timer = PerformanceMonitor::new();
@@ -153,7 +150,11 @@ fn model_sync_main(
     global_timer.start();
     // initialize state variables based on `model`
     for i in 0..min(node_status.len(), worker_assign.len()) {
-        node_status[i] = ((model.depth[i], 0, model.children[i].len()), 1.0, Some(i));
+        let (depth, num_child) = (model.depth[i], model.children[i].len());
+        if depth < max_depth && (i == 0 && num_child < max_num_trees || i > 0 && num_child <= 1) {
+            avail_nodes += 1;
+        }
+        node_status[i] = ((depth, num_child), 1.0, Some(i));
         worker_assign[i] = Some(i);
     }
     for i in node_status.len()..worker_assign.len() {
@@ -170,7 +171,7 @@ fn model_sync_main(
         // adjust gamma
         let mut verbose = false;
         // wait for enough number of packets, and adjust gamma accordingly
-        if total_packet >= max(5, min(avail_nodes, num_machines)) {
+        if total_packets >= max(5, min(avail_nodes, num_machines)) {
             let mut current_condition = 0;
             // TODO: set decrease gamma threshold a parameter
             let empty_rate = 1.0 - (nonempty_packets as f32) / (max(1, total_packets) as f32);
@@ -248,7 +249,7 @@ fn model_sync_main(
         }
         update_assignments(
             &mut node_status, &mut worker_assign, gamma, root_gamma, max_depth,
-            num_trees - max(num_trees, cur_num_trees), exp_name,
+            max_num_trees, exp_name,
             &model.parent, &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         let packet = receiver.try_recv();
         if packet.is_err() {
@@ -285,8 +286,8 @@ fn model_sync_main(
         };
         if patch.size == 0 {
             if worker_assign[machine_id].is_some() {
-                let (depth, count, num_child) = node_status[node_id].0;
-                node_status[node_id] = ((depth, count, num_child), remote_gamma, None);
+                let (depth, num_child) = node_status[node_id].0;
+                node_status[node_id] = ((depth, num_child), remote_gamma, None);
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
                 let duration = global_timer.get_duration() - node_timestamp[node_id];
@@ -330,7 +331,6 @@ fn model_sync_main(
         }
         // accept the package
         let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
-        cur_num_trees += new_nodes_depth.iter().filter(|t| (**t) == 1).count();
         num_updates_nodes[machine_id] += patch.size;
         model_sig = new_sig;
         next_model_sender.send(model.clone());
@@ -349,14 +349,20 @@ fn model_sync_main(
         last_timestamp = global_timer.get_duration();
         handle_persistent(&model, model.size(), last_timestamp);
         for depth in new_nodes_depth {
-            node_status.push(((depth, 0, 0), 1.0, None));
+            node_status.push(((depth, 0), 1.0, None));
             node_sum_gamma_sq.push(0.0);
             node_timestamp.push(0.0);
+            avail_nodes += 1;
         }
         node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
-        let ((depth, count, _), gamma, machine_id) = node_status[node_id];
+        let ((depth, _), gamma, machine_id) = node_status[node_id];
         node_status[node_id] =
-            ((depth, count + 1, model.children[node_id].len()), gamma, machine_id);
+            ((depth, model.children[node_id].len()), gamma, machine_id);
+        if node_id == 0 && model.children[node_id].len() >= max_num_trees ||
+                node_id > 0 && model.children[node_id].len() > 1 {
+            avail_nodes -= 1;
+            node_status[node_id].2 = None;
+        }
     }
     info!("Model sync quits, {}, {}, {}, {}, Model length: {}, Is gamma significant? {}",
             state, gamma >= min_gamma, num_iterations <= 0, model.size() < num_iterations,
@@ -377,14 +383,14 @@ fn model_sync_main(
 
 
 fn update_assignments(
-    node_status: &mut Vec<((usize, usize, usize), f32, Option<usize>)>,
+    node_status: &mut Vec<((usize, usize), f32, Option<usize>)>,
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
     root_gamma: f32,
     max_depth: usize,
     max_num_trees: usize,
     exp_name: &String,
-    parents: &Vec<usize>,
+    _parents: &Vec<usize>,
     node_sum_gamma_sq: &mut Vec<f32>,
     node_timestamp: &mut Vec<f32>,
     cur_timestamp: f32,
@@ -410,32 +416,18 @@ fn update_assignments(
             }
             if min_depth < 9999 {
             */
-            let mut pri_nodes: Vec<usize> = vec![];
-            let mut other_nodes: Vec<usize> = vec![];
+            let mut node = None;
+            let mut status_log = (0, 0);
             for i in 0..node_status.len() {
-                let ((depth, ext, num_child), old_gamma, status) = node_status[i];
-                let prt_ext = (node_status[parents[i]].0).1;
-                if depth < max_depth && status.is_none() && (i == 0 || num_child <= 0) &&
-                        (i > 0 && old_gamma > gamma || i == 0 && old_gamma > root_gamma) &&
-                        (max_num_trees > 0 || depth > 0) {
-                    if ext > 0 || prt_ext > 0 {
-                        pri_nodes.push(i);
-                    } else {
-                        other_nodes.push(i);
-                    }
+                let ((depth, num_child), old_gamma, status) = node_status[i];
+                if depth < max_depth && status.is_none() &&
+                        (i == 0 && num_child < max_num_trees || i > 0 && num_child <= 1) &&
+                        (i > 0 && old_gamma > gamma || i == 0 && old_gamma > root_gamma) {
+                    node = Some(i);
+                    status_log = (depth, num_child);
+                    break;
                 }
             }
-            let node = {
-                if pri_nodes.len() > 0 {
-                    let index = rand::thread_rng().gen::<usize>() % pri_nodes.len();
-                    Some(pri_nodes[index])
-                } else if other_nodes.len() > 0 {
-                    let index = rand::thread_rng().gen::<usize>() % other_nodes.len();
-                    Some(other_nodes[index])
-                } else {
-                    None
-                }
-            };
             if node.is_some() {
                 let node = node.unwrap();
                 let (status, gamma, _) = node_status[node];
@@ -445,8 +437,8 @@ fn update_assignments(
                 worker_assign[valid_worker] = Some(node);
                 did_something = true;
                 num_updates += 1;
-                debug!("model-manager, assign, {}, {}, {}",
-                       valid_worker, node, pri_nodes.len() > 0);
+                debug!("model-manager, assign, {}, {}, {}, {}",
+                       valid_worker, node, status_log.0, status_log.1);
             }
         }
     }
