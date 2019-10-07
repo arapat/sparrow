@@ -79,9 +79,6 @@ impl Boosting {
         let learner = Learner::new(
             min_gamma, default_gamma, num_features, bins);
 
-        // add root node for balancing labels
-        // let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut training_loader);
-
         let persist_file_buffer = {
             if save_process {
                 None
@@ -132,10 +129,17 @@ impl Boosting {
                 0
             }
         };
+        self.update_model();
         info!("scanner, added new rule, {}, {}, {}, {}",
               self.model.size(), max_sample_size, max_sample_size, index);
     }
 
+    fn update_model(&mut self) {
+        let model = self.training_loader.new_model.read().unwrap();
+        if model.is_some() {
+            self.model = model.as_ref().unwrap().clone();
+        }
+    }
 
     /// Enable network communication. `name` is the name of this worker, which can be arbitrary
     /// and is only used for debugging purpose.
@@ -187,15 +191,18 @@ impl Boosting {
         let mut total_data_size = 0;
         while is_gamma_significant &&
                 (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
-            let (new_rule, batch_size) = {
+            let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
                 learner_timer.resume();
                 if switched {
                     self.learner.reset();
                 }
-                (self.learner.update(&self.model, &data), data.len())
+                (self.learner.update(&self.model, &data), data.len(), switched)
             };
+            if switched {
+                self.update_model();
+            }
             learner_timer.update(batch_size);
             global_timer.update(batch_size);
             learner_timer.pause();

@@ -6,8 +6,6 @@ use rayon::prelude::*;
 use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::thread::sleep;
-use std::time::Duration;
 
 use commons::get_weight;
 use commons::performance_monitor::PerformanceMonitor;
@@ -19,6 +17,7 @@ use self::loader::Loader;
 
 // LockedBuffer is set to None once it is read by the receiver
 pub type LockedBuffer = Arc<RwLock<Option<(usize, Vec<ExampleWithScore>)>>>;
+pub type LockedModelBuffer = Arc<RwLock<Option<Model>>>;
 
 
 #[derive(Clone, Debug, PartialEq)]
@@ -43,6 +42,7 @@ pub struct BufferLoader {
     num_batch: usize,
 
     examples: Vec<ExampleInSampleSet>,
+    pub new_model: LockedModelBuffer,
     pub current_version: usize,
     pub new_examples: LockedBuffer,
     loader: Loader,
@@ -71,12 +71,12 @@ impl BufferLoader {
         batch_size: usize,
         sampling_mode: String,
         sleep_duration: usize,
-        init_block: bool,
         min_ess: Option<f32>,
         sampler_scanner: String,
         exp_name: String,
     ) -> BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
+        let new_model = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
         let sample_mode = {
             match sampling_mode.to_lowercase().as_str() {
@@ -91,13 +91,14 @@ impl BufferLoader {
         };
         // Strata -> BufferLoader
         let current_sample_version = Arc::new(RwLock::new(0));
-        let loader = Loader::new(new_examples.clone(), sleep_duration, exp_name);
-        let mut buffer_loader = BufferLoader {
+        let loader = Loader::new(new_examples.clone(), new_model.clone(), sleep_duration, exp_name);
+        let buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
             num_batch: num_batch,
 
             examples: vec![],
+            new_model: new_model,
             current_version: 0,
             new_examples: new_examples,
             loader: loader,
@@ -111,9 +112,6 @@ impl BufferLoader {
         };
         if sampler_scanner.to_lowercase().as_str() != "sampler" {
             buffer_loader.loader.run(sample_mode.clone());
-        }
-        while init_block && !buffer_loader.try_switch() {
-            sleep(Duration::from_millis(2000));
         }
         buffer_loader
     }

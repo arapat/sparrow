@@ -123,7 +123,7 @@ fn gather<F>(
     model: Arc<RwLock<Model>>,
     exp_name: &str,
 ) -> Vec<u32>
-where F: Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str) {
+where F: Fn(Vec<ExampleWithScore>, Model, LockedBuffer, usize, &str) {
     debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
     pm.start();
@@ -148,7 +148,7 @@ where F: Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str) {
             }
             total_scanned += num_scanned;
         }
-        if new_sample.len() - last_log_count > new_sample_capacity / 10 {
+        if new_sample.len() - last_log_count >= new_sample_capacity / 10 {
             debug!("sampler, progress, {}", new_sample.len());
             last_log_count = new_sample.len();
         }
@@ -157,8 +157,11 @@ where F: Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str) {
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}",
            total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive);
     // TODO: count number of examples fall, make sure the numbering is the same as the assignments
+    let model = {
+        let lock = model.read().unwrap();
+        lock.clone()
+    };
     let counts = {
-        let model = model.read().unwrap();
         let mut c = vec![0; model.tree_size];
         new_sample.iter().for_each(|(example, _)| model.visit_tree(example, &mut c));
         c
@@ -171,7 +174,7 @@ where F: Fn(Vec<ExampleWithScore>, LockedBuffer, usize, &str) {
         .expect("Failed to write the sample set to file for snapshot");
     rename(filename, "latest_sample.bin".to_string()).unwrap();
     // Send the sample to the handler
-    handler(new_sample, new_sample_buffer, version, exp_name);
+    handler(new_sample, model, new_sample_buffer, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
     counts

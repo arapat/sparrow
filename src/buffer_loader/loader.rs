@@ -6,6 +6,7 @@ use std::time::Duration;
 use commons::performance_monitor::PerformanceMonitor;
 
 use super::LockedBuffer;
+use super::LockedModelBuffer;
 use super::SampleMode;
 use super::io::load_local;
 use super::io::load_s3;
@@ -13,6 +14,7 @@ use super::io::load_s3;
 
 pub struct Loader {
     new_sample_buffer: LockedBuffer,
+    new_model_buffer:  LockedModelBuffer,
     sleep_duration:    u64,
     exp_name:          String,
 }
@@ -22,11 +24,13 @@ impl Loader {
     /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
     pub fn new(
         new_sample_buffer: LockedBuffer,
+        new_model_buffer: LockedModelBuffer,
         sleep_duration: usize,
         exp_name:       String,
     ) -> Loader {
         Loader {
             new_sample_buffer: new_sample_buffer,
+            new_model_buffer:  new_model_buffer,
             sleep_duration:    sleep_duration as u64,
             exp_name:          exp_name,
         }
@@ -37,6 +41,7 @@ impl Loader {
     /// Fill the alternate memory buffer of the buffer loader
     pub fn run(&self, mode: SampleMode) {
         let buffer: LockedBuffer = self.new_sample_buffer.clone();
+        let model_buffer: LockedModelBuffer = self.new_model_buffer.clone();
         let sleep_duration = self.sleep_duration;
         let exp_name = self.exp_name.clone();
         info!("Starting non-blocking loader");
@@ -47,6 +52,7 @@ impl Loader {
                     SampleMode::LOCAL => {
                         loader(
                             buffer.clone(),
+                            model_buffer.clone(),
                             load_local,
                             last_version,
                             exp_name.as_str(),
@@ -55,6 +61,7 @@ impl Loader {
                     SampleMode::S3 => {
                         loader(
                             buffer.clone(),
+                            model_buffer.clone(),
                             load_s3,
                             last_version,
                             exp_name.as_str(),
@@ -74,14 +81,15 @@ impl Loader {
 
 fn loader<F>(
     new_sample_buffer: LockedBuffer,
+    new_model_buffer: LockedModelBuffer,
     handler: F,
     last_version: usize,
     exp_name: &str,
 ) -> usize
-where F: Fn(LockedBuffer, usize, &str) -> Option<usize> {
+where F: Fn(LockedBuffer, LockedModelBuffer, usize, &str) -> Option<usize> {
     let mut pm = PerformanceMonitor::new();
     pm.start();
-    let version = handler(new_sample_buffer, last_version, exp_name);
+    let version = handler(new_sample_buffer, new_model_buffer, last_version, exp_name);
     if version.is_none() {
         debug!("scanner, failed to receive a new sample");
         last_version

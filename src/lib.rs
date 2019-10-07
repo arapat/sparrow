@@ -232,7 +232,6 @@ fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
         config.batch_size,
         config.sampling_mode.clone(),
         config.sleep_duration,
-        false, // config.sampler_scanner != "sampler",
         Some(config.min_ess),
         config.sampler_scanner.clone(),
         config.exp_name.clone(),
