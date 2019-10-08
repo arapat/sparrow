@@ -137,7 +137,10 @@ impl Boosting {
     fn update_model(&mut self) {
         let model = self.training_loader.new_model.read().unwrap();
         if model.is_some() {
-            self.model = model.as_ref().unwrap().clone();
+            let new_mode = model.as_ref().unwrap();
+            if new_mode.size() >= self.model.size() {
+                self.model = new_mode.clone();
+            }
         }
     }
 
