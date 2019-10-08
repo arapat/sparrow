@@ -154,13 +154,14 @@ where F: Fn(Vec<ExampleWithScore>, Model, LockedBuffer, usize, &str) {
         }
     }
     thread_rng().shuffle(&mut new_sample);
-    debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}",
-           total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive);
     // TODO: count number of examples fall, make sure the numbering is the same as the assignments
     let model = {
         let lock = model.read().unwrap();
         lock.clone()
     };
+    debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}, {}",
+           total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive,
+           model.size());
     let counts = {
         let mut c = vec![0; model.tree_size];
         new_sample.iter().for_each(|(example, _)| model.visit_tree(example, &mut c));
@@ -170,7 +171,7 @@ where F: Fn(Vec<ExampleWithScore>, Model, LockedBuffer, usize, &str) {
     debug!("sampler, travel finished, {}, {}", new_sample.len(), counts_str.join(", "));
     // Create a snapshot for continous training
     let filename = "latest_sample.bin".to_string() + "_WRITING";
-    write_all(&filename, &serialize(&(version, new_sample.clone())).unwrap())
+    write_all(&filename, &serialize(&(version, new_sample.clone(), &model)).unwrap())
         .expect("Failed to write the sample set to file for snapshot");
     rename(filename, "latest_sample.bin".to_string()).unwrap();
     // Send the sample to the handler
