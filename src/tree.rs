@@ -82,10 +82,24 @@ impl Tree {
         self.model_updates.size
     }
 
-    pub fn add_node(
+    pub fn add_nodes(
+        &mut self, parent: i32,
+        feature: usize, threshold: TFeature, pred_value: (f32, f32), gamma: f32,
+    ) -> (usize, usize) {
+        (
+            self.add_node(parent, feature, threshold, true, pred_value.0, gamma),
+            self.add_node(parent, feature, threshold, false, pred_value.1, gamma)
+        )
+    }
+
+    pub fn add_root(&mut self, pred_value: f32, gamma: f32) -> usize {
+        self.add_node(-1, 0, 0, false, pred_value, gamma)
+    }
+
+    fn add_node(
         &mut self, parent: i32,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
-    ) -> Option<usize> {
+    ) -> usize {
         let depth = {
             if parent < 0 {
                 0
@@ -133,11 +147,7 @@ impl Tree {
         */
         debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
                new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
-        if is_new {
-            Some(new_index)
-        } else {
-            None
-        }
+        new_index
     }
 
     fn find_child_node(
@@ -255,6 +265,7 @@ impl Tree {
                 0
             }
         };
+        let prev_tree_size = self.tree_size;
         let mut node_indices = vec![];
         while i < patch.size {
             node_indices.push(self.add_node(
@@ -266,8 +277,8 @@ impl Tree {
         self.last_gamma = last_gamma;
         self.base_version = self.model_updates.size;
         node_indices.iter()
-                    .filter(|t| t.is_some())
-                    .map(|t| self.depth[t.unwrap()])
+                    .filter(|t| (**t) >= prev_tree_size)  // newly added indices
+                    .map(|t| self.depth[*t])
                     .collect()
     }
 

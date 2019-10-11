@@ -26,12 +26,13 @@ Each split corresponds to 2 types of predictions,
     2. Left -1, Right +1;
 */
 const NUM_PREDS: usize = 2;
-const NUM_RULES: usize = 2 * NUM_PREDS;  // i.e., false (0), true (1)
-const PREDS: [f32; NUM_PREDS] = [-1.0, 1.0];
+const NUM_RULES: usize = NUM_PREDS;
+const PREDS: [(f32, f32); NUM_PREDS] = [(-1.0, 1.0), (1.0, -1.0)];
 // (pred1, false), (pred1, true), (pred2, false), (pred2, true)
 type ScoreBoard = Vec<Vec<[f32; NUM_RULES]>>;
 type ScoreBoard1 = Vec<Vec<f32>>;
-type RuleStats = [[f32; 2]; NUM_PREDS];
+// (f32, f32) -> Stats if falls under left, and if falls under right
+type RuleStats = [[(f32, f32); 2]; NUM_PREDS];
 
 
 /// A weak rule with an edge larger or equal to the targetting value of `gamma`
@@ -39,8 +40,7 @@ pub struct TreeNode {
     pub prt_index: usize,
     pub feature: usize,
     pub threshold: TFeature,
-    pub evaluation: bool,
-    pub predict: f32,
+    pub predict: (f32, f32),
 
     pub gamma: f32,
     raw_martingale: f32,
@@ -63,8 +63,8 @@ impl TreeNode {
             self.prt_index,
             self.feature,
             self.threshold,
-            self.evaluation,
-            self.predict,
+            self.predict.0,
+            self.predict.1,
 
             self.num_scanned,
             self.gamma,
@@ -240,12 +240,15 @@ impl Learner {
                 let labeled_weight = weight * (example.label as f32);
                 // let null_weight = 2.0 * rho_gamma * weight;
                 let null_weight = 2.0 * rho_gamma * weight;
-                let mut vals: RuleStats = [[0.0; 2]; NUM_PREDS];
+                let mut vals: RuleStats = [[(0.0, 0.0); 2]; NUM_PREDS];
                 PREDS.iter().enumerate().for_each(|(i, pred)| {
-                    let abs_val = pred * labeled_weight;
-                    let ci      = abs_val - null_weight;
+                    let abs_val = (pred.0 * labeled_weight, pred.1 * labeled_weight);
+                    let ci      = (abs_val.0 - null_weight, abs_val.1 - null_weight);
                     vals[i][0]  = abs_val;
-                    vals[i][1]  = ci * ci - null_weight * null_weight;
+                    vals[i][1]  = (
+                        ci.0 * ci.0 - null_weight * null_weight,
+                        ci.1 * ci.1 - null_weight * null_weight
+                    );
                 });
                 (tree.is_visited(example, expand_node), *weight, (example, vals))
             }).filter(|(contains, _, _)| *contains)
@@ -253,7 +256,7 @@ impl Learner {
               .collect()
         };
 
-        // TODO: FIX all sum_weights and counts
+        // Calculate total sum of the weights and the number of examples
         let (batch_sum_weight, batch_count): (f32, usize) = {
             data.par_iter()
                 .map(|(w, _)| (*w, 1))
@@ -284,7 +287,8 @@ impl Learner {
                 // <Split, NodeId, RuleId, stats, LeftOrRight>
                 // the last element of is for the examples that are larger than all split values
                 let mut bin_accum_vals: Vec<RuleStats> =
-                    vec![[[0.0; 2]; NUM_PREDS]; bin.len() + 1];
+                    vec![[[(0.0, 0.0); 2]; NUM_PREDS]; bin.len() + 1];
+                // Counts the total weights and the counts for both positive and negative examples
                 let mut counts: [usize; 2] = [0, 0];
                 let mut weights: [f32; 2]  = [0.0, 0.0];
                 data.iter()
@@ -293,7 +297,8 @@ impl Learner {
                         let t = &mut bin_accum_vals[flip_index];
                         for j in 0..NUM_PREDS {
                             for k in 0..t[j].len() {
-                                t[j][k] += vals[j][k];
+                                t[j][k].0 += vals[j][k].0;
+                                t[j][k].1 += vals[j][k].1;
                             }
                         }
                         if example.label > 0 {
@@ -305,14 +310,14 @@ impl Learner {
                         }
                     });
 
-                let mut accum_left:  RuleStats = [[0.0; 2]; NUM_PREDS];
-                let mut accum_right: RuleStats = [[0.0; 2]; NUM_PREDS];
+                let mut accum_left  = [[0.0; 2]; NUM_PREDS];
+                let mut accum_right = [[0.0; 2]; NUM_PREDS];
                 // Accumulate sum of the stats of all examples that go to the right child
                 for j in 0..bin.len() { // Split value
                     for pred_idx in 0..NUM_PREDS { // Types of rule
                         for it in 0..accum_right[pred_idx].len() {
                             accum_right[pred_idx][it] +=
-                                bin_accum_vals[j][pred_idx][it];
+                                bin_accum_vals[j][pred_idx][it].1;
                         }
                     }
                 }
@@ -323,15 +328,16 @@ impl Learner {
                         // Move examples from the right to the left child
                         for it in 0..accum_left[pred_idx].len() {
                             accum_left[pred_idx][it]  +=
-                                bin_accum_vals[j][pred_idx][it];
+                                bin_accum_vals[j][pred_idx][it].0;
                             accum_right[pred_idx][it] -=
-                                bin_accum_vals[j][pred_idx][it];
+                                bin_accum_vals[j][pred_idx][it].1;
                         }
-
-                        // eval == False (right), eval == True (left)
-                        let accums = [&accum_right[pred_idx], &accum_left[pred_idx]];
-                        for (eval_idx, accum) in accums.iter().enumerate() {
-                            let rule_idx = pred_idx * 2 + eval_idx;
+                        let accum: Vec<f32> = accum_left[pred_idx].iter()
+                                                                  .zip(accum_right[pred_idx].iter())
+                                                                  .map(|(a, b)| *a + *b)
+                                                                  .collect();
+                        {
+                            let rule_idx = pred_idx;
                             let weak_rules_score =
                                 &mut weak_rules_score[j][rule_idx];
                             let sum_c_squared    = &mut sum_c_squared[j][rule_idx];
@@ -355,13 +361,14 @@ impl Learner {
                                 let base_pred = 0.5 * (
                                     (0.5 + rho_gamma) / (0.5 - rho_gamma)
                                 ).ln();
+                                let real_pred =
+                                    (base_pred * PREDS[pred_idx].0, base_pred * PREDS[pred_idx].1);
                                 valid_weak_rule = Some(
                                     TreeNode {
                                         prt_index:      expand_node,
                                         feature:        i,
                                         threshold:      j as TFeature,
-                                        evaluation:     eval_idx == 1,
-                                        predict:        base_pred * PREDS[pred_idx],
+                                        predict:        real_pred,
 
                                         gamma:          rho_gamma,
                                         raw_martingale: *weak_rules_score,
