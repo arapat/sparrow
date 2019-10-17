@@ -404,18 +404,6 @@ fn update_assignments(
             valid_worker += 1;
         }
         if valid_worker < worker_assign.len() {
-            /*
-            let mut min_depth = 9999;
-            let mut node = 0;
-            for i in 0..node_status.len() {
-                let (depth, old_gamma, status) = node_status[i];
-                if status.is_none() && old_gamma > gamma && depth < min_depth {
-                    node = i;
-                    min_depth = depth;
-                }
-            }
-            if min_depth < 9999 {
-            */
             let mut node = None;
             let mut status_log = (0, 0);
             for i in 0..node_status.len() {
