@@ -158,7 +158,7 @@ mod tests {
     use super::QueueSender;
     use super::QueueReceiver;
     use super::super::get_disk_buffer;
-    use ::TFeature;
+    use TFeature;
 
     #[test]
     fn test_stratum_one_by_one() {

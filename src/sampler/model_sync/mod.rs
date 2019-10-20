@@ -14,7 +14,7 @@ use commons::io::create_bufwriter;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
 use commons::performance_monitor::PerformanceMonitor;
-use tree::Tree;
+use commons::tree::Tree;
 use tmsn::network::start_network_only_recv;
 
 

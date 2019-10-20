@@ -27,25 +27,12 @@ extern crate time;
 extern crate tmsn;
 extern crate metricslib;
 
-/// The class of the weak learner, namely a decision stump.
-mod tree;
-
-/// The implementation of the AdaBoost algorithm with early stopping rule.
-mod booster;
-/// A data loader with two independent caches. Alternatively, we use one
-/// of the caches to feed data to the boosting algorithm, and the other
-/// to load next sample set.
-mod buffer_loader; 
 /// Common functions and classes.
 mod commons;
-/// The class of the training examples.
-mod labeled_data;
-/// A stratified storage structor that organize examples on disk according to their weights.
-mod stratified_storage;
 /// Validating models
 mod testing;
-/// Syncing model to S3
-mod model_sync;
+mod sampler;
+mod scanner;
 
 use std::io::Write;
 use std::path::Path;
@@ -56,11 +43,12 @@ use std::time::Duration;
 
 use bincode::serialize;
 use bincode::deserialize;
-use booster::Boosting;
-use buffer_loader::BufferLoader;
-use model_sync::start_model_sync;
-use stratified_storage::StratifiedStorage;
-use stratified_storage::serial_storage::SerialStorage;
+
+use scanner::booster::Boosting;
+use scanner::buffer_loader::BufferLoader;
+use sampler::model_sync::start_model_sync;
+use sampler::stratified_storage::StratifiedStorage;
+use sampler::stratified_storage::serial_storage::SerialStorage;
 use testing::validate;
 
 use commons::Model;
@@ -74,11 +62,11 @@ use commons::io::load_s3;
 use commons::io::raw_read_all;
 use commons::io::write_s3;
 use commons::performance_monitor::PerformanceMonitor;
-use tree::Tree;
+use commons::tree::Tree;
 
 // Types
 // TODO: decide TFeature according to the bin size
-use labeled_data::LabeledData;
+use commons::labeled_data::LabeledData;
 pub type RawTFeature = f32;
 pub type TFeature = u8;
 pub type TLabel = i8;

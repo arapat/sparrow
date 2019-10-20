@@ -13,11 +13,11 @@ use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
 
-use buffer_loader::LockedBuffer;
-use buffer_loader::SampleMode;
-use buffer_loader::io::write_memory;
-use buffer_loader::io::write_local;
-use buffer_loader::io::write_s3;
+use scanner::buffer_loader::LockedBuffer;
+use scanner::buffer_loader::SampleMode;
+use scanner::buffer_loader::io::write_memory;
+use scanner::buffer_loader::io::write_local;
+use scanner::buffer_loader::io::write_s3;
 
 
 pub struct Gatherer {
@@ -195,7 +195,7 @@ mod tests {
     use labeled_data::LabeledData;
     use super::Gatherer;
     use super::super::SampleMode;
-    use ::TFeature;
+    use TFeature;
 
     #[test]
     fn test_sampler_nonblocking() {

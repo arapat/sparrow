@@ -2,9 +2,9 @@ use rayon::prelude::*;
 use std::cmp::max;
 use std::ops::Range;
 use std::collections::VecDeque;
-use super::Example;
-use super::TFeature;
 
+use Example;
+use TFeature;
 use commons::is_zero;
 
 

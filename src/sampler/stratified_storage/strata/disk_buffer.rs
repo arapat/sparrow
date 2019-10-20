@@ -119,7 +119,7 @@ mod tests {
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use super::super::get_disk_buffer;
-    use ::TFeature;
+    use TFeature;
 
 
     #[test]

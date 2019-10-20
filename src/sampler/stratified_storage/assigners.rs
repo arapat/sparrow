@@ -95,7 +95,7 @@ mod tests {
     use commons::ExampleWithScore;
     use super::super::Strata;
     use super::Assigners;
-    use ::TFeature;
+    use TFeature;
 
     #[test]
     fn test_assigner_1_thread() {

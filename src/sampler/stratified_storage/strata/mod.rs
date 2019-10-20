@@ -12,14 +12,14 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
 
+use Example;
+use TFeature;
+use TLabel;
+
 use commons::ExampleWithScore;
 use commons::channel::Sender;
 use commons::channel::Receiver;
-use super::Example;
-
-use super::super::TFeature;
-use super::super::TLabel;
-use labeled_data::LabeledData;
+use commons::labeled_data::LabeledData;
 
 use self::disk_buffer::DiskBuffer;
 use self::stratum::Stratum;
@@ -224,7 +224,7 @@ mod tests {
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use super::Strata;
-    use ::TFeature;
+    use TFeature;
 
     #[test]
     fn test_strata() {

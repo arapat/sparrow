@@ -10,7 +10,7 @@ use commons::io::create_bufwriter;
 use commons::io::raw_read_all;
 use commons::io::write_all;
 use commons::Model;
-use stratified_storage::serial_storage::SerialStorage;
+use sampler::stratified_storage::serial_storage::SerialStorage;
 use TLabel;
 
 

@@ -2,8 +2,8 @@ use ordered_float::NotNaN;
 
 use std::collections::BTreeMap;
 
-use stratified_storage::serial_storage::SerialStorage;
-use super::super::TFeature;
+use TFeature;
+use sampler::stratified_storage::serial_storage::SerialStorage;
 
 
 // TODO: support NaN feature values

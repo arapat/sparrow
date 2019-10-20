@@ -15,8 +15,8 @@ use std::io::Read;
 use std::io::Write;
 use std::io::Result;
 
-use commons::Example;
-use labeled_data::LabeledData;
+use Example;
+use commons::labeled_data::LabeledData;
 
 
 pub fn create_bufreader(filename: &String) -> BufReader<File> {

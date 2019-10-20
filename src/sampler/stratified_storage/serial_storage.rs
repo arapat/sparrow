@@ -7,6 +7,11 @@ use std::io::BufReader;
 use std::io::BufWriter;
 use bincode::deserialize;
 
+use Example;
+use RawExample;
+use TFeature;
+use RawTFeature;
+
 use commons::ExampleWithScore;
 use commons::bins::Bins;
 use commons::io::read_all;
@@ -16,12 +21,7 @@ use commons::io::read_k_labeled_data;
 use commons::io::read_k_labeled_data_from_binary_file;
 use commons::io::write_to_binary_file;
 use commons::performance_monitor::PerformanceMonitor;
-use labeled_data::LabeledData;
-
-use super::super::Example;
-use super::super::RawExample;
-use super::super::TFeature;
-use super::super::RawTFeature;
+use commons::labeled_data::LabeledData;
 
 type VersionedSample = (usize, Vec<ExampleWithScore>);
 

@@ -13,6 +13,8 @@ use std::thread::sleep;
 use std::time::Duration;
 use rand;
 use bincode::serialize;
+
+use TFeature;
 use commons::bins::Bins;
 use commons::channel;
 use commons::channel::Receiver;
@@ -21,12 +23,10 @@ use commons::get_sign;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::Model;
-use labeled_data::LabeledData;
-use super::Example;
-use super::TFeature;
+use commons::labeled_data::LabeledData;
 
-use buffer_loader::LockedBuffer;
-use buffer_loader::SampleMode;
+use scanner::buffer_loader::LockedBuffer;
+use scanner::buffer_loader::SampleMode;
 use self::assigners::Assigners;
 use self::samplers::Samplers;
 use self::gatherer::Gatherer;
@@ -426,7 +426,7 @@ mod tests {
     use commons::Signal;
     use commons::performance_monitor::PerformanceMonitor;
     use super::StratifiedStorage;
-    use ::TFeature;
+    use TFeature;
 
     #[test]
     fn test_mean() {

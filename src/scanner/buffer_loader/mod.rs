@@ -2,7 +2,6 @@ pub mod io;
 mod loader;
 
 use rayon::prelude::*;
-
 use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -238,7 +237,7 @@ mod tests {
     use commons::ExampleWithScore;
     use commons::Signal;
     use super::BufferLoader;
-    use ::TFeature;
+    use TFeature;
 
     use super::io::REGION;
     use super::io::BUCKET;

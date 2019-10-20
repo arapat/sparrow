@@ -1,13 +1,17 @@
 pub mod bins;
 pub mod channel;
-pub mod performance_monitor;
 pub mod io;
+// The class of the training examples.
+pub mod labeled_data;
+pub mod performance_monitor;
+// The class of the weak learner, namely a decision stump.
+pub mod tree;
 
 use rayon::prelude::*;
 use std::f32::INFINITY;
 
-use tree::Tree;
-use tree::UpdateList;
+use commons::tree::Tree;
+use commons::tree::UpdateList;
 
 use super::Example;
 

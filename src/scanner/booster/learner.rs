@@ -1,14 +1,14 @@
 use rayon::prelude::*;
 
+use Example;
+use TFeature;
 use commons::ExampleInSampleSet;
-use super::super::Example;
-use super::super::TFeature;
 
-use buffer_loader::BufferLoader;
 use commons::bins::Bins;
 use commons::get_bound;
 use commons::is_zero;
 use commons::Model;
+use scanner::buffer_loader::BufferLoader;
 
 // TODO: The tree generation and score updates are for AdaBoost only,
 // extend it to other potential functions

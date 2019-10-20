@@ -11,15 +11,15 @@ use std::time::Duration;
 use serde_json;
 use tmsn::network::start_network_only_send;
 
-use buffer_loader::BufferLoader;
 use commons::is_zero;
 use commons::io::create_bufwriter;
 use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelSig;
 use commons::bins::Bins;
-use model_sync::download_assignments;
-use model_sync::download_model;
+use scanner::buffer_loader::BufferLoader;
+use sampler::model_sync::download_assignments;
+use sampler::model_sync::download_model;
 use self::learner::get_base_node;
 use self::learner::Learner;
 
