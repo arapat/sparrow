@@ -14,6 +14,7 @@ use std::time::Duration;
 use rand;
 use bincode::serialize;
 
+use SampleMode;
 use TFeature;
 use commons::bins::Bins;
 use commons::channel;
@@ -25,8 +26,6 @@ use commons::ExampleWithScore;
 use commons::Model;
 use commons::labeled_data::LabeledData;
 
-use scanner::buffer_loader::LockedBuffer;
-use scanner::buffer_loader::SampleMode;
 use self::assigners::Assigners;
 use self::samplers::Samplers;
 use self::gatherer::Gatherer;
@@ -117,7 +116,6 @@ impl StratifiedStorage {
         positive: String,
         num_examples_per_block: usize,
         disk_buffer_filename: &str,
-        memory_buffer: LockedBuffer,
         current_sample_version: Arc<RwLock<usize>>,
         sample_mode: SampleMode,
         num_assigners: usize,
@@ -214,7 +212,6 @@ impl StratifiedStorage {
         let gatherer = Gatherer::new(
             sampled_examples_r,
             sample_capacity,
-            memory_buffer,
             current_sample_version,
             model.clone(),
             exp_name,

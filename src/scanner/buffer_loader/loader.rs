@@ -3,13 +3,14 @@ use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
 
+use SampleMode;
+use commons::sample_io::load_local;
+use commons::sample_io::load_s3;
 use commons::performance_monitor::PerformanceMonitor;
+use commons::sample_io::VersionedSampleModel;
 
 use super::LockedBuffer;
 use super::LockedModelBuffer;
-use super::SampleMode;
-use super::io::load_local;
-use super::io::load_s3;
 
 
 pub struct Loader {
@@ -67,10 +68,6 @@ impl Loader {
                             exp_name.as_str(),
                         )
                     },
-                    // SampleMode.MEMORY should be handled by `gatherer`
-                    SampleMode::MEMORY => {
-                        last_version
-                    },
                 };
                 sleep(Duration::from_secs(sleep_duration));
             }
@@ -86,16 +83,20 @@ fn loader<F>(
     last_version: usize,
     exp_name: &str,
 ) -> usize
-where F: Fn(LockedBuffer, LockedModelBuffer, usize, &str) -> Option<usize> {
+where F: Fn(usize, &str) -> Option<VersionedSampleModel> {
     let mut pm = PerformanceMonitor::new();
     pm.start();
-    let version = handler(new_sample_buffer, new_model_buffer, last_version, exp_name);
-    if version.is_none() {
+    let ret = handler(last_version, exp_name);
+    if ret.is_none() {
         debug!("scanner, failed to receive a new sample");
         last_version
     } else {
-        let v = version.unwrap();
-        debug!("scanner, received a new sample, {}, {}", v, pm.get_duration());
-        v
+        let (version, new_sample, new_model) = ret.unwrap();
+        let new_sample_lock = new_sample_buffer.write();
+        *(new_sample_lock.unwrap()) = Some((version, new_sample));
+        let new_model_lock = new_model_buffer.write();
+        *(new_model_lock.unwrap()) = Some(new_model);
+        debug!("scanner, received a new sample, {}, {}", version, pm.get_duration());
+        version
     }
 }

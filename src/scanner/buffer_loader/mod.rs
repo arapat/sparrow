@@ -1,4 +1,3 @@
-pub mod io;
 mod loader;
 
 use rayon::prelude::*;
@@ -6,6 +5,7 @@ use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
 
+use SampleMode;
 use commons::get_weight;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleInSampleSet;
@@ -17,14 +17,6 @@ use self::loader::Loader;
 // LockedBuffer is set to None once it is read by the receiver
 pub type LockedBuffer = Arc<RwLock<Option<(usize, Vec<ExampleWithScore>)>>>;
 pub type LockedModelBuffer = Arc<RwLock<Option<Model>>>;
-
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum SampleMode {
-    MEMORY,
-    LOCAL,
-    S3,
-}
 
 
 /// Double-buffered sample set. It consists of two buffers stores in memory. One of the
@@ -68,7 +60,7 @@ impl BufferLoader {
     pub fn new(
         size: usize,
         batch_size: usize,
-        sampling_mode: String,
+        sample_mode: SampleMode,
         sleep_duration: usize,
         min_ess: Option<f32>,
         sampler_scanner: String,
@@ -77,17 +69,6 @@ impl BufferLoader {
         let new_examples = Arc::new(RwLock::new(None));
         let new_model = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
-        let sample_mode = {
-            match sampling_mode.to_lowercase().as_str() {
-                "memory" => SampleMode::MEMORY,
-                "local"  => SampleMode::LOCAL,
-                "s3"     => SampleMode::S3,
-                _        => {
-                    error!("Unrecognized sampling mode");
-                    SampleMode::MEMORY
-                }
-            }
-        };
         // Strata -> BufferLoader
         let current_sample_version = Arc::new(RwLock::new(0));
         let loader = Loader::new(new_examples.clone(), new_model.clone(), sleep_duration, exp_name);

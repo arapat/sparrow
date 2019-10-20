@@ -8,12 +8,10 @@ use commons::io::read_all;
 use commons::io::write_all;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
-use super::LockedBuffer;
-use super::LockedModelBuffer;
 use commons::Model;
 
 
-type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model);
+pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model);
 
 
 pub const FILENAME: &str = "sample.bin";
@@ -24,23 +22,9 @@ pub const S3_PATH:  &str = "sparrow-samples/";
 
 // For gatherer
 
-// also do the job of `load_memory`
-pub fn write_memory(
-    new_sample: Vec<ExampleWithScore>,
-    _model: Model,
-    new_sample_buffer: LockedBuffer,
-    version: usize,
-    _exp_name: &str,
-) {
-    let new_sample_lock = new_sample_buffer.write();
-    *(new_sample_lock.unwrap()) = Some((version, new_sample));
-}
-
-
 pub fn write_local(
     new_sample: Vec<ExampleWithScore>,
     model: Model,
-    _new_sample_buffer: LockedBuffer,
     version: usize,
     _exp_name: &str,
 ) {
@@ -55,7 +39,6 @@ pub fn write_local(
 pub fn write_s3(
     new_sample: Vec<ExampleWithScore>,
     model: Model,
-    _new_sample_buffer: LockedBuffer,
     version: usize,
     exp_name: &str,
 ) {
@@ -73,36 +56,22 @@ pub fn write_s3(
 
 // For loader
 
-pub fn load_local(
-    new_sample_buffer: LockedBuffer,
-    new_model_buffer: LockedModelBuffer,
-    last_version: usize,
-    _exp_name: &str,
-) -> Option<usize> {
+pub fn load_local(last_version: usize, _exp_name: &str) -> Option<VersionedSampleModel> {
     let ori_filename = FILENAME.to_string();
     let filename = ori_filename.clone() + "_READING";
     if rename(ori_filename, filename.clone()).is_ok() {
-        let (version, new_sample, model): VersionedSampleModel =
+        let (version, sample, model): VersionedSampleModel =
             deserialize(read_all(&filename).as_ref()).unwrap();
         if version > last_version {
-            let new_sample_lock = new_sample_buffer.write();
-            *(new_sample_lock.unwrap()) = Some((version, new_sample));
-            let new_model_lock = new_model_buffer.write();
-            *(new_model_lock.unwrap()) = Some(model);
             remove_file(filename).unwrap();
-            return Some(version);
+            return Some((version, sample, model));
         }
     }
     None
 }
 
 
-pub fn load_s3(
-    new_sample_buffer: LockedBuffer,
-    new_model_buffer: LockedModelBuffer,
-    last_version: usize,
-    exp_name: &str,
-) -> Option<usize> {
+pub fn load_s3(last_version: usize, exp_name: &str) -> Option<VersionedSampleModel> {
     // debug!("scanner, start, download sample from s3");
     let s3_path = format!("{}/{}", exp_name, S3_PATH);
     let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), FILENAME);
@@ -111,14 +80,9 @@ pub fn load_s3(
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        let (version, data, model) = deserialize(&data).unwrap();
+        let (version, sample, model) = deserialize(&data).unwrap();
         if version > last_version {
-            let new_sample_lock = new_sample_buffer.write();
-            *(new_sample_lock.unwrap()) = Some((version, data));
-            let new_model_lock = new_model_buffer.write();
-            *(new_model_lock.unwrap()) = Some(model);
-            // debug!("scanner, finished, download sample from s3, succeed");
-            return Some(version);
+            return Some((version, sample, model));
         }
         debug!("scanner, finished, download sample from s3, remote sample is old, {}, {}",
                version, last_version);

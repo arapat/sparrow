@@ -168,14 +168,33 @@ pub struct Config {
 }
 
 
+#[derive(Clone, Debug, PartialEq)]
+pub enum SampleMode {
+    // TODO: Support exchanging new sample directly to/from memory
+    // MEMORY,
+    LOCAL,
+    S3,
+}
+
+
 fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
     // Load configurations
     let config: Config = serde_yaml::from_reader(
         create_bufreader(config_file)
     ).unwrap();
+    let sample_mode = {
+        match config.sampling_mode.to_lowercase().as_str() {
+            "local"  => SampleMode::LOCAL,
+            "s3"     => SampleMode::S3,
+            _        => {
+                error!("Unrecognized sampling mode. Use S3 by default.");
+                SampleMode::S3
+            }
+        }
+    };
 
     // Clear S3 before running
-    if config.sampling_mode.to_lowercase() == "s3" {
+    if sample_mode == SampleMode::S3 {
         clear_s3_bucket(REGION, BUCKET, config.exp_name.as_str());
     }
 
@@ -218,7 +237,7 @@ fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
-        config.sampling_mode.clone(),
+        sample_mode,
         config.sleep_duration,
         Some(config.min_ess),
         config.sampler_scanner.clone(),
@@ -287,7 +306,6 @@ pub fn training(config_file: String) {
             config.positive.clone(),
             config.num_examples_per_block,
             config.disk_buffer_filename.as_ref(),
-            buffer_loader.new_examples.clone(),
             buffer_loader.current_sample_version.clone(),
             buffer_loader.sample_mode.clone(),
             config.num_assigners,

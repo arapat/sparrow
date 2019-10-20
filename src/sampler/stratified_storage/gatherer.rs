@@ -5,25 +5,21 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
 use rand::thread_rng;
-
 use bincode::serialize;
+
+use SampleMode;
 use commons::channel::Receiver;
 use commons::Model;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
-
-use scanner::buffer_loader::LockedBuffer;
-use scanner::buffer_loader::SampleMode;
-use scanner::buffer_loader::io::write_memory;
-use scanner::buffer_loader::io::write_local;
-use scanner::buffer_loader::io::write_s3;
+use commons::sample_io::write_local;
+use commons::sample_io::write_s3;
 
 
 pub struct Gatherer {
     gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
     new_sample_capacity:    usize,
-    new_sample_buffer:      LockedBuffer,
     current_sample_version: Arc<RwLock<usize>>,
     model:                  Arc<RwLock<Model>>,
     pub counter:            Arc<RwLock<Vec<u32>>>,
@@ -32,12 +28,10 @@ pub struct Gatherer {
 
 
 impl Gatherer {
-    /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
     /// * `new_sample_capacity`: the size of the memory buffer of the buffer loader
     pub fn new(
         gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
         new_sample_capacity:    usize,
-        new_sample_buffer:      LockedBuffer,
         current_sample_version: Arc<RwLock<usize>>,
         model:                  Arc<RwLock<Model>>,
         exp_name:               String,
@@ -45,7 +39,6 @@ impl Gatherer {
         Gatherer {
             gather_new_sample:   gather_new_sample,
             new_sample_capacity: new_sample_capacity,
-            new_sample_buffer:   new_sample_buffer,
             current_sample_version: current_sample_version,
             model:               model,
             counter:             Arc::new(RwLock::new(vec![])),
@@ -59,7 +52,6 @@ impl Gatherer {
     pub fn run(&self, mode: SampleMode) {
         let new_sample_capacity = self.new_sample_capacity;
         let gather_new_sample = self.gather_new_sample.clone();
-        let new_sample_buffer = self.new_sample_buffer.clone();
         let current_sample_version = self.current_sample_version.clone();
         let shared_counter = self.counter.clone();
         let model = self.model.clone();
@@ -70,21 +62,9 @@ impl Gatherer {
             loop {
                 version += 1;
                 let counter = match mode {
-                    SampleMode::MEMORY => {
-                        gather(
-                            new_sample_capacity,
-                            new_sample_buffer.clone(),
-                            gather_new_sample.clone(),
-                            write_memory,
-                            version,
-                            model.clone(),
-                            exp_name.as_str(),
-                        )
-                    },
                     SampleMode::LOCAL => {
                         gather(
                             new_sample_capacity,
-                            new_sample_buffer.clone(),
                             gather_new_sample.clone(),
                             write_local,
                             version,
@@ -95,7 +75,6 @@ impl Gatherer {
                     SampleMode::S3 => {
                         gather(
                             new_sample_capacity,
-                            new_sample_buffer.clone(),
                             gather_new_sample.clone(),
                             write_s3,
                             version,
@@ -116,14 +95,13 @@ impl Gatherer {
 
 fn gather<F>(
     new_sample_capacity: usize,
-    new_sample_buffer: LockedBuffer,
     gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
     handler: F,
     version: usize,
     model: Arc<RwLock<Model>>,
     exp_name: &str,
 ) -> Vec<u32>
-where F: Fn(Vec<ExampleWithScore>, Model, LockedBuffer, usize, &str) {
+where F: Fn(Vec<ExampleWithScore>, Model, usize, &str) {
     debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
     pm.start();
@@ -175,7 +153,7 @@ where F: Fn(Vec<ExampleWithScore>, Model, LockedBuffer, usize, &str) {
         .expect("Failed to write the sample set to file for snapshot");
     rename(filename, "latest_sample.bin".to_string()).unwrap();
     // Send the sample to the handler
-    handler(new_sample, model, new_sample_buffer, version, exp_name);
+    handler(new_sample, model, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
     counts
