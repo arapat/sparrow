@@ -5,25 +5,16 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::mpsc;
 use std::thread::spawn;
-use bincode::serialize;
-use bincode::deserialize;
 use commons::Model;
 use commons::ModelSig;
 use commons::channel::Sender;
 use commons::io::create_bufwriter;
-use commons::io::load_s3 as io_load_s3;
-use commons::io::write_s3 as io_write_s3;
+use commons::network::upload_assignments;
+use commons::network::upload_model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::tree::Tree;
 use tmsn::network::start_network_only_recv;
 
-
-pub const REGION:   &str = "us-east-1";
-pub const BUCKET:   &str = "tmsn-cache2";
-pub const S3_PATH_MODELS:  &str = "sparrow-models/";
-pub const MODEL_FILENAME: &str = "model.bin";
-pub const S3_PATH_ASSIGNS:  &str = "sparrow-assigns/";
-pub const ASSIGN_FILENAME: &str = "assign.bin";
 
 pub fn start_model_sync(
     init_tree: Tree,
@@ -52,55 +43,6 @@ pub fn start_model_sync(
             default_gamma, min_gamma,
             current_sample_version, node_counts, &exp_name, sampler_state);
     });
-}
-
-
-// Worker download models
-pub fn download_model(exp_name: &String) -> Option<(Model, String, f32, f32)> {
-    // debug!("sampler, start, download model");
-    let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
-    let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME);
-    // debug!("sampler, finished, download model");
-    if ret.is_none() {
-        debug!("sample, download model, failed");
-        return None;
-    }
-    let (data, code) = ret.unwrap();
-    if code == 200 {
-        // debug!("sample, download model, succeed");
-        Some(deserialize(&data).unwrap())
-    } else {
-        debug!("sample, download model, failed with return code {}", code);
-        None
-    }
-}
-
-
-pub fn download_assignments(exp_name: &String) -> Option<Vec<Option<usize>>> {
-    let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
-    let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME);
-    // debug!("model sync, finished, download assignments");
-    if ret.is_none() {
-        // debug!("model sync, download assignments, failed");
-        return None;
-    }
-    let (data, code) = ret.unwrap();
-    if code == 200 {
-        // debug!("model sync, download assignments, succeed");
-        Some(deserialize(&data).unwrap())
-    } else {
-        debug!("model sync, download assignments, failed with return code {}", code);
-        None
-    }
-}
-
-
-// Server upload models
-fn upload_model(model: &Model, sig: &String, gamma: f32, root_gamma: f32, exp_name: &String) -> bool
-{
-    let data: (Model, String, f32, f32) = (model.clone(), sig.clone(), gamma, root_gamma);
-    let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
-    io_write_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME, &serialize(&data).unwrap())
 }
 
 
@@ -432,9 +374,7 @@ fn update_assignments(
     }
     if num_updates > 0 {
         debug!("model-manager, assign updates, {}", num_updates);
-        let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
-        io_write_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME,
-                    &serialize(worker_assign).unwrap());
+        upload_assignments(&worker_assign, &exp_name);
     }
 }
 

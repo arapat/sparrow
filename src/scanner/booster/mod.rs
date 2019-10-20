@@ -17,9 +17,9 @@ use commons::Model;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelSig;
 use commons::bins::Bins;
+use commons::network::download_assignments;
+use commons::network::download_model;
 use scanner::buffer_loader::BufferLoader;
-use sampler::model_sync::download_assignments;
-use sampler::model_sync::download_model;
 use self::learner::get_base_node;
 use self::learner::Learner;
 
