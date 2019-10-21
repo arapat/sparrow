@@ -13,14 +13,14 @@ use commons::Model;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::sample_io::write_local;
-use commons::sample_io::write_s3;
+use commons::persistent_io::write_local;
+use commons::persistent_io::write_s3;
 
 
 pub struct Gatherer {
     gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
     new_sample_capacity:    usize,
-    current_sample_version: Arc<RwLock<usize>>,
+    gen_sample_version:     Arc<RwLock<usize>>,
     model:                  Arc<RwLock<Model>>,
     pub counter:            Arc<RwLock<Vec<u32>>>,
     exp_name:               String,
@@ -32,14 +32,14 @@ impl Gatherer {
     pub fn new(
         gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
         new_sample_capacity:    usize,
-        current_sample_version: Arc<RwLock<usize>>,
+        gen_sample_version:     Arc<RwLock<usize>>,
         model:                  Arc<RwLock<Model>>,
         exp_name:               String,
     ) -> Gatherer {
         Gatherer {
             gather_new_sample:   gather_new_sample,
             new_sample_capacity: new_sample_capacity,
-            current_sample_version: current_sample_version,
+            gen_sample_version: gen_sample_version,
             model:               model,
             counter:             Arc::new(RwLock::new(vec![])),
             exp_name:            exp_name,
@@ -52,7 +52,7 @@ impl Gatherer {
     pub fn run(&self, mode: SampleMode) {
         let new_sample_capacity = self.new_sample_capacity;
         let gather_new_sample = self.gather_new_sample.clone();
-        let current_sample_version = self.current_sample_version.clone();
+        let gen_sample_version = self.gen_sample_version.clone();
         let shared_counter = self.counter.clone();
         let model = self.model.clone();
         let exp_name = self.exp_name.clone();
@@ -84,7 +84,7 @@ impl Gatherer {
                     },
                 };
                 {
-                    *(current_sample_version.write().unwrap()) = version;
+                    *(gen_sample_version.write().unwrap()) = version;
                     *(shared_counter.write().unwrap()) = counter;
                 }
             }

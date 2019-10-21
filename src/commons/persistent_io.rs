@@ -1,11 +1,16 @@
 use std::fs::rename;
 use std::fs::remove_file;
+use std::io::Write;
 
+use REGION;
+use BUCKET;
 use bincode::deserialize;
 use bincode::serialize;
 use commons::ExampleWithScore;
 use commons::io::read_all;
 use commons::io::write_all;
+use commons::io::create_bufwriter;
+use commons::io::raw_read_all;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
 use commons::Model;
@@ -15,8 +20,6 @@ pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model);
 
 
 pub const FILENAME: &str = "sample.bin";
-pub const REGION:   &str = "us-east-1";
-pub const BUCKET:   &str = "tmsn-cache2";
 pub const S3_PATH:  &str = "sparrow-samples/";
 
 
@@ -90,4 +93,26 @@ pub fn load_s3(last_version: usize, exp_name: &str) -> Option<VersionedSampleMod
         debug!("scanner, failed, download sample from s3, err {}", code);
     }
     None
+}
+
+// read/write model.json
+
+pub fn write_model(model: &Model, timestamp: f32, save_process: bool) {
+    let json = serde_json::to_string(&(timestamp, model.size(), model)).expect(
+        "Local model cannot be serialized."
+    );
+    let filename = {
+        if save_process {
+            format!("models/model_{}-v{}.json", model.size(), model.size())
+        } else {
+            "model.json".to_string()
+        }
+    };
+    create_bufwriter(&filename).write(json.as_ref()).unwrap();
+}
+
+
+pub fn read_model() -> (f32, usize, Model) {
+    serde_json::from_str(&raw_read_all(&"model.json".to_string()))
+            .expect(&format!("Cannot parse the model in `model.json`"))
 }

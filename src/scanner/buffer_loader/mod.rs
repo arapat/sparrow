@@ -37,7 +37,6 @@ pub struct BufferLoader {
     pub current_version: usize,
     pub new_examples: LockedBuffer,
     loader: Loader,
-    pub current_sample_version: Arc<RwLock<usize>>,
     pub sample_mode: SampleMode,
 
     ess: f32,
@@ -62,7 +61,7 @@ impl BufferLoader {
         batch_size: usize,
         sample_mode: SampleMode,
         sleep_duration: usize,
-        min_ess: Option<f32>,
+        min_ess: f32,
         sampler_scanner: String,
         exp_name: String,
     ) -> BufferLoader {
@@ -70,7 +69,6 @@ impl BufferLoader {
         let new_model = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
         // Strata -> BufferLoader
-        let current_sample_version = Arc::new(RwLock::new(0));
         let loader = Loader::new(new_examples.clone(), new_model.clone(), sleep_duration, exp_name);
         let buffer_loader = BufferLoader {
             size: size,
@@ -82,11 +80,10 @@ impl BufferLoader {
             current_version: 0,
             new_examples: new_examples,
             loader: loader,
-            current_sample_version: current_sample_version,
             sample_mode: sample_mode.clone(),
 
             ess: 0.0,
-            _min_ess: min_ess.unwrap_or(0.0),
+            _min_ess: min_ess,
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };

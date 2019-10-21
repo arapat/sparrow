@@ -116,7 +116,7 @@ impl StratifiedStorage {
         positive: String,
         num_examples_per_block: usize,
         disk_buffer_filename: &str,
-        current_sample_version: Arc<RwLock<usize>>,
+        gen_sample_version: Arc<RwLock<usize>>,
         sample_mode: SampleMode,
         num_assigners: usize,
         num_samplers: usize,
@@ -212,7 +212,7 @@ impl StratifiedStorage {
         let gatherer = Gatherer::new(
             sampled_examples_r,
             sample_capacity,
-            current_sample_version,
+            gen_sample_version,
             model.clone(),
             exp_name,
         );

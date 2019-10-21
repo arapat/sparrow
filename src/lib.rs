@@ -29,40 +29,25 @@ extern crate metricslib;
 
 /// Common functions and classes.
 mod commons;
+mod config;
 /// Validating models
 mod testing;
 mod sampler;
 mod scanner;
 
-use std::io::Write;
-use std::path::Path;
-use std::sync::Arc;
-use std::sync::RwLock;
-use std::thread::sleep;
-use std::time::Duration;
+use config::Config;
+use config::SampleMode;
+use commons::Model;
+use commons::bins::Bins;
+use commons::tree::Tree;
 
-use bincode::serialize;
-use bincode::deserialize;
-
-use scanner::booster::Boosting;
-use scanner::buffer_loader::BufferLoader;
-use sampler::model_sync::start_model_sync;
-use sampler::stratified_storage::StratifiedStorage;
-use sampler::stratified_storage::serial_storage::SerialStorage;
+use scanner::start as start_scanner;
+use sampler::start as start_sampler;
 use testing::validate;
 
-use commons::Model;
-use commons::bins::create_bins;
-use commons::bins::Bins;
-use commons::channel;
+use commons::bins::load_bins;
 use commons::io::clear_s3_bucket;
-use commons::io::create_bufreader;
-use commons::io::create_bufwriter;
-use commons::io::load_s3;
-use commons::io::raw_read_all;
-use commons::io::write_s3;
-use commons::performance_monitor::PerformanceMonitor;
-use commons::tree::Tree;
+use commons::persistent_io::read_model;
 
 // Types
 // TODO: decide TFeature according to the bin size
@@ -73,202 +58,35 @@ pub type TLabel = i8;
 pub type RawExample = LabeledData<RawTFeature, TLabel>;
 pub type Example = LabeledData<TFeature, TLabel>;
 
-pub const FILENAME: &str = "bins.json";
 pub const REGION:   &str = "us-east-1";
 pub const BUCKET:   &str = "tmsn-cache2";
-pub const S3_PATH:  &str = "sparrow-bins/";
 
 
-/// Configuration for training and testing with Sparrow
-#[derive(Serialize, Deserialize)]
-pub struct Config {
-    /// File path to the training data
-    pub training_filename: String,
-    /// Number of training examples
-    pub num_examples: usize,
-    /// Number of features
-    pub num_features: usize,
-    /// Label for positive examples
-    pub positive: String,
-    /// File path to the testing data
-    pub testing_filename: String,
-    /// Number of testing examples
-    pub num_testing_examples: usize,
-
-    /// Number of examples to scan for generating heuristic used in Sparrow
-    pub max_sample_size: usize, 
-    /// Maximum number of bins for discretizing continous feature values
-    pub max_bin_size: usize, 
-    /// Minimum value of the \gamma of the generated tree nodes
-    pub min_gamma: f32,
-    /// Default maximum value of the \gamma for generating tree nodes
-    pub default_gamma: f32,
-    /// Maximum number of examples to scan before shrinking the value of \gamma
-    pub max_trials_before_shrink: u32,
-    /// Minimum effective sample size for triggering resample
-    pub min_ess: f32,
-
-    /// Number of boosting iterations
-    pub num_iterations: usize,
-    /// Number of decision trees (i.e. second-layer tree nodes)
-    pub num_trees: usize,
-    /// Maximum depth of the tree leaves
-    pub max_depth: usize,
-
-    /// Maximum number of elements in the channel connecting scanner and sampler
-    pub channel_size: usize,
-    /// Number of examples in the sample set that needs to be loaded into memory
-    pub buffer_size: usize,
-    /// Number of examples to process in each weak rule updates
-    pub batch_size: usize,
-    /// Set to true to stop running sampler in the background of the scanner
-    pub serial_sampling: bool,
-    /// Sampling mode: Read/write from memory/local disk/S3
-    pub sampling_mode: String,
-    /// Worker mode: could be "scanner", "sampler", or "both"
-    pub sampler_scanner: String,
-    /// Sleep duration: the frequency of loading disk from memory/local disk/S3
-    pub sleep_duration: usize,
-
-    /// Number of examples in a block on the stratified binary file
-    pub num_examples_per_block: usize,
-    /// File name for the stratified binary file
-    pub disk_buffer_filename: String,
-    /// Number of threads for putting examples back to correct strata
-    pub num_assigners: usize,
-    /// Number of threads for sampling examples from strata
-    pub num_samplers: usize,
-
-    /// IP addresses of other machines in the network
-    pub network: Vec<String>,
-    /// The network port used for parallel training
-    pub port: u16,
-    /// Identifier for the local machine
-    pub local_name: String,
-    /// Folder for writing data to S3
-    pub exp_name: String,
-
-    /// Flag for keeping all intermediate models during training (for debugging purpose)
-    pub save_process: bool,
-    /// Number of iterations between persisting models on disk
-    pub save_interval: usize,
-    /// Flag for activating debug mode
-    pub debug_mode: bool,
-
-    /// (for validation only) the file names of the models to run the validation
-    pub models_table_filename: String,
-    /// Flag indicating if models are trained incrementally
-    pub incremental_testing: bool,
-    /// Flag for validation mode, set to true to output raw scores of testing examples,
-    /// and set to false for printing the validation scores but not raw scores
-    pub testing_scores_only: bool,
-
-    /// Continous training from an interupted training process
-    pub resume_training: bool,
-}
-
-
-#[derive(Clone, Debug, PartialEq)]
-pub enum SampleMode {
-    // TODO: Support exchanging new sample directly to/from memory
-    // MEMORY,
-    LOCAL,
-    S3,
-}
-
-
-fn prep_training(config_file: &String) -> (Config, BufferLoader, Vec<Bins>) {
+fn prep_training(config_filepath: &String) -> (Config, SampleMode, Vec<Bins>) {
     // Load configurations
-    let config: Config = serde_yaml::from_reader(
-        create_bufreader(config_file)
-    ).unwrap();
-    let sample_mode = {
-        match config.sampling_mode.to_lowercase().as_str() {
-            "local"  => SampleMode::LOCAL,
-            "s3"     => SampleMode::S3,
-            _        => {
-                error!("Unrecognized sampling mode. Use S3 by default.");
-                SampleMode::S3
-            }
-        }
-    };
+    let config = Config::new(config_filepath);
+    let sample_mode = SampleMode::new(&config.sampling_mode);
 
     // Clear S3 before running
     if sample_mode == SampleMode::S3 {
         clear_s3_bucket(REGION, BUCKET, config.exp_name.as_str());
     }
 
-    debug!("Creating bins.");
-    let s3_path = format!("{}/{}", config.exp_name, S3_PATH);
-    let bins = {
-        if config.sampler_scanner == "sampler" {
-            let mut serial_training_loader = SerialStorage::new(
-                config.training_filename.clone(),
-                config.num_examples,
-                config.num_features,
-                true,
-                config.positive.clone(),
-                None,
-            );
-            let bins = create_bins(
-                config.max_sample_size, config.max_bin_size, config.num_features, &mut serial_training_loader);
-            {
-                let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
-                let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
-                file_buffer.write(json.as_ref()).unwrap();
-            }
-            write_s3(REGION, BUCKET, s3_path.as_str(), FILENAME, &serialize(&bins).unwrap());
-            bins
-        } else {
-            let mut bins = load_s3(REGION, BUCKET, s3_path.as_str(), FILENAME);
-            while bins.is_none() {
-                bins = load_s3(REGION, BUCKET, s3_path.as_str(), FILENAME);
-            }
-            let bins = deserialize(&bins.unwrap().0).unwrap();
-            {
-                let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
-                let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
-                file_buffer.write(json.as_ref()).unwrap();
-            }
-            bins
-        }
-    };
-    debug!("Starting the buffered loader.");
-    let buffer_loader = BufferLoader::new(
-        config.buffer_size,
-        config.batch_size,
-        sample_mode,
-        config.sleep_duration,
-        Some(config.min_ess),
-        config.sampler_scanner.clone(),
-        config.exp_name.clone(),
-    );
-    (config, buffer_loader, bins)
+    debug!("Loading bins.");
+    let bins = load_bins(config.sampler_scanner.as_str(), Some(&config));
+    (config, sample_mode, bins)
 }
 
 
-pub fn training(config_file: String) {
-    let mut training_perf_mon = PerformanceMonitor::new();
-    training_perf_mon.start();
-
-    let (config, buffer_loader, bins) = prep_training(&config_file);
-    // Resuming from an earlier training:
-    //     The program needs three files to resume from an earlier training:
-    //         1. model file, `model.json`, which is being loaded below;
-    //         2. last sample, `lastest_sample.bin`, which is sent out to scanner as the first
-    //            sample;
-    //         3. strata snapshot, `stratified.serde`, which will be loaded during the
-    //            initialization of the `stratified_structure` object below.
-    if  config.resume_training {
-        debug!("resume_training is enabled");
-    }
-    let init_tree = {
+pub fn training(config_filepath: &String) {
+    let (config, sample_mode, bins) = prep_training(config_filepath);
+    let init_tree: Model = {
         if config.resume_training && config.sampler_scanner == "sampler" {
-            let (_, _, mut model): (f32, usize, Model) =
-                serde_json::from_str(&raw_read_all(&"model.json".to_string()))
-                        .expect(&format!("Cannot parse the model in `model.json`"));
+            // Resuming from an earlier training
+            debug!("resume_training is enabled");
+            let (_, _, mut model) = read_model();
             model.base_version = 0;
-            debug!("Load an existing tree");
+            debug!("Loaded an existing tree");
             model
         } else {
             debug!("Created a new tree");
@@ -276,117 +94,16 @@ pub fn training(config_file: String) {
         }
     };
     if config.sampler_scanner == "scanner" {
-        debug!("Starting the booster.");
-        let mut booster = Boosting::new(
-            config.exp_name.clone(),
-            init_tree.clone(),
-            config.num_iterations,
-            config.num_features,
-            config.min_gamma,
-            buffer_loader,
-            bins,
-            config.max_sample_size,
-            config.default_gamma,
-            config.save_process,
-            config.save_interval,
-        );
-        booster.enable_network(config.local_name, config.port);
-        booster.set_root_tree();
-        booster.training(training_perf_mon.get_duration());
-    } else { // if config.sampler_scanner == "sampler" {
-        let sampler_state = Arc::new(RwLock::new(true));
-        // Pass the models between the network to the Strata
-        let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
-        debug!("Starting the stratified structure.");
-        let stratified_structure = StratifiedStorage::new(
-            init_tree.clone(),
-            config.num_examples,
-            config.buffer_size,
-            config.num_features,
-            config.positive.clone(),
-            config.num_examples_per_block,
-            config.disk_buffer_filename.as_ref(),
-            buffer_loader.current_sample_version.clone(),
-            buffer_loader.sample_mode.clone(),
-            config.num_assigners,
-            config.num_samplers,
-            next_model_r,
-            config.channel_size,
-            sampler_state.clone(),
-            config.debug_mode,
-            config.resume_training,
-            config.exp_name.clone(),
-        );
-        debug!("Starting the model sync.");
-        start_model_sync(
-            init_tree.clone(), config.local_name.clone(), config.num_iterations,
-            config.num_trees, config.max_depth,
-            config.network.clone(), config.port, next_model_s,
-            config.default_gamma, config.min_gamma,
-            buffer_loader.current_sample_version.clone(), stratified_structure.node_counts.clone(),
-            config.exp_name.clone(), sampler_state.clone());
-        {
-        // if !config.resume_training {
-            debug!("Initializing the stratified structure.");
-            stratified_structure.init_stratified_from_file(
-                config.training_filename.clone(),
-                config.num_examples,
-                config.batch_size,
-                config.num_features,
-                bins.clone(),
-                init_tree,
-            );
-        // }
-        }
-        // use tmsn::network::start_network_only_recv;
-        // use std::sync::mpsc;
-        // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) =
-        //     mpsc::channel();
-        // start_network_only_recv(config.local_name.as_ref(), &config.network, config.port + 1, hb_s);
-        let mut state = true;
-        // let mut num_fails = 0;
-        while state {
-            // Check if termination is manually requested
-            let filename = "status.txt".to_string();
-            if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
-                debug!("sampler state, false, change in the status.txt has been detected");
-                *(sampler_state.write().unwrap()) = false;
-            }
-            // Check if any one of the scanners is still working
-            /*
-            let mut hb_count = 0;
-            while hb_r.try_recv().is_ok() {
-                hb_count += 1;
-            }
-            if hb_count == 0 {
-                debug!("No scanner responded.");
-                num_fails += 1;
-                if num_fails >= 2 {
-                    debug!("All scanners are dead. Number of fails: {}", num_fails);
-                    *(sampler_state.write().unwrap()) = false;
-                }
-            }
-            */
-            state = {
-                let t = sampler_state.read().unwrap();
-                *t
-            };
-            sleep(Duration::from_secs(20));
-        }
-        debug!("State has been set to false. Main process to exit in 120 seconds.");
-        sleep(Duration::from_secs(120));
-        if std::fs::remove_file("status.txt").is_ok() {
-            debug!("removed `status.txt`");
-        }
+        start_scanner(&config, &sample_mode, &bins, &init_tree);
+    } else { // if config.sampler_scanner == "sampler"
+        start_sampler(&config, &sample_mode, &bins, &init_tree);
     }
 }
 
 
-pub fn testing(config_file: String) {
+pub fn testing(config_filepath: &String) {
     // Load configurations
-    let config: Config = serde_yaml::from_reader(
-        create_bufreader(&config_file)
-    ).unwrap();
+    let config: Config = Config::new(config_filepath);
     validate(
         config.models_table_filename.clone(),
         config.testing_filename.clone(),

@@ -1,9 +1,25 @@
 use ordered_float::NotNaN;
 
 use std::collections::BTreeMap;
+use std::io::Write;
+
+use bincode::serialize;
+use bincode::deserialize;
+
+use commons::io::create_bufwriter;
+use commons::io::load_s3;
+use commons::io::write_s3;
+use commons::io::raw_read_all;
 
 use TFeature;
+use REGION;
+use BUCKET;
+use config::Config;
 use sampler::stratified_storage::serial_storage::SerialStorage;
+
+
+pub const S3_PATH:  &str = "sparrow-bins/";
+pub const BINS_FILENAME: &str = "bins.json";
 
 
 // TODO: support NaN feature values
@@ -93,7 +109,7 @@ impl DistinctValues {
 /// * `max_bin_size`: The total number of bins created for each freature. The actual
 ///   number of bins might be smaller if there are fewer distinct values for a feature
 /// * `data_loader`: Data loader for providing training examples
-pub fn create_bins(
+fn create_bins(
     max_sample_size: usize,
     max_bin_size: usize,
     num_features: usize,
@@ -117,12 +133,46 @@ pub fn create_bins(
         });
         remaining_reads -= data.len();
     }
-    let ret: Vec<Bins> = distinct.iter()
+    let bins: Vec<Bins> = distinct.iter()
                                  .map(|mapper| Bins::new(max_bin_size, mapper))
                                  .collect();
-
+    // Save a copy of `bins` on disk to use for testing later
+    let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
+    let json = serde_json::to_string(&bins).expect("Bins cannot be serialized.");
+    file_buffer.write(json.as_ref()).unwrap();
     // Logging
-    let total_bins: usize = ret.iter().map(|t| t.len()).sum();
-    info!("Bins are created. {} Features. {} Bins.", ret.len(), total_bins);
-    ret
+    let total_bins: usize = bins.iter().map(|t| t.len()).sum();
+    info!("Bins are created. {} Features. {} Bins.", bins.len(), total_bins);
+    bins
+}
+
+pub fn load_bins(mode: &str, config: Option<&Config>) -> Vec<Bins> {
+    if mode == "sampler" {
+        let config = config.unwrap();
+        let mut serial_training_loader = SerialStorage::new(
+            config.training_filename.clone(),
+            config.num_examples,
+            config.num_features,
+            true,
+            config.positive.clone(),
+            None,
+        );
+        let bins = create_bins(
+            config.max_sample_size, config.max_bin_size, config.num_features,
+            &mut serial_training_loader);
+        let s3_path = format!("{}/{}", config.exp_name, S3_PATH);
+        write_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME, &serialize(&bins).unwrap());
+        bins
+    } else if mode == "scanner" {
+        let config = config.unwrap();
+        let s3_path = format!("{}/{}", config.exp_name, S3_PATH);
+        let mut bins = load_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME);
+        while bins.is_none() {
+            bins = load_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME);
+        }
+        deserialize(&bins.unwrap().0).unwrap()
+    } else {  // if mode == "testing"
+        serde_json::from_str(&raw_read_all(&"models/bins.json".to_string()))
+            .expect(&format!("Cannot parse the bins.json"))
+    }
 }

@@ -5,6 +5,7 @@ use metricslib::EvalFunc;
 
 use std::io::BufRead;
 use std::io::Write;
+use commons::bins::load_bins;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::raw_read_all;
@@ -39,8 +40,7 @@ pub fn validate(
             Some(create_bufwriter(&"models/performance.csv".to_string()))
         }
     };
-    let bins = serde_json::from_str(&raw_read_all(&"models/bins.json".to_string()))
-                         .expect(&format!("Cannot parse the bins.json"));
+    let bins = load_bins("testing", None);
     let mut models_list = create_bufreader(&models_table);
     let mut data = SerialStorage::new(
         testing_filename,

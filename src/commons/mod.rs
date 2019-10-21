@@ -6,7 +6,7 @@ pub mod labeled_data;
 // Functions to upload/download files from network
 pub mod network;
 pub mod performance_monitor;
-pub mod sample_io;
+pub mod persistent_io;
 // The class of the weak learner, namely a decision stump.
 pub mod tree;
 

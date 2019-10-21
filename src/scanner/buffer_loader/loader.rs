@@ -4,10 +4,10 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use SampleMode;
-use commons::sample_io::load_local;
-use commons::sample_io::load_s3;
+use commons::persistent_io::load_local;
+use commons::persistent_io::load_s3;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::sample_io::VersionedSampleModel;
+use commons::persistent_io::VersionedSampleModel;
 
 use super::LockedBuffer;
 use super::LockedModelBuffer;

@@ -1,26 +1,21 @@
 mod learner;
 
-use std::fs::File;
-use std::io::BufWriter;
-use std::io::Seek;
-use std::io::SeekFrom;
-use std::io::Write;
 use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
-use serde_json;
 use tmsn::network::start_network_only_send;
 
 use commons::is_zero;
-use commons::io::create_bufwriter;
+use commons::network::download_assignments;
+use commons::network::download_model;
+use commons::persistent_io::write_model;
+use self::learner::get_base_node;
+
 use commons::Model;
+use scanner::buffer_loader::BufferLoader;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ModelSig;
 use commons::bins::Bins;
-use commons::network::download_assignments;
-use commons::network::download_model;
-use scanner::buffer_loader::BufferLoader;
-use self::learner::get_base_node;
 use self::learner::Learner;
 
 
@@ -46,7 +41,6 @@ pub struct Boosting {
     last_remote_length: usize,
 
     persist_id: u32,
-    persist_file_buffer: Option<BufWriter<File>>,
     save_interval: usize,
 
     max_sample_size: usize,
@@ -68,7 +62,6 @@ impl Boosting {
         num_features: usize,
         min_gamma: f32,
         training_loader: BufferLoader,
-        // serial_training_loader: SerialStorage,
         bins: Vec<Bins>,
         max_sample_size: usize,
         default_gamma: f32,
@@ -78,14 +71,6 @@ impl Boosting {
         // TODO: make num_cadid a paramter
         let learner = Learner::new(
             min_gamma, default_gamma, num_features, bins);
-
-        let persist_file_buffer = {
-            if save_process {
-                None
-            } else {
-                Some(create_bufwriter(&String::from("model.json")))
-            }
-        };
         Boosting {
             exp_name: exp_name,
             num_iterations: num_iterations,
@@ -106,7 +91,6 @@ impl Boosting {
             last_remote_length: 0,
 
             persist_id: 0,
-            persist_file_buffer: persist_file_buffer,
             save_interval: save_interval,
 
             max_sample_size: max_sample_size,
@@ -183,7 +167,6 @@ impl Boosting {
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
 
-        let mut iteration = 0;
         let mut is_gamma_significant = true;
         let mut total_data_size = 0;
         while is_gamma_significant &&
@@ -222,12 +205,11 @@ impl Boosting {
                 is_gamma_significant = self.learner.is_gamma_significant();
                 self.learner.reset();
                 if self.model.size() % self.save_interval == 0 {
-                    self.handle_persistent(iteration, prep_time + global_timer.get_duration());
+                    self.handle_persistent(prep_time + global_timer.get_duration());
                 }
                 total_data_size = 0;
             }
 
-            iteration += 1;
             let data_size = self.training_loader.size;
             if self.handle_network(total_data_size >= data_size) {
                 total_data_size = 0;
@@ -238,7 +220,7 @@ impl Boosting {
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
-        self.handle_persistent(iteration, prep_time + global_timer.get_duration());
+        self.handle_persistent(prep_time + global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
               self.model.size(), self.learner.is_gamma_significant());
     }
@@ -326,23 +308,8 @@ impl Boosting {
         is_packet_sent
     }
 
-    fn handle_persistent(&mut self, iteration: usize, timestamp: f32) {
-        let json = serde_json::to_string(&(timestamp, iteration, &self.model)).expect(
-            "Local model cannot be serialized."
-        );
+    fn handle_persistent(&mut self, timestamp: f32) {
         self.persist_id += 1;
-        if self.save_process {
-            let mut file_buffer = create_bufwriter(
-                &format!("models/model_{}-v{}.json", self.model.size(), self.persist_id));
-            file_buffer.write(json.as_ref()).unwrap();
-        } else {
-            let buf = self.persist_file_buffer.as_mut().unwrap();
-            buf.seek(SeekFrom::Start(0)).unwrap();
-            buf.write(json.as_ref()).unwrap();
-        }
-        {
-            let mut file_buffer = create_bufwriter(&"model.json".to_string());
-            file_buffer.write(json.as_ref()).unwrap();
-        }
+        write_model(&self.model, timestamp, self.save_process);
     }
 }

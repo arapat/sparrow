@@ -1,3 +1,5 @@
+use REGION;
+use BUCKET;
 use commons::Model;
 use commons::io::load_s3;
 use commons::io::write_s3;
@@ -5,8 +7,6 @@ use commons::io::write_s3;
 use bincode::serialize;
 use bincode::deserialize;
 
-pub const REGION:   &str = "us-east-1";
-pub const BUCKET:   &str = "tmsn-cache2";
 pub const S3_PATH_MODELS:  &str = "sparrow-models/";
 pub const MODEL_FILENAME: &str = "model.bin";
 pub const S3_PATH_ASSIGNS:  &str = "sparrow-assigns/";

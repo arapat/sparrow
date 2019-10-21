@@ -1,19 +1,21 @@
 use std::cmp::max;
 use std::cmp::min;
-use std::io::Write;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::mpsc;
 use std::thread::spawn;
+
+use tmsn::network::start_network_only_recv;
+
 use commons::Model;
 use commons::ModelSig;
 use commons::channel::Sender;
-use commons::io::create_bufwriter;
+use commons::tree::Tree;
+use commons::performance_monitor::PerformanceMonitor;
+
 use commons::network::upload_assignments;
 use commons::network::upload_model;
-use commons::performance_monitor::PerformanceMonitor;
-use commons::tree::Tree;
-use tmsn::network::start_network_only_recv;
+use commons::persistent_io::write_model;
 
 
 pub fn start_model_sync(
@@ -289,7 +291,7 @@ fn model_sync_main(
                     old_sig, model_sig, machine_name, patch.size);
         }
         last_timestamp = global_timer.get_duration();
-        handle_persistent(&model, model.size(), last_timestamp);
+        write_model(&model, last_timestamp, true);
         for depth in new_nodes_depth {
             node_status.push(((depth, 0), 1.0, None));
             node_sum_gamma_sq.push(0.0);
@@ -309,13 +311,7 @@ fn model_sync_main(
     info!("Model sync quits, {}, {}, {}, {}, Model length: {}, Is gamma significant? {}",
             state, gamma >= min_gamma, num_iterations <= 0, model.size() < num_iterations,
             model.size(), gamma >= min_gamma);
-    {
-        let json = serde_json::to_string(&(last_timestamp, model.size(), &model)).expect(
-            "Local model cannot be serialized."
-        );
-        let mut file_buffer = create_bufwriter(&"model.json".to_string());
-        file_buffer.write(json.as_ref()).unwrap();
-    }
+    write_model(&model, last_timestamp, false);
     {
         debug!("sampler state, false, model sync quits");
         let mut state = sampler_state.write().unwrap();
@@ -376,14 +372,4 @@ fn update_assignments(
         debug!("model-manager, assign updates, {}", num_updates);
         upload_assignments(&worker_assign, &exp_name);
     }
-}
-
-
-fn handle_persistent(model: &Model, iteration: usize, timestamp: f32) {
-    let json = serde_json::to_string(&(timestamp, iteration, model)).expect(
-        "Local model cannot be serialized."
-    );
-    let mut file_buffer = create_bufwriter(
-        &format!("models/model_{}-v{}.json", iteration, iteration));
-    file_buffer.write(json.as_ref()).unwrap();
 }
