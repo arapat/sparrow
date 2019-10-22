@@ -3,9 +3,8 @@ pub mod channel;
 pub mod io;
 // The class of the training examples.
 pub mod labeled_data;
-// Functions to upload/download files from network
-pub mod network;
 pub mod performance_monitor;
+// Functions to read/write samples, models, and worker assignments
 pub mod persistent_io;
 // The class of the weak learner, namely a decision stump.
 pub mod tree;

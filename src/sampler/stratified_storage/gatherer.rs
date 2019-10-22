@@ -13,8 +13,8 @@ use commons::Model;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::persistent_io::write_local;
-use commons::persistent_io::write_s3;
+use commons::persistent_io::write_sample_local;
+use commons::persistent_io::write_sample_s3;
 
 
 pub struct Gatherer {
@@ -66,7 +66,7 @@ impl Gatherer {
                         gather(
                             new_sample_capacity,
                             gather_new_sample.clone(),
-                            write_local,
+                            write_sample_local,
                             version,
                             model.clone(),
                             exp_name.as_str(),
@@ -76,7 +76,7 @@ impl Gatherer {
                         gather(
                             new_sample_capacity,
                             gather_new_sample.clone(),
-                            write_s3,
+                            write_sample_s3,
                             version,
                             model.clone(),
                             exp_name.as_str(),

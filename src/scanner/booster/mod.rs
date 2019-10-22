@@ -6,8 +6,8 @@ use std::time::Duration;
 use tmsn::network::start_network_only_send;
 
 use commons::is_zero;
-use commons::network::download_assignments;
-use commons::network::download_model;
+use commons::persistent_io::download_assignments;
+use commons::persistent_io::download_model;
 use commons::persistent_io::write_model;
 use self::learner::get_base_node;
 

@@ -13,8 +13,8 @@ use commons::channel::Sender;
 use commons::tree::Tree;
 use commons::performance_monitor::PerformanceMonitor;
 
-use commons::network::upload_assignments;
-use commons::network::upload_model;
+use commons::persistent_io::upload_assignments;
+use commons::persistent_io::upload_model;
 use commons::persistent_io::write_model;
 
 

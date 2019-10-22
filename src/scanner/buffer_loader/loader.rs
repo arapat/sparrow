@@ -4,8 +4,8 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use SampleMode;
-use commons::persistent_io::load_local;
-use commons::persistent_io::load_s3;
+use commons::persistent_io::load_sample_local;
+use commons::persistent_io::load_sample_s3;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::VersionedSampleModel;
 
@@ -54,7 +54,7 @@ impl Loader {
                         loader(
                             buffer.clone(),
                             model_buffer.clone(),
-                            load_local,
+                            load_sample_local,
                             last_version,
                             exp_name.as_str(),
                         )
@@ -63,7 +63,7 @@ impl Loader {
                         loader(
                             buffer.clone(),
                             model_buffer.clone(),
-                            load_s3,
+                            load_sample_s3,
                             last_version,
                             exp_name.as_str(),
                         )
