@@ -7,6 +7,7 @@ use BUCKET;
 use bincode::deserialize;
 use bincode::serialize;
 use commons::ExampleWithScore;
+use commons::bins::Bins;
 use commons::io::read_all;
 use commons::io::write_all;
 use commons::io::create_bufwriter;
@@ -25,6 +26,8 @@ const S3_PATH_MODELS:  &str = "sparrow-models/";
 const MODEL_FILENAME:  &str = "model.bin";
 const S3_PATH_ASSIGNS: &str = "sparrow-assigns/";
 const ASSIGN_FILENAME: &str = "assign.bin";
+const S3_PATH_BINS:    &str = "sparrow-bins/";
+const BINS_FILENAME:   &str = "bins.json";
 
 
 // For gatherer
@@ -99,7 +102,7 @@ pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSa
     None
 }
 
-// read/write model.json
+// read/write model
 
 pub fn write_model(model: &Model, timestamp: f32, save_process: bool) {
     let json = serde_json::to_string(&(timestamp, model.size(), model)).expect(
@@ -116,13 +119,21 @@ pub fn write_model(model: &Model, timestamp: f32, save_process: bool) {
 }
 
 
+pub fn upload_model(
+    model: &Model, sig: &String, gamma: f32, root_gamma: f32, exp_name: &String,
+) -> bool {
+    let data: (Model, String, f32, f32) = (model.clone(), sig.clone(), gamma, root_gamma);
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
+    io_write_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME, &serialize(&data).unwrap())
+}
+
+
 pub fn read_model() -> (f32, usize, Model) {
     serde_json::from_str(&raw_read_all(&"model.json".to_string()))
             .expect(&format!("Cannot parse the model in `model.json`"))
 }
 
 
-// Worker download models
 pub fn download_model(exp_name: &String) -> Option<(Model, String, f32, f32)> {
     // debug!("sampler, start, download model");
     let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
@@ -140,6 +151,15 @@ pub fn download_model(exp_name: &String) -> Option<(Model, String, f32, f32)> {
         debug!("sample, download model, failed with return code {}", code);
         None
     }
+}
+
+
+// Read/write assignments
+
+pub fn upload_assignments(worker_assign: &Vec<Option<usize>>, exp_name: &String) -> bool {
+    let data = worker_assign;
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
+    io_write_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME, &serialize(&data).unwrap())
 }
 
 
@@ -162,19 +182,33 @@ pub fn download_assignments(exp_name: &String) -> Option<Vec<Option<usize>>> {
 }
 
 
-// Server upload models
-pub fn upload_model(
-    model: &Model, sig: &String, gamma: f32, root_gamma: f32, exp_name: &String,
-) -> bool {
-    let data: (Model, String, f32, f32) = (model.clone(), sig.clone(), gamma, root_gamma);
-    let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
-    io_write_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME, &serialize(&data).unwrap())
+// Read/write bins
+
+pub fn write_bins_disk(bins: &Vec<Bins>) {
+    let mut file_buffer = create_bufwriter(&"models/bins.json".to_string());
+    let json = serde_json::to_string(bins).expect("Bins cannot be serialized.");
+    file_buffer.write(json.as_ref()).unwrap();
 }
 
 
-// Server upload assignments
-pub fn upload_assignments(worker_assign: &Vec<Option<usize>>, exp_name: &String) -> bool {
-    let data = worker_assign;
-    let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
-    io_write_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME, &serialize(&data).unwrap())
+pub fn write_bins_s3(bins: &Vec<Bins>, exp_name: &String) {
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_BINS);
+    io_write_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME, &serialize(&bins).unwrap());
+}
+
+
+pub fn read_bins_disk() -> Vec<Bins> {
+    serde_json::from_str(&raw_read_all(&"models/bins.json".to_string()))
+        .expect(&format!("Cannot parse the bins.json"))
+}
+
+
+pub fn read_bins_s3(exp_name: &String) -> Vec<Bins> {
+    let s3_path = format!("{}/{}", exp_name, S3_PATH_BINS);
+    let mut ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME);
+    while ret.is_none() {
+        ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME);
+    }
+    let (bins, _) = ret.unwrap();
+    deserialize(&bins).unwrap()
 }
