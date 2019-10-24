@@ -131,9 +131,9 @@ fn model_sync_main(
                     (1.0 - alpha) * avg_accept_rate + alpha * accept_rate
                 }
             };
-            if accept_rate <= FRACTION {
+            if avg_accept_rate <= FRACTION {
                 current_condition = -1;
-            } else if accept_rate >= 1.0 - FRACTION {
+            } else if avg_accept_rate >= 1.0 - FRACTION {
                 current_condition = 1;
             }
             if current_condition != 0 && last_condition != 0 {
