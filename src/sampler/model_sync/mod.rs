@@ -67,10 +67,11 @@ fn model_sync_main(
     const FRACTION: f32 = 0.1;
     // State variables
     // TODO: Infer all state variables based on `model`
-    let mut model = model;
-    let mut model_sig = "init".to_string();
     let mut gamma = default_gamma.clone();
     let mut root_gamma = default_gamma.clone();
+    let mut gamma_version = 0;
+    let mut model = model;
+    let mut model_sig = format!("init_{}", gamma_version);
     let mut shrink_factor = 0.9;
     let mut last_condition = 0;  // -1 => TOO_SLOW, 1 => TOO_FAST
     // Node status: ((depth, num_recent_success), last_failed_gamma, current_scanner_id)
@@ -118,20 +119,20 @@ fn model_sync_main(
         if total_packets >= max(5, min(avail_nodes, num_machines)) {
             let mut current_condition = 0;
             // TODO: set decrease gamma threshold a parameter
-            let empty_rate = 1.0 - (nonempty_packets as f32) / (max(1, total_packets) as f32);
+            let true_empty_rate = 1.0 - ((nonempty_packets - rejected_packets_model) as f32) / (
+                    max(1, total_packets - rejected_packets_model) as f32);
             avg_empty_rate = {
                 if avg_empty_rate > 1.0 {
-                    empty_rate
+                    true_empty_rate
                 } else {
                     let alpha = 0.1;
-                    (1.0 - alpha) * avg_empty_rate + alpha * empty_rate
+                    (1.0 - alpha) * avg_empty_rate + alpha * true_empty_rate
                 }
             };
-            if empty_rate >= 1.0 - FRACTION {
+            if true_empty_rate >= 1.0 - FRACTION {
                 // alternative: if total_packets == 0
                 current_condition = -1;
-            } else if empty_rate <= FRACTION ||
-                    (rejected_packets_model as f32) / (max(1, nonempty_packets) as f32) >= 0.5 {
+            } else if true_empty_rate <= FRACTION {
                 current_condition = 1;
             }
             if current_condition != 0 && last_condition != 0 {
@@ -155,12 +156,21 @@ fn model_sync_main(
                 }
             }
             if current_condition != 0 {
+                gamma_version += 1;
+                let model_sig_seg: Vec<&str> = model_sig.rsplitn(2, '_').collect();
+                model_sig = format!("{}_{}", model_sig_seg[1], gamma_version);
                 if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
-                    debug!("model_manager, broadcast gamma, {}, {}, {}, {}, {}",
-                           current_condition, gamma, root_gamma, shrink_factor, old_gamma);
+                    debug!("model_manager, broadcast gamma, \
+                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                           current_condition, gamma, root_gamma, shrink_factor, old_gamma,
+                           true_empty_rate, avg_empty_rate, total_packets, nonempty_packets,
+                           rejected_packets_model, rejected_packets);
                 } else {
-                    debug!("model_manager, failed gamma broadcast, {}, {}, {}, {}, {}",
-                           current_condition, gamma, root_gamma, shrink_factor, old_gamma);
+                    debug!("model_manager, failed gamma broadcast, \
+                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                           current_condition, gamma, root_gamma, shrink_factor, old_gamma,
+                           true_empty_rate, avg_empty_rate, total_packets, nonempty_packets,
+                           rejected_packets_model, rejected_packets);
                 }
                 failed_searches = node_status.iter().map(|(_, last_gamma, avail)| {
                     if avail.is_none() && *last_gamma <= gamma {
@@ -242,6 +252,9 @@ fn model_sync_main(
                 if node_id == 0 {
                     let old_gamma = root_gamma;
                     root_gamma *= 0.8;
+                    gamma_version += 1;
+                    let model_sig_seg: Vec<&str> = model_sig.rsplitn(2, '_').collect();
+                    model_sig = format!("{}_{}", model_sig_seg[1], gamma_version);
                     if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
                         debug!("model_manager, broadcast gamma, {}, {}, {}, {}, {}",
                                -1, gamma, root_gamma, shrink_factor, old_gamma);
@@ -268,7 +281,7 @@ fn model_sync_main(
         };
         if sample_version != current_version {
             debug!("model_manager, reject for sample version mismatch, {}, {}",
-                   sample_version, current_version);
+                   current_version, sample_version);
             num_updates_rejs[machine_id] += 1;
             rejected_packets += 1;
             continue;
@@ -276,7 +289,7 @@ fn model_sync_main(
         // accept the package
         let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
         num_updates_nodes[machine_id] += patch.size;
-        model_sig = new_sig;
+        model_sig = format!("{}_{}", new_sig, gamma_version);
         next_model_sender.send(model.clone());
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
