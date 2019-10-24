@@ -106,7 +106,7 @@ fn model_sync_main(
         worker_assign[i] = Some(0);
     }
     let mut last_timestamp = global_timer.get_duration();
-    let mut avg_empty_rate = 2.0;
+    let mut avg_accept_rate = 2.0;
     let mut state = true;
     while state && gamma >= min_gamma && (num_iterations <= 0 || model.size() < num_iterations) {
         state = {
@@ -116,23 +116,24 @@ fn model_sync_main(
         // adjust gamma
         let mut verbose = false;
         // wait for enough number of packets, and adjust gamma accordingly
-        if total_packets >= max(5, min(avail_nodes, num_machines)) {
+        if total_packets >= max(5, min(avail_nodes, num_machines * 2)) {
             let mut current_condition = 0;
             // TODO: set decrease gamma threshold a parameter
-            let true_empty_rate = 1.0 - ((nonempty_packets - rejected_packets_model) as f32) / (
-                    max(1, total_packets - rejected_packets_model) as f32);
-            avg_empty_rate = {
-                if avg_empty_rate > 1.0 {
-                    true_empty_rate
+            let empty_packets = total_packets - nonempty_packets;
+            let accept_packets = nonempty_packets - rejected_packets;
+            let accept_rate = (accept_packets as f32) /
+                max(1, accept_packets + empty_packets) as f32;
+            avg_accept_rate = {
+                if avg_accept_rate > 1.0 {  // initialization
+                    accept_rate
                 } else {
                     let alpha = 0.1;
-                    (1.0 - alpha) * avg_empty_rate + alpha * true_empty_rate
+                    (1.0 - alpha) * avg_accept_rate + alpha * accept_rate
                 }
             };
-            if true_empty_rate >= 1.0 - FRACTION {
-                // alternative: if total_packets == 0
+            if accept_rate <= FRACTION {
                 current_condition = -1;
-            } else if true_empty_rate <= FRACTION {
+            } else if accept_rate >= 1.0 - FRACTION {
                 current_condition = 1;
             }
             if current_condition != 0 && last_condition != 0 {
@@ -161,16 +162,18 @@ fn model_sync_main(
                 model_sig = format!("{}_{}", model_sig_seg[1], gamma_version);
                 if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
                     debug!("model_manager, broadcast gamma, \
-                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                            current_condition, gamma, root_gamma, shrink_factor, old_gamma,
-                           true_empty_rate, avg_empty_rate, total_packets, nonempty_packets,
-                           rejected_packets_model, rejected_packets);
+                           avg_accept_rate, accept_rate, accept_packets, empty_packets,
+                           total_packets, nonempty_packets, rejected_packets_model,
+                           rejected_packets);
                 } else {
                     debug!("model_manager, failed gamma broadcast, \
-                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                            current_condition, gamma, root_gamma, shrink_factor, old_gamma,
-                           true_empty_rate, avg_empty_rate, total_packets, nonempty_packets,
-                           rejected_packets_model, rejected_packets);
+                           avg_accept_rate, accept_rate, accept_packets, empty_packets,
+                           total_packets, nonempty_packets, rejected_packets_model,
+                           rejected_packets);
                 }
                 failed_searches = node_status.iter().map(|(_, last_gamma, avail)| {
                     if avail.is_none() && *last_gamma <= gamma {
