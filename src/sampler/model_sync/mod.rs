@@ -78,11 +78,13 @@ fn model_sync_main(
     let mut node_status = vec![((0, 0), 1.0, None); model.tree_size];
     let mut worker_assign = vec![None; num_machines];
     let mut avail_nodes = 0;
+    let mut avail_new_tree = 0;
     // Performance variables
     let mut global_timer = PerformanceMonitor::new();
     let mut timer = PerformanceMonitor::new();
     let mut total_packets = 0;
     let mut nonempty_packets = 0;
+    let mut accept_root_packets = 0;
     let mut rejected_packets = 0;
     let mut rejected_packets_model = 0;
     let mut failed_searches = 0;
@@ -96,8 +98,11 @@ fn model_sync_main(
     // initialize state variables based on `model`
     for i in 0..min(node_status.len(), worker_assign.len()) {
         let (depth, num_child) = (model.depth[i], model.children[i].len());
-        if depth < max_depth && (i == 0 && num_child < max_num_trees || i > 0 && num_child <= 1) {
+        if depth < max_depth && (i == 0 && num_child < max_num_trees || i > 0 && num_child <= 0) {
             avail_nodes += 1;
+        }
+        if depth == 1 && num_child <= 0 {
+            avail_new_tree += 1;
         }
         node_status[i] = ((depth, num_child), 1.0, Some(i));
         worker_assign[i] = Some(i);
@@ -120,7 +125,7 @@ fn model_sync_main(
             let mut current_condition = 0;
             // TODO: set decrease gamma threshold a parameter
             let empty_packets = total_packets - nonempty_packets;
-            let accept_packets = nonempty_packets - rejected_packets;
+            let accept_packets = nonempty_packets - rejected_packets - accept_root_packets;
             let accept_rate = (accept_packets as f32) /
                 max(1, accept_packets + empty_packets) as f32;
             avg_accept_rate = {
@@ -162,18 +167,18 @@ fn model_sync_main(
                 model_sig = format!("{}_{}", model_sig_seg[1], gamma_version);
                 if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
                     debug!("model_manager, broadcast gamma, \
-                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                            current_condition, gamma, root_gamma, shrink_factor, old_gamma,
                            avg_accept_rate, accept_rate, accept_packets, empty_packets,
-                           total_packets, nonempty_packets, rejected_packets_model,
-                           rejected_packets);
+                           total_packets, nonempty_packets, accept_root_packets,
+                           rejected_packets_model, rejected_packets);
                 } else {
                     debug!("model_manager, failed gamma broadcast, \
-                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                            current_condition, gamma, root_gamma, shrink_factor, old_gamma,
                            avg_accept_rate, accept_rate, accept_packets, empty_packets,
-                           total_packets, nonempty_packets, rejected_packets_model,
-                           rejected_packets);
+                           total_packets, nonempty_packets, accept_root_packets,
+                           rejected_packets_model, rejected_packets);
                 }
                 failed_searches = node_status.iter().map(|(_, last_gamma, avail)| {
                     if avail.is_none() && *last_gamma <= gamma {
@@ -187,14 +192,16 @@ fn model_sync_main(
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
             debug!("model_manager, status update, \
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
                    gamma, root_gamma, shrink_factor, failed_searches,
-                   total_packets, nonempty_packets, rejected_packets, rejected_packets_model,
+                   total_packets, nonempty_packets, accept_root_packets, rejected_packets_model,
+                   rejected_packets,
                    packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "),
                    node_status, worker_assign);
             last_condition = current_condition;
             total_packets = 0;
             nonempty_packets = 0;
+            accept_root_packets = 0;
             rejected_packets = 0;
             rejected_packets_model = 0;
             num_updates_packs.iter_mut().for_each(|t| *t = 0);
@@ -205,7 +212,7 @@ fn model_sync_main(
             verbose = true;
         }
         update_assignments(
-            &mut node_status, &mut worker_assign, gamma, root_gamma, max_depth,
+            &mut node_status, &mut worker_assign, gamma, root_gamma, avail_new_tree, max_depth,
             max_num_trees, exp_name,
             &model.parent, &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         let packet = receiver.try_recv();
@@ -290,6 +297,9 @@ fn model_sync_main(
             continue;
         }
         // accept the package
+        if node_id == 0 {
+            accept_root_packets += 1;
+        }
         let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
         num_updates_nodes[machine_id] += patch.size;
         model_sig = format!("{}_{}", new_sig, gamma_version);
@@ -313,14 +323,20 @@ fn model_sync_main(
             node_sum_gamma_sq.push(0.0);
             node_timestamp.push(0.0);
             avail_nodes += 1;
+            if depth == 1 {
+                avail_new_tree += 1;
+            }
         }
         node_sum_gamma_sq[node_id] += remote_gamma * remote_gamma * patch.size as f32;
         let ((depth, _), gamma, machine_id) = node_status[node_id];
         node_status[node_id] =
             ((depth, model.children[node_id].len()), gamma, machine_id);
         if node_id == 0 && model.children[node_id].len() >= max_num_trees ||
-                node_id > 0 && model.children[node_id].len() > 1 {
+                node_id > 0 && model.children[node_id].len() > 0 {
             avail_nodes -= 1;
+            if depth == 1 {
+                avail_new_tree -= 1;
+            }
             node_status[node_id].2 = None;
         }
     }
@@ -341,6 +357,7 @@ fn update_assignments(
     worker_assign: &mut Vec<Option<usize>>,
     gamma: f32,
     root_gamma: f32,
+    avail_new_tree: usize,
     max_depth: usize,
     max_num_trees: usize,
     exp_name: &String,
@@ -360,14 +377,20 @@ fn update_assignments(
         if valid_worker < worker_assign.len() {
             let mut node = None;
             let mut status_log = (0, 0);
-            for i in 0..node_status.len() {
-                let ((depth, num_child), old_gamma, status) = node_status[i];
-                if depth < max_depth && status.is_none() &&
-                        (i == 0 && num_child < max_num_trees || i > 0 && num_child <= 1) &&
-                        (i > 0 && old_gamma > gamma || i == 0 && old_gamma > root_gamma) {
-                    node = Some(i);
-                    status_log = (depth, num_child);
-                    break;
+            // TODO: make this threshold a parameter
+            let ((depth, num_child), old_gamma, status) = node_status[0];
+            if status.is_none() && avail_new_tree < 10 &&
+                    num_child < max_num_trees && old_gamma > root_gamma {
+                node = Some(0);
+                status_log = (depth, num_child);
+            } else {
+                for i in 1..node_status.len() {
+                    let ((depth, num_child), old_gamma, status) = node_status[i];
+                    if depth < max_depth && status.is_none() && num_child <= 0 && old_gamma > gamma {
+                        node = Some(i);
+                        status_log = (depth, num_child);
+                        break;
+                    }
                 }
             }
             if node.is_some() {
