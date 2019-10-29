@@ -93,6 +93,7 @@ fn model_sync_main(
     let mut num_updates_nodes = vec![0; num_machines];
     let mut node_sum_gamma_sq = vec![0.0; model.tree_size];
     let mut node_timestamp = vec![0.0; model.tree_size];
+    let mut last_cluster_update = global_timer.get_duration();
     timer.start();
     global_timer.start();
     // initialize state variables based on `model`
@@ -192,12 +193,11 @@ fn model_sync_main(
             let rejs_stats: Vec<String>  = num_updates_rejs.iter().map(|t| t.to_string()).collect();
             let nodes_stats: Vec<String> = num_updates_nodes.iter().map(|t| t.to_string()).collect();
             debug!("model_manager, status update, \
-                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {:?}, {:?}",
+                    {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                    gamma, root_gamma, shrink_factor, failed_searches,
                    total_packets, nonempty_packets, accept_root_packets, rejected_packets_model,
                    rejected_packets,
-                   packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "),
-                   node_status, worker_assign);
+                   packs_stats.join(", "), rejs_stats.join(", "), nodes_stats.join(", "));
             last_condition = current_condition;
             total_packets = 0;
             nonempty_packets = 0;
@@ -211,10 +211,17 @@ fn model_sync_main(
             timer.start();
             verbose = true;
         }
-        update_assignments(
+        let num_updates = update_assignments(
             &mut node_status, &mut worker_assign, gamma, root_gamma, avail_new_tree, max_depth,
             max_num_trees, exp_name,
             &model.parent, &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
+        if num_updates <= 0 && global_timer.get_duration() - last_cluster_update >= 10.0 {
+            debug!("model_manager, cluster status, {:?}, {:?}", node_status, worker_assign);
+            last_cluster_update = global_timer.get_duration();
+        } else if num_updates > 0 {
+            last_cluster_update = global_timer.get_duration();
+        }
+
         let packet = receiver.try_recv();
         if packet.is_err() {
             if verbose {
@@ -365,7 +372,7 @@ fn update_assignments(
     node_sum_gamma_sq: &mut Vec<f32>,
     node_timestamp: &mut Vec<f32>,
     cur_timestamp: f32,
-) {
+) -> usize {
     let mut did_something = true;
     let mut num_updates = 0;
     while did_something {
@@ -411,4 +418,5 @@ fn update_assignments(
         debug!("model-manager, assign updates, {}", num_updates);
         upload_assignments(&worker_assign, &exp_name);
     }
+    num_updates
 }
