@@ -105,10 +105,10 @@ impl Boosting {
         }
         let max_sample_size = self.max_sample_size;
         let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
-        let index = self.model.add_root(base_pred, base_gamma);
+        self.model.add_root(base_pred, base_gamma);
         self.update_model();
-        info!("scanner, added new rule, {}, {}, {}, {}",
-              self.model.size(), max_sample_size, max_sample_size, index);
+        info!("scanner, added new rule, {}, {}, {}, {}, {}",
+              self.model.size(), max_sample_size, max_sample_size, 0, 0);
     }
 
     fn update_model(&mut self) {
@@ -160,7 +160,11 @@ impl Boosting {
             self.handle_network(false);
             sleep(Duration::from_secs(2));
         }
-        debug!("booster, remote model is downloaded");
+        debug!("booster, remote initial model is downloaded");
+        if self.model.tree_size == 0 {
+            self.set_root_tree();
+            self.handle_network(false);
+        }
 
         let init_sampling_duration = self.training_loader.get_sampling_duration();
         let mut global_timer = PerformanceMonitor::new();
@@ -192,7 +196,7 @@ impl Boosting {
                 let new_rule = new_rule.unwrap();
                 new_rule.write_log();
                 let index = self.model.add_nodes(
-                    new_rule.prt_index as i32,
+                    new_rule.prt_index,
                     new_rule.feature,
                     new_rule.threshold,
                     new_rule.predict,
@@ -285,9 +289,9 @@ impl Boosting {
                         self.last_sent_gamma = self.learner.rho_gamma;
                     }
                     is_packet_sent = true;
-                    info!("Sent the local model to the network module, {}, {}, {}, {}",
+                    info!("Sent the local model to the network module, {}, {}, {}, {}, {}",
                         self.last_sent_model_sig, self.last_sent_sample_version,
-                        self.last_remote_length, self.model.size());
+                        self.last_remote_length, self.model.size(), has_new_node);
                 }
             }
             self.learner.set_gamma(current_gamma, root_gamma);

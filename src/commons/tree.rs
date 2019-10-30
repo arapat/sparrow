@@ -26,9 +26,7 @@ pub struct Tree {
     threshold:      Vec<TFeature>,
     evaluation:     Vec<bool>,
     predicts:       Vec<f32>,
-    latest_child:   Vec<usize>,
     is_active:      Vec<bool>,
-    num_active:     Vec<usize>,
     pub depth:      Vec<usize>,
     pub last_gamma:     f32,
     pub base_version:   usize,
@@ -46,9 +44,7 @@ impl Clone for Tree {
             evaluation:     self.evaluation.clone(),
             predicts:       self.predicts.clone(),
             depth:          self.depth.clone(),
-            latest_child:   self.latest_child.clone(),
             is_active:      self.is_active.clone(),
-            num_active:     self.num_active.clone(),
             last_gamma:     self.last_gamma,
             base_version:   self.base_version,
             model_updates:  self.model_updates.clone(),
@@ -57,8 +53,8 @@ impl Clone for Tree {
 }
 
 impl Tree {
-    pub fn new(max_nodes: usize, base_pred: f32, base_gamma: f32) -> Tree {
-        let mut tree = Tree {
+    pub fn new(max_nodes: usize) -> Tree {
+        Tree {
             tree_size:      0,
             parent:         Vec::with_capacity(max_nodes),
             children:       Vec::with_capacity(max_nodes),
@@ -67,15 +63,11 @@ impl Tree {
             evaluation:     Vec::with_capacity(max_nodes),
             predicts:       Vec::with_capacity(max_nodes),
             depth:          Vec::with_capacity(max_nodes),
-            latest_child:   Vec::with_capacity(max_nodes),
             is_active:      Vec::with_capacity(max_nodes),
-            num_active:     Vec::with_capacity(max_nodes),
             last_gamma:     0.0,
             base_version:   0,
             model_updates:  UpdateList::new(),
-        };
-        tree.add_node(-1, 0, 0, false, base_pred, base_gamma);
-        tree
+        }
     }
 
     pub fn size(&self) -> usize {
@@ -83,7 +75,7 @@ impl Tree {
     }
 
     pub fn add_nodes(
-        &mut self, parent: i32,
+        &mut self, parent: usize,
         feature: usize, threshold: TFeature, pred_value: (f32, f32), gamma: f32,
     ) -> (usize, usize) {
         (
@@ -92,23 +84,30 @@ impl Tree {
         )
     }
 
-    pub fn add_root(&mut self, pred_value: f32, gamma: f32) -> usize {
-        self.add_node(-1, 0, 0, false, pred_value, gamma)
+    // TODO: allow update root
+    pub fn add_root(&mut self, pred_value: f32, gamma: f32) {
+        assert_eq!(self.tree_size, 0);
+
+        self.parent.push(0);
+        self.children.push(vec![]);
+        self.split_feature.push(0);
+        self.threshold.push(0 as TFeature);
+        self.evaluation.push(false);
+        self.predicts.push(pred_value);
+        self.depth.push(0);
+        self.tree_size += 1;
+
+        self.last_gamma = gamma;
+        self.model_updates.add(0, 0, 0, false, pred_value, vec![], true);
+
+        debug!("new-tree-node, 0, true, 0, 0, 0, 0, false, {}", pred_value)
     }
 
     fn add_node(
-        &mut self, parent: i32,
+        &mut self, parent: usize,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
     ) -> usize {
-        let depth = {
-            if parent < 0 {
-                0
-            } else if parent == 0 {
-                1
-            } else {
-                self.depth[parent as usize] + 1
-            }
-        };
+        let depth = self.depth[parent] + 1;
         let node = self.find_child_node(parent, feature, threshold, evaluation);
         let parent = max(0, parent) as usize;
         let (new_index, is_new) = {
@@ -123,12 +122,8 @@ impl Tree {
                 self.evaluation.push(evaluation);
                 self.predicts.push(pred_value);
                 self.depth.push(depth);
-                self.num_active.push(0);
                 let index = self.tree_size;
-                self.latest_child.push(index);
-                if index > 0 {
-                    self.children[parent].push(index);
-                }
+                self.children[parent].push(index);
                 self.tree_size += 1;
                 (index, true)
             }
@@ -137,34 +132,16 @@ impl Tree {
         let condition = self.get_conditions(new_index);
         self.model_updates.add(
             parent, feature, threshold, evaluation, pred_value, condition, is_new);
-        /*
-        // No longer needed because the tree is not used for predicting during training
-        let mut ancestor = index;
-        while ancestor > 0 {
-            ancestor = self.parent[ancestor];
-            self.latest_child[ancestor] = index;
-        }
-        */
         debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
                new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
         new_index
     }
 
     fn find_child_node(
-        &self, parent: i32, feature: usize, threshold: TFeature, evaluation: bool,
+        &self, parent: usize, feature: usize, threshold: TFeature, evaluation: bool,
     ) -> Option<usize> {
-        if parent < 0 {
-            if self.tree_size > 0 {
-                return Some(0);
-            } else {
-                return None;
-            }
-        }
         let mut ret = None;
-        if parent >= self.children.len() as i32 {
-            return None;
-        }
-        self.children[parent as usize].iter().for_each(|index| {
+        self.children[parent].iter().for_each(|index| {
             if self.split_feature[*index] == feature &&
                 is_zero((self.threshold[*index] - threshold).into()) &&
                 self.evaluation[*index] == evaluation {
@@ -173,28 +150,6 @@ impl Tree {
         });
         ret
     }
-
-    /*
-    pub fn mark_active(&mut self, index: usize) {
-        let mut ancestor = index;
-        self.is_active[index] = true;
-        while ancestor > 0 {
-            self.num_active[ancestor] += 1;
-            ancestor = self.parent[ancestor];
-        }
-        self.num_active[ancestor] += 1;
-    }
-
-    pub fn unmark_active(&mut self, index: usize) {
-        let mut ancestor = index;
-        self.is_active[index] = false;
-        while ancestor > 0 {
-            self.num_active[ancestor] -= 1;
-            ancestor = self.parent[ancestor];
-        }
-        self.num_active[ancestor] -= 1;
-    }
-    */
 
     #[allow(dead_code)]
     pub fn get_prediction_tree(&self, data: &Example) -> f32 {
@@ -254,25 +209,14 @@ impl Tree {
         false
     }
 
-    pub fn append_patch(
-        &mut self, patch: &UpdateList, last_gamma: f32, overwrite_root: bool,
-    ) -> Vec<usize> {
-        let mut i = {
-            if overwrite_root {
-                self.predicts[0] = patch.predicts[0];
-                1
-            } else {
-                0
-            }
-        };
+    pub fn append_patch(&mut self, patch: &UpdateList, last_gamma: f32) -> Vec<usize> {
         let prev_tree_size = self.tree_size;
         let mut node_indices = vec![];
-        while i < patch.size {
+        for i in 0..patch.size {
             node_indices.push(self.add_node(
-                patch.parent[i] as i32, patch.feature[i], patch.threshold[i],
+                patch.parent[i], patch.feature[i], patch.threshold[i],
                 patch.evaluation[i], patch.predicts[i], 0.0,
             ));
-            i += 1;
         }
         self.last_gamma = last_gamma;
         self.base_version = self.model_updates.size;

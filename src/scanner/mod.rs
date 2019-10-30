@@ -45,6 +45,5 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
         config.save_interval,
     );
     booster.enable_network(config.local_name.clone(), config.port);
-    booster.set_root_tree();
     booster.training(training_perf_mon.get_duration());
 }

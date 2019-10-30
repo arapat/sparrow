@@ -90,7 +90,7 @@ pub fn training(config_filepath: &String) {
             model
         } else {
             debug!("Created a new tree");
-            Tree::new(config.num_iterations, 0.0, 0.0)
+            Tree::new(config.num_iterations)
         }
     };
     if config.sampler_scanner == "scanner" {

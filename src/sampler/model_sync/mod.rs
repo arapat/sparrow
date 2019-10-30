@@ -216,7 +216,8 @@ fn model_sync_main(
             max_num_trees, exp_name,
             &model.parent, &mut node_sum_gamma_sq, &mut node_timestamp, global_timer.get_duration());
         if num_updates <= 0 && global_timer.get_duration() - last_cluster_update >= 10.0 {
-            debug!("model_manager, cluster status, {:?}, {:?}", node_status, worker_assign);
+            debug!("model_manager, cluster status, {}, {}, {:?}, {:?}",
+                    avail_nodes, avail_new_tree, node_status, worker_assign);
             last_cluster_update = global_timer.get_duration();
         } else if num_updates > 0 {
             last_cluster_update = global_timer.get_duration();
@@ -307,7 +308,7 @@ fn model_sync_main(
         if node_id == 0 {
             accept_root_packets += 1;
         }
-        let new_nodes_depth = model.append_patch(&patch, remote_gamma, old_sig == "init");
+        let new_nodes_depth = model.append_patch(&patch, remote_gamma);
         num_updates_nodes[machine_id] += patch.size;
         model_sig = format!("{}_{}", new_sig, gamma_version);
         next_model_sender.send(model.clone());
