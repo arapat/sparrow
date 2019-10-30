@@ -28,8 +28,10 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
     let gen_sample_version = Arc::new(RwLock::new(0));
     debug!("Starting the stratified structure.");
+    let init_model_name = "init".to_string();
     let stratified_structure = StratifiedStorage::new(
         init_tree.clone(),
+        init_model_name.clone(),
         config.num_examples,
         config.buffer_size,
         config.num_features,
@@ -47,25 +49,28 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
         config.resume_training,
         config.exp_name.clone(),
     );
+
+    debug!("Initializing the stratified structure.");
+    stratified_structure.init_stratified_from_file(
+        config.training_filename.clone(),
+        config.num_examples,
+        config.batch_size,
+        config.num_features,
+        bins.clone(),
+        init_tree.clone(),
+    );
+
     debug!("Starting the model sync.");
     start_model_sync(
-        init_tree.clone(), config.local_name.clone(), config.num_iterations,
+        init_tree.clone(), init_model_name.clone(),
+        config.local_name.clone(), config.num_iterations,
         config.num_trees, config.max_depth,
         config.network.clone(), config.port, next_model_s,
         config.default_gamma, config.min_gamma,
         gen_sample_version.clone(), stratified_structure.node_counts.clone(),
         config.exp_name.clone(), sampler_state.clone());
-    {
-        debug!("Initializing the stratified structure.");
-        stratified_structure.init_stratified_from_file(
-            config.training_filename.clone(),
-            config.num_examples,
-            config.batch_size,
-            config.num_features,
-            bins.clone(),
-            init_tree.clone(),
-        );
-    }
+
+    // Monitor running state
     let mut state = true;
     while state {
         // Check if termination is manually requested

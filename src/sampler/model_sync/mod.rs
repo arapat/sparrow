@@ -10,7 +10,6 @@ use tmsn::network::start_network_only_recv;
 use commons::Model;
 use commons::ModelSig;
 use commons::channel::Sender;
-use commons::tree::Tree;
 use commons::performance_monitor::PerformanceMonitor;
 
 use commons::persistent_io::upload_assignments;
@@ -19,14 +18,15 @@ use commons::persistent_io::write_model;
 
 
 pub fn start_model_sync(
-    init_tree: Tree,
+    init_tree: Model,
+    init_model_name: String,
     name: String,
     num_iterations: usize,
     num_trees: usize,
     max_depth: usize,
     remote_ips: Vec<String>,
     port: u16,
-    next_model: Sender<Model>,
+    next_model: Sender<(Model, String)>,
     default_gamma: f32,
     min_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
@@ -34,7 +34,7 @@ pub fn start_model_sync(
     exp_name: String,
     sampler_state: Arc<RwLock<bool>>,
 ) {
-    upload_model(&init_tree, &"init".to_string(), default_gamma, default_gamma, &exp_name);
+    upload_model(&init_tree, &init_model_name, default_gamma, default_gamma, &exp_name);
     let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
         mpsc::channel();
     start_network_only_recv(name.as_ref(), &remote_ips, port, local_s);
@@ -55,7 +55,7 @@ fn model_sync_main(
     max_depth: usize,
     num_machines: usize,
     receiver: mpsc::Receiver<ModelSig>,
-    next_model_sender: Sender<Model>,
+    next_model_sender: Sender<(Model, String)>,
     default_gamma: f32,
     min_gamma: f32,
     current_sample_version: Arc<RwLock<usize>>,
@@ -311,7 +311,7 @@ fn model_sync_main(
         let new_nodes_depth = model.append_patch(&patch, remote_gamma);
         num_updates_nodes[machine_id] += patch.size;
         model_sig = format!("{}_{}", new_sig, gamma_version);
-        next_model_sender.send(model.clone());
+        next_model_sender.send((model.clone(), model_sig.clone()));
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
         debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}",

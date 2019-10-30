@@ -5,7 +5,6 @@ use std::thread::sleep;
 use std::time::Duration;
 use tmsn::network::start_network_only_send;
 
-use commons::is_zero;
 use commons::persistent_io::download_assignments;
 use commons::persistent_io::download_model;
 use commons::persistent_io::write_model;
@@ -30,15 +29,18 @@ pub struct Boosting {
     model: Model,
     base_model_sig: String,
     base_model_size: usize,
-    last_sent_model_sig: String,
-    last_sent_sample_version: usize,
-    last_expand_node: usize,
-    last_sent_gamma: f32,
 
     network_sender: Option<mpsc::Sender<ModelSig>>,
     local_name: String,
     local_id: usize,
-    last_remote_length: usize,
+
+    last_sent_model_length: usize,
+    // for re-sending the non-empty packet if the sampler status changed
+    // track: sample version
+    is_sampler_status_changed: bool,
+    // for re-sending the empty packet if the scanner status changed
+    // track: expanding node, gamma value
+    is_scanner_status_changed: bool,
 
     persist_id: u32,
     save_interval: usize,
@@ -80,15 +82,14 @@ impl Boosting {
             model: init_model,
             base_model_sig: "".to_string(),
             base_model_size: 0,
-            last_sent_model_sig: ".".to_string(),
-            last_sent_sample_version: 0,
-            last_expand_node: 0,
-            last_sent_gamma: 1.0,
+
+            is_sampler_status_changed: true,
+            is_scanner_status_changed: true,
+            last_sent_model_length: 0,
 
             network_sender: None,
             local_name: "".to_string(),
             local_id: 0,
-            last_remote_length: 0,
 
             persist_id: 0,
             save_interval: save_interval,
@@ -98,28 +99,17 @@ impl Boosting {
         }
     }
 
-
-    pub fn set_root_tree(&mut self) {
-        while !self.training_loader.try_switch() {
+    fn init(&mut self) {
+        while !self.training_loader.is_empty() {
+            self.training_loader.try_switch();
             sleep(Duration::from_millis(2000));
         }
-        let max_sample_size = self.max_sample_size;
-        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
-        self.model.add_root(base_pred, base_gamma);
-        self.update_model();
-        info!("scanner, added new rule, {}, {}, {}, {}, {}",
-              self.model.size(), max_sample_size, max_sample_size, 0, 0);
-    }
-
-    fn update_model(&mut self) {
-        let model = self.training_loader.new_model.read().unwrap();
-        if model.is_some() {
-            let new_model = model.as_ref().unwrap();
-            debug!("scanner, update model, {}, {}", new_model.size(), self.model.size());
-            if new_model.size() >= self.model.size() {
-                self.model = new_model.clone();
-            }
+        debug!("booster, first sample is loaded");
+        while self.base_model_sig != "init" {
+            self.handle_network(false);
+            sleep(Duration::from_secs(2));
         }
+        debug!("booster, remote initial model is downloaded");
     }
 
     /// Enable network communication. `name` is the name of this worker, which can be arbitrary
@@ -137,17 +127,33 @@ impl Boosting {
             let t: Vec<&str> = self.local_name.rsplitn(2, '_').collect();
             t[0].parse().unwrap()
         };
-        // heartbeat
-        /*
-        {
-            loop {
-                hb_s.send(name.clone()).unwrap();
-                sleep(Duration::from_secs(5));
-            }
-        }
-        */
     }
 
+    fn set_root_tree(&mut self) {
+        let max_sample_size = self.max_sample_size;
+        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
+        self.model.add_root(base_pred, base_gamma);
+        info!("scanner, added new rule, {}, {}, {}, {}, {}",
+              self.model.size(), max_sample_size, max_sample_size, 0, 0);
+    }
+
+    fn update_model(&mut self, model: Model, model_sig: String) {
+        let (old_size, old_base_size) = (self.model.size(), self.base_model_size);
+        self.model = model;
+        self.base_model_sig = model_sig;
+        self.base_model_size = self.model.size();
+        self.last_sent_model_length = self.model.size();
+        if self.model.tree_size == 0 {
+            self.set_root_tree();
+        }
+        if old_size > old_base_size {
+            // loader needs to get rid of the rules that just got overwritten
+            self.training_loader.reset_scores();
+        }
+        self.learner.reset();
+        debug!("model-replaced, {}, {}, {}",
+                self.model.size(), old_size, self.base_model_sig);
+    }
 
     /// Start training the boosting algorithm.
     pub fn training(
@@ -155,12 +161,7 @@ impl Boosting {
         prep_time: f32,
     ) {
         debug!("Start training.");
-
-        while self.base_model_sig != "init" {
-            self.handle_network(false);
-            sleep(Duration::from_secs(2));
-        }
-        debug!("booster, remote initial model is downloaded");
+        self.init();
 
         let init_sampling_duration = self.training_loader.get_sampling_duration();
         let mut global_timer = PerformanceMonitor::new();
@@ -176,12 +177,16 @@ impl Boosting {
                     self.training_loader.get_next_batch_and_update(true, &self.model);
                 learner_timer.resume();
                 if switched {
+                    self.is_sampler_status_changed = true;
                     self.learner.reset();
                 }
                 (self.learner.update(&self.model, &data), data.len(), switched)
             };
             if switched {
-                self.update_model();
+                self.update_model(
+                    self.training_loader.base_model.clone(),
+                    self.training_loader.base_model_sig.clone(),
+                );
             }
             learner_timer.update(batch_size);
             global_timer.update(batch_size);
@@ -207,13 +212,12 @@ impl Boosting {
                 if self.model.size() % self.save_interval == 0 {
                     self.handle_persistent(prep_time + global_timer.get_duration());
                 }
+                self.is_scanner_status_changed = true;
                 total_data_size = 0;
             }
 
-            let data_size = self.training_loader.size;
-            if self.handle_network(total_data_size >= data_size) {
-                total_data_size = 0;
-            }
+            let full_scanned_no_update = total_data_size >= self.training_loader.size;
+            self.handle_network(full_scanned_no_update);
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
@@ -225,90 +229,89 @@ impl Boosting {
               self.model.size(), self.learner.is_gamma_significant());
     }
 
-    fn handle_network(&mut self, is_full_scanned: bool) -> bool {
+    fn handle_network(&mut self, full_scanned_no_update: bool) -> bool {
         if self.network_sender.is_none() {
             return false;
         }
+        self.update_assignment();
+        self.check_remote_model(full_scanned_no_update)
+    }
 
-        let mut is_packet_sent = false;
+    fn get_model_sig(&self) -> String {
+        self.local_name.clone() + "_" + &self.model.size().to_string()
+    }
+
+    fn send_packet(&mut self) -> bool {
+        let new_model_sig = self.get_model_sig();
+        let tree_slice = self.model.model_updates.create_slice(
+            self.last_sent_model_length..self.model.size());
+        let packet: ModelSig = (
+            tree_slice,
+            self.learner.rho_gamma,
+            self.training_loader.current_version,
+            self.base_model_sig.clone(),
+            new_model_sig,
+        );
+        let send_result = self.network_sender.as_ref().unwrap()
+                                .send(packet);
+        if let Err(err) = send_result {
+            error!("Attempt to send the packet to the network module but failed.
+                    Error: {}", err);
+            false
+        } else {
+            info!("Sent the local model to the network module");
+            self.last_sent_model_length = self.model.size();
+            true
+        }
+    }
+
+    fn check_remote_model(&mut self, full_scanned_no_update: bool) -> bool {
         // 0. Get the latest model
         // 1. If it is newer, overwrite local model
         // 2. Otherwise, push the current update to remote
         let model_score = download_model(&self.exp_name);
-        if model_score.is_some() {
-            let (remote_model, remote_model_sig, current_gamma, root_gamma): (Model, String, f32, f32) =
-                model_score.unwrap();
-            let new_model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
-            let has_new_node = self.model.size() > self.base_model_size && (
-                self.last_sent_model_sig != new_model_sig ||
-                self.training_loader.current_version != self.last_sent_sample_version
-            );
-            let has_empty_message = is_full_scanned && (
-                self.last_expand_node != self.learner.expand_node ||
-                !is_zero(self.last_sent_gamma - self.learner.rho_gamma)
-            );
-            {
-                debug!("debug-empty, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
-                       has_new_node, self.model.size(), self.base_model_size,
-                       self.last_sent_model_sig, new_model_sig,
-                       self.training_loader.current_version, self.last_sent_sample_version,
-                       has_empty_message, is_full_scanned, self.last_expand_node,
-                       self.learner.expand_node, self.last_sent_gamma, self.learner.rho_gamma);
-            };
-            if remote_model_sig != self.base_model_sig {
-                // replace the existing model
-                let old_size = self.model.size();
-                self.model = remote_model;
-                if self.model.tree_size == 0 {
-                    self.set_root_tree();
-                }
-                self.base_model_sig = remote_model_sig;
-                self.base_model_size = self.model.size();
-                self.last_remote_length = self.model.size();
-                self.learner.reset();
-                debug!("model-replaced, {}, {}, {}",
-                       self.model.size(), old_size, self.base_model_sig);
-            } else if has_new_node || has_empty_message {
-                // send out the local patch
-                let tree_slice = self.model.model_updates.create_slice(
-                    self.last_remote_length..self.model.size());
-                let packet: ModelSig = (
-                    tree_slice, self.learner.rho_gamma, self.training_loader.current_version,
-                    self.base_model_sig.clone(), new_model_sig.clone());
-                let send_result = self.network_sender.as_ref().unwrap()
-                                        .send(packet);
-                if let Err(err) = send_result {
-                    error!("Attempt to send the local model to the network module but failed.
-                            Error: {}", err);
-                } else {
-                    self.last_sent_model_sig = new_model_sig;
-                    self.last_sent_sample_version = self.training_loader.current_version;
-                    if !has_new_node {
-                        self.last_expand_node = self.learner.expand_node;
-                        self.last_sent_gamma = self.learner.rho_gamma;
-                    }
-                    is_packet_sent = true;
-                    info!("Sent the local model to the network module, {}, {}, {}, {}, {}",
-                        self.last_sent_model_sig, self.last_sent_sample_version,
-                        self.last_remote_length, self.model.size(), has_new_node);
-                }
-            }
-            self.learner.set_gamma(current_gamma, root_gamma);
-        } else {
+        if model_score.is_none() {
             debug!("booster, download-model, failed");
+            return false;
         }
+        let (remote_model, remote_model_sig,
+                current_gamma, root_gamma): (Model, String, f32, f32) = model_score.unwrap();
+        let mut sent_message = false;
+        if remote_model_sig != self.base_model_sig {
+            self.update_model(remote_model, remote_model_sig);
+        } else if self.model.size() > self.last_sent_model_length ||
+                    self.is_sampler_status_changed {
+            // send out the local patch
+            sent_message = self.send_packet();
+            self.is_sampler_status_changed = false;
+            debug!("scanner, send-message, nonempty, {}, {}",
+                    self.model.size() - self.last_sent_model_length, self.model.size());
 
+        } else if full_scanned_no_update && self.is_scanner_status_changed {
+            // send out the empty message
+            sent_message = self.send_packet();
+            self.is_scanner_status_changed = false;
+            debug!("scanner, send-message, empty, {}, {}",
+                    self.model.size() - self.last_sent_model_length, self.model.size());
+        }
+        if self.learner.set_gamma(current_gamma, root_gamma) {
+            self.is_scanner_status_changed = true;
+        }
+        sent_message
+    }
+
+    fn update_assignment(&mut self) {
         let assigns = download_assignments(&self.exp_name);
         if assigns.is_some() {
             let assignments = assigns.unwrap();
             let expand_node = assignments[self.local_id % assignments.len()];
             if expand_node.is_some() {
                 if self.learner.set_expand_node(expand_node.unwrap()) {
+                    self.is_scanner_status_changed = true;
                     self.learner.reset();
                 }
             }
         }
-        is_packet_sent
     }
 
     fn handle_persistent(&mut self, timestamp: f32) {

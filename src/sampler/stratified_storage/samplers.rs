@@ -37,7 +37,7 @@ pub struct Samplers {
     strata: Arc<RwLock<Strata>>,
     sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
-    model: Arc<RwLock<Model>>,
+    model: Arc<RwLock<(Model, String)>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
     num_threads: usize,
@@ -49,7 +49,7 @@ pub struct Samplers {
 // start signal, in which case we would loss control of the total number of sampler threads
 impl Samplers {
     pub fn new(
-        model: Arc<RwLock<Model>>,
+        model: Arc<RwLock<(Model, String)>>,
         strata: Arc<RwLock<Strata>>,
         sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         updated_examples: Sender<ExampleWithScore>,
@@ -102,7 +102,7 @@ fn sampler(
     strata: Arc<RwLock<Strata>>,
     sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
-    model: Arc<RwLock<Model>>,
+    model: Arc<RwLock<(Model, String)>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
     sampler_state: Arc<RwLock<bool>>,
@@ -183,7 +183,7 @@ fn sampler(
             let (example, (score, version)) = recv.unwrap();
             let (updated_score, model_size) = {
                 pm2.resume();
-                let latest_model = model.read().unwrap();
+                let latest_model = &model.read().unwrap().0;
                 pm2.pause();
                 pm3.resume();
                 pm3.pause();

@@ -395,12 +395,15 @@ impl Learner {
         tree_node
     }
 
-    pub fn set_gamma(&mut self, gamma: f32, root_gamma: f32) {
+    pub fn set_gamma(&mut self, gamma: f32, root_gamma: f32) -> bool {
         if !is_zero(gamma - self.rho_gamma) || !is_zero(root_gamma - self.root_gamma) {
             debug!("set-gamma, {}, {}, {}, {}", self.rho_gamma, self.root_gamma, gamma, root_gamma);
             self.rho_gamma = gamma;
             self.root_gamma = root_gamma;
             self.reset();
+            true
+        } else {
+            false
         }
     }
 

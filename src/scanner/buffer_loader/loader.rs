@@ -10,12 +10,10 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::VersionedSampleModel;
 
 use super::LockedBuffer;
-use super::LockedModelBuffer;
 
 
 pub struct Loader {
-    new_sample_buffer: LockedBuffer,
-    new_model_buffer:  LockedModelBuffer,
+    new_buffer: LockedBuffer,
     sleep_duration:    u64,
     exp_name:          String,
 }
@@ -24,14 +22,12 @@ pub struct Loader {
 impl Loader {
     /// * `new_sample_buffer`: the reference to the alternate memory buffer of the buffer loader
     pub fn new(
-        new_sample_buffer: LockedBuffer,
-        new_model_buffer: LockedModelBuffer,
+        new_buffer: LockedBuffer,
         sleep_duration: usize,
         exp_name:       String,
     ) -> Loader {
         Loader {
-            new_sample_buffer: new_sample_buffer,
-            new_model_buffer:  new_model_buffer,
+            new_buffer:        new_buffer,
             sleep_duration:    sleep_duration as u64,
             exp_name:          exp_name,
         }
@@ -41,8 +37,7 @@ impl Loader {
     ///
     /// Fill the alternate memory buffer of the buffer loader
     pub fn run(&self, mode: SampleMode) {
-        let buffer: LockedBuffer = self.new_sample_buffer.clone();
-        let model_buffer: LockedModelBuffer = self.new_model_buffer.clone();
+        let buffer: LockedBuffer = self.new_buffer.clone();
         let sleep_duration = self.sleep_duration;
         let exp_name = self.exp_name.clone();
         info!("Starting non-blocking loader");
@@ -53,7 +48,6 @@ impl Loader {
                     SampleMode::LOCAL => {
                         loader(
                             buffer.clone(),
-                            model_buffer.clone(),
                             load_sample_local,
                             last_version,
                             exp_name.as_str(),
@@ -62,7 +56,6 @@ impl Loader {
                     SampleMode::S3 => {
                         loader(
                             buffer.clone(),
-                            model_buffer.clone(),
                             load_sample_s3,
                             last_version,
                             exp_name.as_str(),
@@ -77,8 +70,7 @@ impl Loader {
 
 
 fn loader<F>(
-    new_sample_buffer: LockedBuffer,
-    new_model_buffer: LockedModelBuffer,
+    new_buffer: LockedBuffer,
     handler: F,
     last_version: usize,
     exp_name: &str,
@@ -91,11 +83,9 @@ where F: Fn(usize, &str) -> Option<VersionedSampleModel> {
         debug!("scanner, failed to receive a new sample");
         last_version
     } else {
-        let (version, new_sample, new_model) = ret.unwrap();
-        let new_sample_lock = new_sample_buffer.write();
-        *(new_sample_lock.unwrap()) = Some((version, new_sample));
-        let new_model_lock = new_model_buffer.write();
-        *(new_model_lock.unwrap()) = Some(new_model);
+        let (version, new_sample, new_model, model_sig) = ret.unwrap();
+        let new_buffer = new_buffer.write();
+        *(new_buffer.unwrap()) = Some((version, new_sample, new_model, model_sig));
         debug!("scanner, received a new sample, {}, {}", version, pm.get_duration());
         version
     }

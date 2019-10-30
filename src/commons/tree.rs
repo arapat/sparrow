@@ -195,6 +195,9 @@ impl Tree {
     }
 
     pub fn is_visited(&self, data: &Example, target: usize) -> bool {
+        if self.tree_size <= 0 {
+            return false;
+        }
         let feature = &(data.feature);
         let mut queue = VecDeque::new();
         queue.push_back(0);
