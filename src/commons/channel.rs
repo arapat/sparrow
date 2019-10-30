@@ -102,6 +102,7 @@ impl<T> Sender<T> {
         }
     }
 
+    #[allow(dead_code)]
     pub fn try_send(&self, t: T) -> bool {
         // self.stats_sender.send((self.name.clone(), StatType::Send, 1));
         let mut succeed = true;
@@ -113,6 +114,11 @@ impl<T> Sender<T> {
             }
         }
         succeed
+    }
+
+    #[allow(dead_code)]
+    pub fn is_full(&self) -> bool {
+        self.sender.is_full()
     }
 }
 

@@ -5,12 +5,13 @@ use metricslib::EvalFunc;
 
 use std::io::BufRead;
 use std::io::Write;
+use commons::bins::load_bins;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
-use commons::io::read_all;
+use commons::io::raw_read_all;
 use commons::io::write_all;
 use commons::Model;
-use stratified_storage::serial_storage::SerialStorage;
+use sampler::stratified_storage::serial_storage::SerialStorage;
 use TLabel;
 
 
@@ -39,9 +40,7 @@ pub fn validate(
             Some(create_bufwriter(&"models/performance.csv".to_string()))
         }
     };
-
-    let bins = serde_json::from_str(&read_all(&"models/bins.json".to_string()))
-                        .expect(&format!("Cannot parse the bins in `{}`", "models/bins.json"));
+    let bins = load_bins("testing", None);
     let mut models_list = create_bufreader(&models_table);
     let mut data = SerialStorage::new(
         testing_filename,
@@ -50,7 +49,6 @@ pub fn validate(
         false,
         positive,
         Some(bins),
-        0..num_features,
     );
     let mut scores = vec![0.0; num_examples];
     let mut labels: Vec<TLabel> = vec![0.0 as TLabel; num_examples];
@@ -64,19 +62,16 @@ pub fn validate(
         line.clear();
         // validate model
         let (ts, _, model): (f32, usize, Model) =
-            serde_json::from_str(&read_all(&filepath))
+            serde_json::from_str(&raw_read_all(&filepath))
                        .expect(&format!("Cannot parse the model in `{}`", filepath));
         let mut index = 0;
         while index < num_examples {
             let batch = data.read(batch_size);
-            for k in last_model_length..model.len() {
-                let tree = &model[k];
-                batch.par_iter()
-                     .zip(scores[index..index+batch.len()].par_iter_mut())
-                     .for_each(|(example, score)| {
-                         *score += tree.get_leaf_prediction(example);
-                     });
-            }
+            batch.par_iter()
+                 .zip(scores[index..index+batch.len()].par_iter_mut())
+                 .for_each(|(example, score)| {
+                     *score += model.get_prediction(example, last_model_length).0;
+                 });
             batch.par_iter()
                     .zip(labels[index..index+batch.len()].par_iter_mut())
                     .for_each(|(example, label)| {
@@ -99,7 +94,7 @@ pub fn validate(
                     mvalidate(&sorted_scores_labels, &eval_funcs).iter()
                                                                  .map(|t| t.to_string())
                                                                  .collect();
-                let meta_info = vec![filepath.clone(), ts.to_string(), model.len().to_string()];
+                let meta_info = vec![filepath.clone(), ts.to_string(), model.size().to_string()];
                 let output = format!("{},{}\n", meta_info.join(","), performance_scores.join(","));
                 out.write(output.as_bytes())
                    .expect("Failed to write the performance scores to file.");
@@ -108,7 +103,7 @@ pub fn validate(
             None => {
                 let outputpath = filepath.clone() + "_scores";
                 let preds: Vec<String> = scores.iter().map(|t| t.to_string()).collect();
-                write_all(&outputpath, &preds.join("\n")).expect(
+                write_all(&outputpath, &preds.join("\n").as_bytes()).expect(
                     &format!("Cannot write the predictions of the model `{}`", filepath));
                 info!("Processed {}", filepath);
             },
@@ -116,7 +111,7 @@ pub fn validate(
 
         // Reset scores if necessary
         if incremental_testing {
-            last_model_length = model.len();
+            last_model_length = model.size();
         } else {
             for i in 0..scores.len() {
                 scores[i] = 0.0;

@@ -5,20 +5,25 @@ use std::cmp::min;
 use std::fs::File;
 use std::io::BufReader;
 use std::io::BufWriter;
+use bincode::deserialize;
 
+use Example;
+use RawExample;
+use TFeature;
+use RawTFeature;
+
+use commons::ExampleWithScore;
 use commons::bins::Bins;
+use commons::io::read_all;
 use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::read_k_labeled_data;
 use commons::io::read_k_labeled_data_from_binary_file;
 use commons::io::write_to_binary_file;
 use commons::performance_monitor::PerformanceMonitor;
-use labeled_data::LabeledData;
+use commons::labeled_data::LabeledData;
 
-use super::super::Example;
-use super::super::RawExample;
-use super::super::TFeature;
-use super::super::RawTFeature;
+type VersionedSample = (usize, Vec<ExampleWithScore>);
 
 /// A naive file loader
 #[derive(Debug)]
@@ -36,7 +41,6 @@ pub struct SerialStorage {
     memory_buffer: Vec<Example>,
     index: usize,
     bins: Vec<Bins>,
-    range: std::ops::Range<usize>,
 
     head: usize,
     tail: usize,
@@ -51,31 +55,39 @@ impl SerialStorage {
         one_pass: bool,
         positive: String,
         bins: Option<Vec<Bins>>,
-        range: std::ops::Range<usize>,
     ) -> SerialStorage {
         let reader = create_bufreader(&filename);
-        let binary_cons = if one_pass {
+        let binary_cons = None;
+        if filename.starts_with("sample.bin") || one_pass {
             None
         } else {
             Some(TextToBinHelper::new(&filename))
         };
         debug!("Created a serial storage object for {}, capacity {}, feature size {}",
                filename, size, feature_size);
+        let (in_memory, memory_buffer) = {
+            if filename.starts_with("sample.bin") {
+                let (_version, new_sample): VersionedSample =
+                    deserialize(read_all(&filename).as_ref()).unwrap();
+                (true, new_sample.iter().map(|t| t.0.clone()).collect())
+            } else {
+                (false, vec![])
+            }
+        };
         SerialStorage {
             filename: filename,
             size: size.clone(),
             feature_size: feature_size,
             is_binary: false,
-            in_memory: false,
+            in_memory: in_memory,
             positive: positive,
             bytes_per_example: 0,
 
             binary_cons: binary_cons,
             reader: reader,
-            memory_buffer: vec![],
+            memory_buffer: memory_buffer,
             index: 0,
             bins: bins.unwrap_or(vec![]),
-            range: range,
 
             head: 0,
             tail: 0,
@@ -110,7 +122,6 @@ impl SerialStorage {
             return self.memory_buffer[self.head..self.tail].to_vec();
         }
         // Load from disk
-        let (start, end) = (self.range.start, self.range.end);
         let batch: Vec<Example> =
             if self.is_binary {
                 read_k_labeled_data_from_binary_file(
@@ -125,11 +136,7 @@ impl SerialStorage {
                     let features: Vec<TFeature> =
                         data.feature.iter().enumerate()
                             .map(|(idx, val)| {
-                                if start <= idx && idx < end {
-                                    self.bins[idx - start].get_split_index(*val)
-                                } else {
-                                    0
-                                }
+                                self.bins[idx].get_split_index(*val)
                             }).collect();
                     LabeledData::new(features, data.label)
                 }).collect()

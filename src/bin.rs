@@ -30,9 +30,9 @@ fn main() {
     if args.len() != 3 {
         println!("{}", usage_info);
     } else if args[1] == "train" {
-        training(args[2].clone());
+        training(&args[2]);
     } else if args[1] == "test" {
-        testing(args[2].clone());
+        testing(&args[2]);
     } else {
         println!("{}", usage_info);
     }

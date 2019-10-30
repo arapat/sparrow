@@ -1,31 +1,33 @@
 pub mod bins;
 pub mod channel;
-pub mod performance_monitor;
 pub mod io;
+// The class of the training examples.
+pub mod labeled_data;
+pub mod performance_monitor;
+// Functions to read/write samples, models, and worker assignments
+pub mod persistent_io;
+// The class of the weak learner, namely a decision stump.
+pub mod tree;
 
 use rayon::prelude::*;
 use std::f32::INFINITY;
 
-use tree::Tree;
+use commons::tree::Tree;
+use commons::tree::UpdateList;
 
 use super::Example;
 
-pub type ExampleInSampleSet = (Example, (f32, usize));
+// current score and size, base model and size
+pub type ExampleInSampleSet = (Example, (f32, f32, usize, usize));  // weight, score, new_ver, base_ver
 pub type ExampleWithScore = (Example, (f32, usize));
-pub type Model = Vec<Tree>;
-pub type ModelScore = (Model, f32);
+pub type Model = Tree;
+// Signature of a model patch must start with "machineID_"
+pub type ModelSig = (UpdateList, f32, usize, String, String);
 
 const DELTA: f32  = 0.000001;
 const SHRINK: f32 = 1.0;
 const THRESHOLD_FACTOR: f32 = 1.0;
 const ALMOST_ZERO: f32 = 1e-8;
-
-
-#[derive(Debug, PartialEq)]
-pub enum Signal {
-    START,
-    STOP,
-}
 
 
 // Boosting related
@@ -67,25 +69,6 @@ pub fn get_bound(sum_c: f32, sum_c_squared: f32) -> f32 {
 
 
 // Computational functions
-
-#[inline]
-#[allow(dead_code)]
-pub fn max<T>(a: T, b: T) -> T where T: PartialOrd {
-    if a > b {
-        a
-    } else {
-        b
-    }
-}
-
-#[inline]
-pub fn min<T>(a: T, b: T) -> T where T: PartialOrd {
-    if a > b {
-        b
-    } else {
-        a
-    }
-}
 
 #[inline]
 pub fn is_zero(a: f32) -> bool {

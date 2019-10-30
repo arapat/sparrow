@@ -1,4 +1,5 @@
 
+#[derive(Serialize, Deserialize)]
 pub struct BitMap {
     size: usize,
     is_free: Vec<i32>
@@ -52,6 +53,14 @@ impl BitMap {
         let div = position / 32;
         let res = position % 32;
         self.is_free[div] = self.is_free[div] & !(1 << res);
+    }
+
+    pub fn get_all_filled(&self) -> Vec<usize> {
+        (0..self.size).filter(|k| {
+            let div = k / 32;
+            let res = k % 32;
+            (self.is_free[div] >> res) & 1 == 0
+        }).collect()
     }
 
     fn log(t: i64) -> usize {

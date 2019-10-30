@@ -1,10 +1,14 @@
 use ordered_float::NotNaN;
 
 use std::collections::BTreeMap;
-use std::ops::Range;
 
-use stratified_storage::serial_storage::SerialStorage;
-use super::super::TFeature;
+use TFeature;
+use config::Config;
+use commons::persistent_io::read_bins_disk;
+use commons::persistent_io::read_bins_s3;
+use commons::persistent_io::write_bins_disk;
+use commons::persistent_io::write_bins_s3;
+use sampler::stratified_storage::serial_storage::SerialStorage;
 
 
 // TODO: support NaN feature values
@@ -87,26 +91,23 @@ impl DistinctValues {
 }
 
 
-/// Create bins for the features in the range specified by `range`
+/// Create bins for the features
 ///
 /// * `max_sample_size`: The number of examples to read for deciding the splitting
 ///   thresholds for creating bins
 /// * `max_bin_size`: The total number of bins created for each freature. The actual
 ///   number of bins might be smaller if there are fewer distinct values for a feature
-/// * `range`: The range of the features this worker is responsible for
 /// * `data_loader`: Data loader for providing training examples
-pub fn create_bins(
+fn create_bins(
     max_sample_size: usize,
     max_bin_size: usize,
-    range: &Range<usize>,
+    num_features: usize,
     data_loader: &mut SerialStorage,
 ) -> Vec<Bins> {
-    let start = range.start;
-    let range_size = range.end - start;
-    let mut distinct: Vec<DistinctValues> = Vec::with_capacity(range_size);
+    let mut distinct: Vec<DistinctValues> = Vec::with_capacity(num_features);
     let mut remaining_reads = max_sample_size;
 
-    for _ in 0..range_size {
+    for _ in 0..num_features {
         distinct.push(DistinctValues::new());
     }
     while remaining_reads > 0 {
@@ -116,17 +117,41 @@ pub fn create_bins(
             distinct.iter_mut()
                     .enumerate()
                     .for_each(|(idx, mapper)| {
-                        mapper.update(feature[start + idx] as f32);
+                        mapper.update(feature[idx] as f32);
                     });
         });
         remaining_reads -= data.len();
     }
-    let ret: Vec<Bins> = distinct.iter()
+    let bins: Vec<Bins> = distinct.iter()
                                  .map(|mapper| Bins::new(max_bin_size, mapper))
                                  .collect();
-
     // Logging
-    let total_bins: usize = ret.iter().map(|t| t.len()).sum();
-    info!("Bins are created. {} Features. {} Bins.", ret.len(), total_bins);
-    ret
+    let total_bins: usize = bins.iter().map(|t| t.len()).sum();
+    info!("Bins are created. {} Features. {} Bins.", bins.len(), total_bins);
+    bins
+}
+
+pub fn load_bins(mode: &str, config: Option<&Config>) -> Vec<Bins> {
+    if mode == "sampler" {
+        let config = config.unwrap();
+        let mut serial_training_loader = SerialStorage::new(
+            config.training_filename.clone(),
+            config.num_examples,
+            config.num_features,
+            true,
+            config.positive.clone(),
+            None,
+        );
+        let bins = create_bins(
+            config.max_sample_size, config.max_bin_size, config.num_features,
+            &mut serial_training_loader);
+        write_bins_disk(&bins);
+        write_bins_s3(&bins, &config.exp_name);
+        bins
+    } else if mode == "scanner" {
+        let config = config.unwrap();
+        read_bins_s3(&config.exp_name)
+    } else {  // if mode == "testing"
+        read_bins_disk()
+    }
 }

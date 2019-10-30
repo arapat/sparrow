@@ -5,38 +5,36 @@ use std::io::Seek;
 use std::io::SeekFrom;
 use std::io::Write;
 
+use bincode::serialize;
 use std::fs::remove_file;
 use super::bitmap::BitMap;
 
 // TODO: implement in-memory I/O buffer for both reading and writing
 
 
+#[derive(Serialize, Deserialize)]
 pub struct DiskBuffer {
     bitmap: BitMap,
     block_size: usize,
     capacity: usize,
     size: usize,
-    file: File,
+    #[serde(skip)] file: Option<File>,
     filename: String,
 }
 
 
 impl DiskBuffer {
     pub fn new(filename: &str, block_size: usize, capacity: usize) -> DiskBuffer {
-        let file = OpenOptions::new()
-                    .read(true)
-                    .write(true)
-                    .create(true)
-                    .open(filename).expect(
-                        &format!("Cannot create the buffer file at {}", filename));
-        DiskBuffer {
+        let mut disk_buffer = DiskBuffer {
             bitmap: BitMap::new(capacity.clone(), false),
             block_size: block_size,
             capacity: capacity,
             size: 0,
-            file: file,
+            file: None,
             filename: String::from(filename),
-        }
+        };
+        disk_buffer.init_file();
+        disk_buffer
     }
 
     pub fn write(&mut self, data: &[u8]) -> usize {
@@ -53,26 +51,56 @@ impl DiskBuffer {
             self.size += 1;
         }
         assert!(self.size <= self.capacity);
+        self.write_at(position, data)
+    }
+
+    pub fn write_at(&mut self, position: usize, data: &[u8]) -> usize {
         let offset = position * self.block_size;
-        self.file.seek(SeekFrom::Start(offset as u64)).expect(
+        let file = self.file.as_mut().unwrap();
+        file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while writing.", offset));
-        self.file.write_all(data).unwrap();
-        self.file.flush().unwrap();
+        file.write_all(data).unwrap();
+        file.flush().unwrap();
         position
     }
 
     pub fn read(&mut self, position: usize) -> Vec<u8> {
         assert!(position < self.size);
+        let ret = self.read_at(position);
+        self.bitmap.mark_free(position);
+        ret
+    }
+
+    pub fn read_at(&mut self, position: usize) -> Vec<u8> {
         let offset = position * self.block_size;
-        self.file.seek(SeekFrom::Start(offset as u64)).expect(
+        let file = self.file.as_mut().unwrap();
+        file.seek(SeekFrom::Start(offset as u64)).expect(
             &format!("Cannot seek to the location {} while reading.", offset));
         let mut block_buffer: Vec<u8> = vec![0; self.block_size];
-        self.file.read_exact(block_buffer.as_mut_slice()).expect(
+        file.read_exact(block_buffer.as_mut_slice()).expect(
             &format!("Read from disk failed. Disk buffer size is `{}`. Position to read is `{}`.",
                      self.size, position)
         );
-        self.bitmap.mark_free(position);
         block_buffer
+    }
+
+    pub fn serialize(&self) -> Vec<u8> {
+        serialize(self).unwrap()
+    }
+
+    pub fn init_file(&mut self) {
+        self.file = Some(
+            OpenOptions::new()
+             .read(true)
+             .write(true)
+             .create(true)
+             .open(self.filename.clone()).expect(
+                 &format!("Cannot create the buffer file at {}", self.filename))
+        );
+    }
+
+    pub fn get_all_filled(&self) -> Vec<usize> {
+        self.bitmap.get_all_filled()
     }
 }
 
@@ -91,7 +119,7 @@ mod tests {
     use labeled_data::LabeledData;
     use commons::ExampleWithScore;
     use super::super::get_disk_buffer;
-    use ::TFeature;
+    use TFeature;
 
 
     #[test]

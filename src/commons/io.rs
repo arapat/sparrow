@@ -1,6 +1,8 @@
 use bincode::serialize;
 use bincode::deserialize;
 use rayon::prelude::*;
+use s3::bucket::Bucket;
+use s3::credentials::Credentials;
 
 use std::str::FromStr;
 use std::fmt::Debug;
@@ -13,8 +15,8 @@ use std::io::Read;
 use std::io::Write;
 use std::io::Result;
 
-use commons::Example;
-use labeled_data::LabeledData;
+use Example;
+use commons::labeled_data::LabeledData;
 
 
 pub fn create_bufreader(filename: &String) -> BufReader<File> {
@@ -27,18 +29,22 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
     BufWriter::new(f)
 }
 
-pub fn read_all(filename: &String) -> String {
-    let mut file = File::open(filename).expect(
-        &format!("File `{}` does not exist or cannot be read.", filename));
+pub fn raw_read_all(filename: &String) -> String {
     let mut contents = String::new();
-    file.read_to_string(&mut contents).expect(&format!("Cannot read `{}`", filename));
+    create_bufreader(filename)
+        .read_to_string(&mut contents)
+        .expect(&format!("Cannot read `{}`", filename));
     contents
 }
 
-pub fn write_all(filename: &String, content: &String) -> Result<()> {
-    let mut file = File::create(filename).expect(
-        &format!("File `{}` does not exist or cannot be read.", filename));
-    file.write_all(content.as_bytes())
+pub fn read_all(filename: &String) -> Vec<u8> {
+    let mut content = Vec::new();
+    create_bufreader(filename).read_to_end(&mut content).unwrap();
+    content
+}
+
+pub fn write_all(filename: &String, content: &[u8]) -> Result<()> {
+    create_bufwriter(filename).write_all(content)
 }
 
 pub fn read_k_lines(reader: &mut BufReader<File>, k: usize) -> Vec<String> {
@@ -125,6 +131,72 @@ where
         feature[index] = value;
     });
     LabeledData::new(feature, label)
+}
+
+
+// Return data and return_code
+pub fn load_s3(
+    region: &str, bucket: &str, s3_path: &str, filename: &str,
+) -> Option<(Vec<u8>, u32)> {
+    // TODO: Add support to read credentials from the config file
+    // Read credentials from the environment variables
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(bucket, region.parse().unwrap(), credentials).unwrap();
+    let mut filepath = s3_path.to_string();
+    filepath.push_str(filename);
+
+    let ret = bucket.get_object(&filepath);
+    if ret.is_err() {
+        None
+    } else {
+        Some(ret.unwrap())
+    }
+}
+
+
+pub fn write_s3(
+    region: &str, bucket: &str, s3_path: &str, filename: &str, data: &[u8],
+) -> bool {
+    // TODO: Add support to read credentials from the config file
+    // Read credentials from the environment variables
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(bucket, region.parse().unwrap(), credentials).unwrap();
+    let mut filepath = s3_path.to_string();
+    filepath.push_str(filename);
+
+    // In case the file exists, delete it
+    // let (_, _) = bucket.delete(&filename).unwrap();
+    let mut code = 0;
+    for i in 0..3 {
+        let ret = bucket.put_object(&filepath, data, "application/octet-stream");
+        if ret.is_ok() {
+            code = ret.unwrap().1;
+            debug!("Uploaded `{}` to S3, return code {}", filename, code);
+            if code == 200 {
+                break;
+            }
+        } else {
+            error!("Uploading `{}` to S3 trial {} failed.", filename, (i + 1));
+        }
+    }
+    if code != 200 {
+        error!("Uploading `{}` to S3 failed. Gave up retrying.", filename);
+    }
+    code == 200
+}
+
+pub fn clear_s3_bucket(region: &str, bucket: &str, exp_name: &str) {
+    let region = region.parse().unwrap();
+    let credentials = Credentials::default();
+    let bucket = Bucket::new(bucket, region, credentials).unwrap();
+
+    // List out contents of directory and delete all objects
+    let results = bucket.list(exp_name, None).unwrap();
+    for (list, _) in results {
+        for obj in list.contents {
+            bucket.delete_object(&obj.key).unwrap();
+        }
+    }
 }
 
 fn parse_libsvm<TFeature, TLabel>(

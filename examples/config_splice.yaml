@@ -8,17 +8,15 @@ testing_bytes_per_example: 574
 num_examples: 50000000
 num_testing_examples: 4627840
 num_features: 565
-range:
-  start: 0
-  end: 565
 positive: 1
 max_sample_size: 200000
 max_bin_size: 10
-min_gamma: 0.00001
+min_gamma: 0.0001
 default_gamma: 0.25
 min_ess: 0.5
-num_iterations: 400
-max_leaves: 4
+num_iterations: 10
+num_trees: 20
+max_depth: 2
 max_trials_before_shrink: 1000000
 channel_size: 8
 buffer_size: 1000000
@@ -35,8 +33,13 @@ network: []
 port: 8888
 local_name: local_worker
 save_process: true
-debug_mode: false
+debug_mode: true
 models_table_filename: ./models_table.txt
 incremental_testing: true
 testing_scores_only: false
 save_interval: 1
+sampling_mode: s3
+sampler_scanner: sampler
+sleep_duration: 5
+exp_name: five-scanner
+resume_training: false

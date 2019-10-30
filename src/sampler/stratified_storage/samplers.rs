@@ -8,11 +8,9 @@ use std::sync::RwLock;
 use std::time::Duration;
 
 use commons::channel::Sender;
-use commons::channel::Receiver;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::ExampleWithScore;
 use commons::Model;
-use commons::Signal;
 use super::Strata;
 use super::WeightTableRead;
 use super::SPEED_TEST;
@@ -37,15 +35,13 @@ use commons::get_weight;
 
 pub struct Samplers {
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: Sender<(ExampleWithScore, u32)>,
+    sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
-    next_model: Receiver<Model>,
     model: Arc<RwLock<Model>>,
-    sampling_signal: Arc<RwLock<Signal>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
-    // sampling_signal_channel: Receiver<Signal>,
     num_threads: usize,
+    sampler_state: Arc<RwLock<bool>>,
 }
 
 
@@ -53,94 +49,63 @@ pub struct Samplers {
 // start signal, in which case we would loss control of the total number of sampler threads
 impl Samplers {
     pub fn new(
+        model: Arc<RwLock<Model>>,
         strata: Arc<RwLock<Strata>>,
-        sampled_examples: Sender<(ExampleWithScore, u32)>,
+        sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
         updated_examples: Sender<ExampleWithScore>,
-        next_model: Receiver<Model>,
         stats_update_s: Sender<(i8, (i32, f64))>,
         weights_table: WeightTableRead,
-        _sampling_signal_channel: Receiver<Signal>,
         num_threads: usize,
+        sampler_state: Arc<RwLock<bool>>,
     ) -> Samplers {
         Samplers {
             strata: strata,
             sampled_examples: sampled_examples,
             updated_examples: updated_examples,
-            next_model: next_model,
-            model: Arc::new(RwLock::new(vec![])),
-            sampling_signal: Arc::new(RwLock::new(Signal::STOP)),
+            model: model,
             stats_update_s: stats_update_s,
             weights_table: weights_table,
-            // sampling_signal_channel: sampling_signal_channel,
             num_threads: num_threads,
+            sampler_state: sampler_state,
         }
     }
 
     pub fn run(&self) {
-        let next_model = self.next_model.clone();
-        let model = self.model.clone();
-        spawn(move || {
-            while let Some(new_model) = next_model.recv() {
-                let model_len = new_model.len();
-                {
-                    let mut model = model.write().unwrap();
-                    *model = new_model;
-                }
-                debug!("sampler model update, {}", model_len);
-            }
-        });
-
-        // let signal_channel   = self.sampling_signal_channel.clone();
         let num_threads      = self.num_threads;
         let strata           = self.strata.clone();
         let sampled_examples = self.sampled_examples.clone();
         let updated_examples = self.updated_examples.clone();
         let model            = self.model.clone();
-        let sampling_signal  = self.sampling_signal.clone();
         let stats_update_s   = self.stats_update_s.clone();
         let weights_table    = self.weights_table.clone();
-        // TODO: This should be a feature only enable in the debugging mode
-        // spawn(move || {
-        //     while let Some(new_signal) = signal_channel.recv() {
-                // debug!("updating sampling signal, {:?}", new_signal);
-                let start = {
-                    let mut signal = sampling_signal.write().unwrap();
-                    // assert!(*signal != new_signal);
-                    *signal = Signal::START;  // new_signal;
-                    *signal == Signal::START
-                };
-                if start {
-                    for _ in 0..num_threads {
-                        let strata           = strata.clone();
-                        let sampled_examples = sampled_examples.clone();
-                        let updated_examples = updated_examples.clone();
-                        let model            = model.clone();
-                        let sampling_signal  = sampling_signal.clone();
-                        let stats_update_s   = stats_update_s.clone();
-                        let weights_table    = weights_table.clone();
-                        spawn(move || {
-                            sampler(
-                                strata, sampled_examples, updated_examples,
-                                model, sampling_signal, stats_update_s, weights_table,
-                            );
-                        });
-                    }
-                }
-        //     }
-        // });
+        let sampler_state    = self.sampler_state.clone();
+        for _ in 0..num_threads {
+            let strata           = strata.clone();
+            let sampled_examples = sampled_examples.clone();
+            let updated_examples = updated_examples.clone();
+            let model            = model.clone();
+            let stats_update_s   = stats_update_s.clone();
+            let weights_table    = weights_table.clone();
+            let sampler_state    = sampler_state.clone();
+            spawn(move || {
+                sampler(
+                    strata, sampled_examples, updated_examples,
+                    model, stats_update_s, weights_table, sampler_state,
+                );
+            });
+        }
     }
 }
 
 
 fn sampler(
     strata: Arc<RwLock<Strata>>,
-    sampled_examples: Sender<(ExampleWithScore, u32)>,
+    sampled_examples: Sender<((ExampleWithScore, u32), u32)>,
     updated_examples: Sender<ExampleWithScore>,
     model: Arc<RwLock<Model>>,
-    // TODO: remove sampling signal if serial sampling is removed
-    _sampling_signal: Arc<RwLock<Signal>>,
     stats_update_s: Sender<(i8, (i32, f64))>,
     weights_table: WeightTableRead,
+    sampler_state: Arc<RwLock<bool>>,
 ) {
     let mut pm_update = PerformanceMonitor::new();
     let mut pm_sample = PerformanceMonitor::new();
@@ -155,6 +120,7 @@ fn sampler(
     let mut pm2 = PerformanceMonitor::new();
     let mut pm3 = PerformanceMonitor::new();
     let mut pm4 = PerformanceMonitor::new();
+    let mut num_scanned = 0;
     let mut num_updated = 0;
     let mut num_sampled = 0;
     pm_total.start();
@@ -167,29 +133,21 @@ fn sampler(
         let index = super::sample_weights_table(&weights_table);
         if index.is_none() {
             // stratified storage is empty, wait for data loading
-            debug!("Sampler sleeps waiting for data loading");
+            debug!("sampler, Sampler sleeps waiting for data loading");
             sleep(Duration::from_millis(1000));
             continue;
         }
         let index = index.unwrap();
         // STEP 2: Access the queue for the sampled strata
         let existing_receiver = {
-            let read_strata = strata.read().unwrap();
-            read_strata.get_out_queue(index)
+            let read_strata = strata.try_read();
+            if read_strata.is_err() {
+                debug!("sampler, sampler cannot read the strata, {}", index);
+                continue;
+            }
+            read_strata.unwrap().get_out_queue(index)
         };
         let receiver = existing_receiver.unwrap();
-        /*
-        TODO: validate this block is unnecessary
-        let receiver = {
-            if let Some(receiver) = existing_receiver {
-                receiver
-            } else {
-                let mut strata = strata.write().unwrap();
-                let (_, receiver) = strata.create(index);
-                receiver
-            }
-        };
-        */
         // STEP 3: Sample one example using minimum variance sampling
         // meanwhile update the weights of all accessed examples
         let grid_size = {
@@ -203,8 +161,10 @@ fn sampler(
         };
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
+        let mut sampled_trials = 0;
         pm3_total.resume();
         while sampled_example.is_none() {
+            sampled_trials += 1;
             pm1.resume();
             let recv = {
                 let mut failed_recv = 0;
@@ -223,28 +183,30 @@ fn sampler(
             let (example, (score, version)) = recv.unwrap();
             let (updated_score, model_size) = {
                 pm2.resume();
-                let trees = model.read().unwrap();
+                let latest_model = model.read().unwrap();
                 pm2.pause();
                 pm3.resume();
-                let model_size = trees.len();
                 pm3.pause();
                 pm4.resume();
-                let inc_score: f32 = {
-                    trees[version..model_size].iter().map(|tree| {
-                        tree.get_leaf_prediction(&example)
-                    }).sum()
-                };
+                let (inc_score, (model_size, _)) = latest_model.get_prediction(&example, version);
                 pm4.pause();
                 (score + inc_score, model_size)
             };
-            *grid += get_weight(&example, updated_score);
-            if *grid >= grid_size {
-                sampled_example = Some((example.clone(), (updated_score, model_size)));
+            let updated_weight = get_weight(&example, updated_score);
+            if updated_weight.log2() as i8 == index {
+                *grid += updated_weight;
+                if *grid >= grid_size {
+                    sampled_example = Some((example.clone(), (updated_score, model_size)));
+                }
             }
+            num_scanned += 1;
             stats_update_s.send((index, (-1, -get_weight(&example, score) as f64)));
             updated_examples.send((example, (updated_score, model_size)));
             num_updated += 1;
             pm_update.update(1);
+            if sampled_trials % 100 == 0 {
+                debug!("sampler, keep failing, {}, {}", index, sampled_trials);
+            }
         }
         pm3_total.pause();
         // STEP 4: Send the sampled example to the buffer loader
@@ -255,9 +217,10 @@ fn sampler(
         let sampled_example = sampled_example.unwrap();
         let sample_count = (*grid / grid_size) as u32;
         if sample_count > 0 {
-            sampled_examples.send((sampled_example, sample_count));
+            sampled_examples.send(((sampled_example, sample_count), num_scanned));
             *grid -= grid_size * (sample_count as f32);
             num_sampled += sample_count;
+            num_scanned = 0;
             pm_sample.update(sample_count as usize);
         }
 
@@ -283,15 +246,11 @@ fn sampler(
             pm_total.start();
         }
 
-        /*
-        TODO: set a flag to enable this block
         {
-            let signal = sampling_signal.read().unwrap();
-            if *signal == Signal::STOP {
-                debug!("sampler exits");
+            let sampler_state = sampler_state.read().unwrap();
+            if *sampler_state == false {
                 break;
             }
         }
-        */
     }
 }
