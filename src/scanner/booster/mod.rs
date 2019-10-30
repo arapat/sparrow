@@ -161,10 +161,6 @@ impl Boosting {
             sleep(Duration::from_secs(2));
         }
         debug!("booster, remote initial model is downloaded");
-        if self.model.tree_size == 0 {
-            self.set_root_tree();
-            self.handle_network(false);
-        }
 
         let init_sampling_duration = self.training_loader.get_sampling_duration();
         let mut global_timer = PerformanceMonitor::new();
@@ -263,6 +259,9 @@ impl Boosting {
                 // replace the existing model
                 let old_size = self.model.size();
                 self.model = remote_model;
+                if self.model.tree_size == 0 {
+                    self.set_root_tree();
+                }
                 self.base_model_sig = remote_model_sig;
                 self.base_model_size = self.model.size();
                 self.last_remote_length = self.model.size();
