@@ -1,5 +1,4 @@
 use rayon::prelude::*;
-use std::cmp::max;
 use std::ops::Range;
 use std::collections::VecDeque;
 
@@ -109,7 +108,6 @@ impl Tree {
     ) -> usize {
         let depth = self.depth[parent] + 1;
         let node = self.find_child_node(parent, feature, threshold, evaluation);
-        let parent = max(0, parent) as usize;
         let (new_index, is_new) = {
             if let Some(index) = node {
                 self.predicts[index] += pred_value;
@@ -153,6 +151,9 @@ impl Tree {
 
     #[allow(dead_code)]
     pub fn get_prediction_tree(&self, data: &Example) -> f32 {
+        if self.tree_size <= 0 {
+            return 0.0;
+        }
         let feature = &(data.feature);
         let mut queue = VecDeque::new();
         queue.push_back(0);
@@ -171,6 +172,9 @@ impl Tree {
     }
 
     pub fn visit_tree(&self, data: &Example, counter: &mut Vec<u32>) {
+        if self.tree_size <= 0 {
+            return;
+        }
         let feature = &(data.feature);
         let mut queue = VecDeque::new();
         queue.push_back(0);
