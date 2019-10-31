@@ -9,6 +9,7 @@ use SampleMode;
 use commons::get_weight;
 use commons::persistent_io::VersionedSampleModel;
 use commons::performance_monitor::PerformanceMonitor;
+use commons::ExampleWithScore;
 use commons::ExampleInSampleSet;
 use commons::Model;
 use self::loader::Loader;
@@ -136,38 +137,26 @@ impl BufferLoader {
 
     pub fn try_switch(&mut self) -> bool {
         self.sampling_pm.resume();
-        let switched = {
-            if let Ok(mut new_examples_version) = self.new_buffer.try_write() {
-                if new_examples_version.is_none() {
-                    false
-                } else {
-                    let (new_version, new_examples, new_model, model_sig): VersionedSampleModel =
-                        new_examples_version.take().unwrap();
-                    self.base_model = new_model;
-                    self.base_model_sig = model_sig;
-                    self.examples = new_examples.iter()
-                                                .map(|t| {
-                                                    let (a, s) = t;
-                                                    // sampling weights are ignored
-                                                    let w = get_weight(&a, 0.0);
-                                                    (a.clone(), (w, 0.0, s.1, s.1))
-                                                }).collect();
-                    let old_version = self.current_version;
-                    self.current_version = new_version;
-                    self.curr_example = 0;
-                    debug!("scanner, switched-buffer, {}, {}, {}",
-                           old_version, self.current_version, self.examples.len());
-                    true
-                }
-            } else {
-                false
-            }
-        };
-        if switched {
-            self.update_ess();
+        let new_buffer = self.new_buffer.try_write();
+        if new_buffer.is_err() {
+            self.sampling_pm.pause();
+            return false;
         }
+
+        let (new_version, new_examples, new_model, model_sig): VersionedSampleModel =
+            new_buffer.unwrap().take().unwrap();
+        let old_version = self.current_version;
+        self.current_version = new_version;
+        self.examples = set_init_weight(new_examples);
+        self.base_model = new_model;
+        self.base_model_sig = model_sig;
+        self.curr_example = 0;
+
+        self.update_ess();
+        debug!("scanner, switched-buffer, {}, {}, {}",
+                old_version, self.current_version, self.examples.len());
         self.sampling_pm.pause();
-        switched
+        true
     }
 
     // ESS and others
@@ -179,10 +168,6 @@ impl BufferLoader {
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
-    }
-
-    pub fn get_sampling_duration(&self) -> f32 {
-        self.sampling_pm.get_duration()
     }
 
     pub fn reset_scores(&mut self) {
@@ -219,6 +204,20 @@ fn reset_scores(data: &mut [ExampleInSampleSet], base_model: &Model) {
         (*example).1 = (get_weight(&example.0, 0.0), 0.0, base_version, base_version);
     });
 }
+
+
+
+/// Set initial weights to the samples
+fn set_init_weight(examples: Vec<ExampleWithScore>) -> Vec<ExampleInSampleSet> {
+    examples.into_iter()
+            .map(|t| {
+                let (example, (_score, model_size)) = t;
+                // sampling weights are ignored
+                let w = get_weight(&example, 0.0);
+                (example.clone(), (w, 0.0, model_size, model_size))
+            }).collect()
+}
+
 
 
 #[cfg(test)]

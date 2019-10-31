@@ -66,10 +66,6 @@ impl PerformanceMonitor {
         self.status = PerformanceMonitorStatus::PAUSE;
     }
 
-    pub fn set_adjust(&mut self, adjust_val: f32) {
-        self.duration_adjust = adjust_val;
-    }
-
     pub fn write_log(&mut self, name: &str) -> bool {
         let (since_last_check, count, duration, speed) = self.get_performance();
         if since_last_check >= 20 {

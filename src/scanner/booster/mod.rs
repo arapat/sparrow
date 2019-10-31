@@ -112,23 +112,6 @@ impl Boosting {
         debug!("booster, remote initial model is downloaded");
     }
 
-    /// Enable network communication. `name` is the name of this worker, which can be arbitrary
-    /// and is only used for debugging purpose.
-    /// `port` is the port number that used for network communication.
-    pub fn enable_network(&mut self, name: String, port: u16) {
-        let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
-            mpsc::channel();
-        start_network_only_send(name.as_ref(), port, local_r);
-        // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
-        // start_network_only_send(name.as_ref(), port + 1, hb_r);
-        self.network_sender = Some(local_s);
-        self.local_name = name.clone();
-        self.local_id = {
-            let t: Vec<&str> = self.local_name.rsplitn(2, '_').collect();
-            t[0].parse().unwrap()
-        };
-    }
-
     fn set_root_tree(&mut self) {
         let max_sample_size = self.max_sample_size;
         let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
@@ -155,6 +138,23 @@ impl Boosting {
                 self.model.size(), old_size, self.base_model_sig);
     }
 
+    /// Enable network communication. `name` is the name of this worker, which can be arbitrary
+    /// and is only used for debugging purpose.
+    /// `port` is the port number that used for network communication.
+    pub fn enable_network(&mut self, name: String, port: u16) {
+        let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
+            mpsc::channel();
+        start_network_only_send(name.as_ref(), port, local_r);
+        // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
+        // start_network_only_send(name.as_ref(), port + 1, hb_r);
+        self.network_sender = Some(local_s);
+        self.local_name = name.clone();
+        self.local_id = {
+            let t: Vec<&str> = self.local_name.rsplitn(2, '_').collect();
+            t[0].parse().unwrap()
+        };
+    }
+
     /// Start training the boosting algorithm.
     pub fn training(
         &mut self,
@@ -163,7 +163,6 @@ impl Boosting {
         debug!("Start training.");
         self.init();
 
-        let init_sampling_duration = self.training_loader.get_sampling_duration();
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
@@ -175,23 +174,26 @@ impl Boosting {
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
-                learner_timer.resume();
                 if switched {
-                    self.is_sampler_status_changed = true;
+                    // TODO: it seems we don't we have to reset the learner for the new sample
                     self.learner.reset();
                 }
-                (self.learner.update(&self.model, &data), data.len(), switched)
+                learner_timer.resume();
+                let new_rule = self.learner.update(&self.model, &data);
+                learner_timer.update(data.len());
+                learner_timer.pause();
+                (new_rule, data.len(), switched)
             };
+            total_data_size += batch_size;
+            global_timer.update(batch_size);
+
             if switched {
+                self.is_sampler_status_changed = true;
                 self.update_model(
                     self.training_loader.base_model.clone(),
                     self.training_loader.base_model_sig.clone(),
                 );
             }
-            learner_timer.update(batch_size);
-            global_timer.update(batch_size);
-            learner_timer.pause();
-            total_data_size += batch_size;
 
             if new_rule.is_some() {
                 let new_rule = new_rule.unwrap();
@@ -221,8 +223,6 @@ impl Boosting {
                 total_data_size = 0;
             }
 
-            let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
-            global_timer.set_adjust(-sampling_duration);
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
@@ -289,7 +289,6 @@ impl Boosting {
             self.is_sampler_status_changed = false;
             debug!("scanner, send-message, nonempty, {}, {}",
                     self.model.size() - self.last_sent_model_length, self.model.size());
-
         } else if full_scanned_no_update && self.is_scanner_status_changed {
             // send out the empty message
             self.send_packet();
