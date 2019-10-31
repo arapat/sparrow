@@ -217,7 +217,9 @@ impl Boosting {
             }
 
             let full_scanned_no_update = total_data_size >= self.training_loader.size;
-            self.handle_network(full_scanned_no_update);
+            if self.handle_network(full_scanned_no_update) {
+                total_data_size = 0;
+            }
 
             let sampling_duration = self.training_loader.get_sampling_duration() - init_sampling_duration;
             global_timer.set_adjust(-sampling_duration);
@@ -229,12 +231,13 @@ impl Boosting {
               self.model.size(), self.learner.is_gamma_significant());
     }
 
+    // return true if gamma changed
     fn handle_network(&mut self, full_scanned_no_update: bool) -> bool {
         if self.network_sender.is_none() {
             return false;
         }
         self.update_assignment();
-        self.check_remote_model(full_scanned_no_update)
+        self.check_remote_model_and_gamma(full_scanned_no_update)
     }
 
     fn get_model_sig(&self) -> String {
@@ -265,7 +268,8 @@ impl Boosting {
         }
     }
 
-    fn check_remote_model(&mut self, full_scanned_no_update: bool) -> bool {
+    // return true if gamma is changed
+    fn check_remote_model_and_gamma(&mut self, full_scanned_no_update: bool) -> bool {
         // 0. Get the latest model
         // 1. If it is newer, overwrite local model
         // 2. Otherwise, push the current update to remote
@@ -276,28 +280,29 @@ impl Boosting {
         }
         let (remote_model, remote_model_sig,
                 current_gamma, root_gamma): (Model, String, f32, f32) = model_score.unwrap();
-        let mut sent_message = false;
         if remote_model_sig != self.base_model_sig {
             self.update_model(remote_model, remote_model_sig);
         } else if self.model.size() > self.last_sent_model_length ||
                     self.is_sampler_status_changed {
             // send out the local patch
-            sent_message = self.send_packet();
+            self.send_packet();
             self.is_sampler_status_changed = false;
             debug!("scanner, send-message, nonempty, {}, {}",
                     self.model.size() - self.last_sent_model_length, self.model.size());
 
         } else if full_scanned_no_update && self.is_scanner_status_changed {
             // send out the empty message
-            sent_message = self.send_packet();
+            self.send_packet();
             self.is_scanner_status_changed = false;
             debug!("scanner, send-message, empty, {}, {}",
                     self.model.size() - self.last_sent_model_length, self.model.size());
         }
         if self.learner.set_gamma(current_gamma, root_gamma) {
             self.is_scanner_status_changed = true;
+            true
+        } else {
+            false
         }
-        sent_message
     }
 
     fn update_assignment(&mut self) {
