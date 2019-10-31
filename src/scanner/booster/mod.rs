@@ -100,7 +100,7 @@ impl Boosting {
     }
 
     fn init(&mut self) {
-        while !self.training_loader.is_empty() {
+        while self.training_loader.is_empty() {
             self.training_loader.try_switch();
             sleep(Duration::from_millis(2000));
         }

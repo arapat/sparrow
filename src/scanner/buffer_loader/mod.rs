@@ -191,7 +191,7 @@ impl BufferLoader {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.examples.len() == 0
+        self.examples.is_empty()
     }
 }
 
