@@ -84,7 +84,7 @@ impl Tree {
     }
 
     // TODO: allow update root
-    pub fn add_root(&mut self, pred_value: f32, gamma: f32) {
+    pub fn add_root(&mut self, pred_value: f32, gamma: f32) -> usize {
         assert_eq!(self.tree_size, 0);
 
         self.parent.push(0);
@@ -97,9 +97,10 @@ impl Tree {
         self.tree_size += 1;
 
         self.last_gamma = gamma;
-        self.model_updates.add(0, 0, 0, false, pred_value, vec![], true);
+        self.model_updates.add(-1, 0, 0, false, pred_value, vec![], true);
 
-        debug!("new-tree-node, 0, true, 0, 0, 0, 0, false, {}", pred_value)
+        debug!("new-tree-node, 0, true, 0, 0, 0, 0, false, {}", pred_value);
+        0
     }
 
     fn add_node(
@@ -129,7 +130,7 @@ impl Tree {
         self.last_gamma = gamma;
         let condition = self.get_conditions(new_index);
         self.model_updates.add(
-            parent, feature, threshold, evaluation, pred_value, condition, is_new);
+            parent as i32, feature, threshold, evaluation, pred_value, condition, is_new);
         debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
                new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
         new_index
@@ -220,10 +221,14 @@ impl Tree {
         let prev_tree_size = self.tree_size;
         let mut node_indices = vec![];
         for i in 0..patch.size {
-            node_indices.push(self.add_node(
-                patch.parent[i], patch.feature[i], patch.threshold[i],
-                patch.evaluation[i], patch.predicts[i], 0.0,
-            ));
+            if patch.parent[i] < 0 {
+                node_indices.push(self.add_root(patch.predicts[i], 0.0));
+            } else {
+                node_indices.push(self.add_node(
+                    patch.parent[i] as usize, patch.feature[i], patch.threshold[i],
+                    patch.evaluation[i], patch.predicts[i], 0.0,
+                ));
+            }
         }
         self.last_gamma = last_gamma;
         self.base_version = self.model_updates.size;
@@ -276,7 +281,7 @@ impl Eq for Tree {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateList {
     pub size:   usize,
-    pub parent:     Vec<usize>,
+    pub parent:     Vec<i32>,
     pub feature:    Vec<usize>,
     pub threshold:  Vec<TFeature>,
     pub evaluation: Vec<bool>,
@@ -324,7 +329,7 @@ impl UpdateList {
 
     pub fn add(
         &mut self,
-        parent: usize,
+        parent: i32,
         feature: usize,
         threshold: TFeature,
         evaluation: bool,
