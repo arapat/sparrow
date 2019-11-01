@@ -8,7 +8,7 @@ use std::thread::spawn;
 use tmsn::network::start_network_only_recv;
 
 use commons::Model;
-use commons::ModelSig;
+use commons::NetworkPacket;
 use commons::channel::Sender;
 use commons::performance_monitor::PerformanceMonitor;
 
@@ -35,7 +35,7 @@ pub fn start_model_sync(
     sampler_state: Arc<RwLock<bool>>,
 ) {
     upload_model(&init_tree, &init_model_name, default_gamma, default_gamma, &exp_name);
-    let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
+    let (local_s, local_r): (mpsc::Sender<NetworkPacket>, mpsc::Receiver<NetworkPacket>) =
         mpsc::channel();
     start_network_only_recv(name.as_ref(), &remote_ips, port, local_s);
     spawn(move || {
@@ -54,7 +54,7 @@ fn model_sync_main(
     max_num_trees: usize,
     max_depth: usize,
     num_machines: usize,
-    receiver: mpsc::Receiver<ModelSig>,
+    receiver: mpsc::Receiver<NetworkPacket>,
     next_model_sender: Sender<(Model, String)>,
     default_gamma: f32,
     min_gamma: f32,
@@ -230,7 +230,7 @@ fn model_sync_main(
             }
             continue;
         }
-        let (patch, remote_gamma, sample_version, old_sig, new_sig) = packet.unwrap();
+        let (packet_sig, patch, remote_gamma, sample_version, old_sig, new_sig) = packet.unwrap();
         let machine_name = {
             let t: Vec<&str> = new_sig.rsplitn(2, '_').collect();
             t[1].to_string()
@@ -263,10 +263,10 @@ fn model_sync_main(
                 worker_assign[machine_id] = None;
                 failed_searches += 1;
                 let duration = global_timer.get_duration() - node_timestamp[node_id];
-                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                debug!("model_manager, empty, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                         machine_id, node_id, node_count, model.depth[node_id], remote_gamma,
                         failed_searches, node_sum_gamma_sq[node_id], duration,
-                        node_sum_gamma_sq[node_id] / duration);
+                        node_sum_gamma_sq[node_id] / duration, packet_sig);
                 if node_id == 0 {
                     let old_gamma = root_gamma;
                     root_gamma *= 0.8;
@@ -282,13 +282,14 @@ fn model_sync_main(
                     }
                 }
             } else {
-                debug!("model_manager, empty with no assignment, {}", machine_id);
+                debug!("model_manager, empty with no assignment, {}, {}", packet_sig, machine_id);
             }
             continue;
         }
         nonempty_packets += 1;
         if old_sig != model_sig {
-            debug!("model_manager, reject for base model mismatch, {}, {}", model_sig, old_sig);
+            debug!("model_manager, reject for base model mismatch, {}, {}, {}",
+                    model_sig, old_sig, packet_sig);
             num_updates_rejs[machine_id] += 1;
             rejected_packets += 1;
             rejected_packets_model += 1;
@@ -298,8 +299,8 @@ fn model_sync_main(
             *(current_sample_version.read().unwrap())
         };
         if sample_version != current_version {
-            debug!("model_manager, reject for sample version mismatch, {}, {}",
-                   current_version, sample_version);
+            debug!("model_manager, reject for sample version mismatch, {}, {}, {}",
+                   current_version, sample_version, packet_sig);
             num_updates_rejs[machine_id] += 1;
             rejected_packets += 1;
             continue;
@@ -314,9 +315,9 @@ fn model_sync_main(
         next_model_sender.send((model.clone(), model_sig.clone()));
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
-        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}",
-                machine_id, node_id, node_count, model.depth[node_id], remote_gamma, patch.size,
-                count_new, count_updates);
+        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                packet_sig, machine_id, node_id, node_count, model.depth[node_id], remote_gamma,
+                patch.size, count_new, count_updates);
         if upload_model(&model, &model_sig, gamma, root_gamma, exp_name) {
             debug!("model_manager, accept, {}, {}, {}, {}",
                     old_sig, model_sig, machine_name, patch.size);

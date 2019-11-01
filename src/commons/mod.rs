@@ -22,7 +22,8 @@ pub type ExampleInSampleSet = (Example, (f32, f32, usize, usize));  // weight, s
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Tree;
 // Signature of a model patch must start with "machineID_"
-pub type ModelSig = (UpdateList, f32, usize, String, String);
+// (packet_sig, patch, gamma_value, sample_version, base_signature, new_signature)
+pub type NetworkPacket = (String, UpdateList, f32, usize, String, String);
 
 const DELTA: f32  = 0.000001;
 const SHRINK: f32 = 1.0;

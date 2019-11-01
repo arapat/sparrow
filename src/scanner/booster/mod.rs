@@ -13,7 +13,7 @@ use self::learner::get_base_node;
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::ModelSig;
+use commons::NetworkPacket;
 use commons::bins::Bins;
 use self::learner::Learner;
 
@@ -30,9 +30,10 @@ pub struct Boosting {
     base_model_sig: String,
     base_model_size: usize,
 
-    network_sender: Option<mpsc::Sender<ModelSig>>,
+    network_sender: Option<mpsc::Sender<NetworkPacket>>,
     local_name: String,
     local_id: usize,
+    packet_counter: usize,
 
     last_sent_model_length: usize,
     // for re-sending the non-empty packet if the sampler status changed
@@ -90,6 +91,7 @@ impl Boosting {
             network_sender: None,
             local_name: "".to_string(),
             local_id: 0,
+            packet_counter: 0,
 
             persist_id: 0,
             save_interval: save_interval,
@@ -142,7 +144,7 @@ impl Boosting {
     /// and is only used for debugging purpose.
     /// `port` is the port number that used for network communication.
     pub fn enable_network(&mut self, name: String, port: u16) {
-        let (local_s, local_r): (mpsc::Sender<ModelSig>, mpsc::Receiver<ModelSig>) =
+        let (local_s, local_r): (mpsc::Sender<NetworkPacket>, mpsc::Receiver<NetworkPacket>) =
             mpsc::channel();
         start_network_only_send(name.as_ref(), port, local_r);
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
@@ -240,15 +242,18 @@ impl Boosting {
         self.check_remote_model_and_gamma(full_scanned_no_update)
     }
 
-    fn get_model_sig(&self) -> String {
-        self.local_name.clone() + "_" + &self.model.size().to_string()
+    fn get_signatures(&self, packet_counter: usize) -> (String, String) {
+        let model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
+        (format!("packet_{}_{}", model_sig, packet_counter), model_sig)
     }
 
     fn send_packet(&mut self) -> bool {
-        let new_model_sig = self.get_model_sig();
+        self.packet_counter += 1;
+        let (packet_sig, new_model_sig) = self.get_signatures(self.packet_counter);
         let tree_slice = self.model.model_updates.create_slice(
             self.last_sent_model_length..self.model.size());
-        let packet: ModelSig = (
+        let packet: NetworkPacket = (
+            packet_sig,
             tree_slice,
             self.learner.rho_gamma,
             self.training_loader.current_version,

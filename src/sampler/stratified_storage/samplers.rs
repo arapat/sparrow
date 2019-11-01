@@ -163,6 +163,7 @@ fn sampler(
         let mut sampled_example = None;
         let mut sampled_trials = 0;
         pm3_total.resume();
+        let mut last_error_timer = pm3_total.get_duration();
         while sampled_example.is_none() {
             sampled_trials += 1;
             pm1.resume();
@@ -204,8 +205,10 @@ fn sampler(
             updated_examples.send((example, (updated_score, model_size)));
             num_updated += 1;
             pm_update.update(1);
-            if sampled_trials % 100 == 0 {
-                debug!("sampler, keep failing, {}, {}", index, sampled_trials);
+            if pm3_total.get_duration() - last_error_timer >= 10.0 {
+                debug!("sampler, rejection high in one stratum, {}, {}, {}, {}",
+                            index, *grid, grid_size, sampled_trials);
+                last_error_timer = pm3_total.get_duration();
             }
         }
         pm3_total.pause();
