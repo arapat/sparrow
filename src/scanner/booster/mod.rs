@@ -38,7 +38,7 @@ pub struct Boosting {
     last_sent_model_length: usize,
     // for re-sending the non-empty packet if the sampler status changed
     // track: sample version
-    is_sampler_status_changed: bool,
+    is_sample_version_changed: bool,
     // for re-sending the empty packet if the scanner status changed
     // track: expanding node, gamma value
     is_scanner_status_changed: bool,
@@ -84,7 +84,7 @@ impl Boosting {
             base_model_sig: "".to_string(),
             base_model_size: 0,
 
-            is_sampler_status_changed: true,
+            is_sample_version_changed: true,
             is_scanner_status_changed: true,
             last_sent_model_length: 0,
 
@@ -190,7 +190,7 @@ impl Boosting {
             global_timer.update(batch_size);
 
             if switched {
-                self.is_sampler_status_changed = true;
+                self.is_sample_version_changed = true;
                 self.update_model(
                     self.training_loader.base_model.clone(),
                     self.training_loader.base_model_sig.clone(),
@@ -285,10 +285,10 @@ impl Boosting {
         if remote_model_sig != self.base_model_sig {
             self.update_model(remote_model, remote_model_sig);
         } else if self.model.size() > self.last_sent_model_length ||
-                    self.is_sampler_status_changed {
+                    self.is_sample_version_changed {
             // send out the local patch
             self.send_packet();
-            self.is_sampler_status_changed = false;
+            self.is_sample_version_changed = false;
             debug!("scanner, send-message, nonempty, {}, {}",
                     self.model.size() - self.last_sent_model_length, self.model.size());
         } else if full_scanned_no_update && self.is_scanner_status_changed {

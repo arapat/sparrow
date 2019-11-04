@@ -25,25 +25,24 @@ impl Gamma {
         self.gamma >= self.min_gamma
     }
 
-    pub fn adjust(&mut self, packet_stats: &mut PacketStats) -> bool {
+    pub fn adjust(&mut self, packet_stats: &PacketStats) -> bool {
         if !packet_stats.is_triggered() {
             return false;
         }
-        packet_stats.update_condition();
         if packet_stats.is_nonroot_same_trend() {
             self.shrink_factor = (0.8 + self.shrink_factor) / 2.0;
         } else if packet_stats.is_nonroot_opposite_trend() {
             self.shrink_factor = (1.0 + self.shrink_factor) / 2.0;
         }
         self.gamma = match packet_stats.curr_nonroot_condition {
-            UpdateSpeed::TooFast => self.gamma / self.shrink_factor,
-            UpdateSpeed::TooSlow => self.gamma * self.shrink_factor,
+            UpdateSpeed::TooFast => self.gamma / self.shrink_factor,  // increase gamma
+            UpdateSpeed::TooSlow => self.gamma * self.shrink_factor,  // decrease gamma
             UpdateSpeed::Okay    => self.gamma,
         };
         if packet_stats.curr_nonroot_condition != UpdateSpeed::Okay {
             // gamma is changed
             self.gamma_version += 1;
-            debug!("model_mamanger, gamma update, {}, {}, {}, {}",
+            debug!("model_mamanger, gamma update, non-root, {}, {}, {}, {}",
                     self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor);
             true
         } else {
@@ -54,7 +53,7 @@ impl Gamma {
     pub fn decrease_root_gamma(&mut self) {
         self.root_gamma *= 0.8;
         self.gamma_version += 1;
-        debug!("model_manager, gamma update, {}, {}, {}, {}",
+        debug!("model_manager, gamma update, root, {}, {}, {}, {}",
                 self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor);
     }
 }

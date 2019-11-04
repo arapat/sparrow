@@ -110,9 +110,10 @@ impl PacketStats {
                 self.num_rej_packs[machine_id] += 1;
             },
         };
+        self.update_condition();
     }
 
-    pub fn update_condition(&mut self) {
+    fn update_condition(&mut self) {
         self.last_nonroot_condition = self.curr_nonroot_condition.clone();
         let (rate, cond) = get_condition_updates(
             self.accept_nonroot_packets, self.empty_nonroot_packets, self.avg_accept_nonroot_rate,

@@ -152,18 +152,11 @@ impl ModelSync {
         // start listening to network
         let mut global_timer = PerformanceMonitor::new();
         global_timer.start();
+        let mut num_consecutive_err = 0;
         let mut last_timestamp = global_timer.get_duration();
-        let mut continue_training = self.gamma.is_valid() && (
-                self.num_iterations <= 0 || self.model_stats.model.size() < self.num_iterations);
-        while continue_training {
-            continue_training = {
-                let t = self.sampler_state.read().unwrap();
-                *t && self.gamma.is_valid() && (
-                    self.num_iterations <= 0 || self.model_stats.model.size() < self.num_iterations)
-            };
-
+        while self.continue_training() {
             // adjust gamma
-            if self.gamma.adjust(&mut packet_stats) {
+            if self.gamma.adjust(&packet_stats) {
                 self.broadcast_model(last_timestamp, false);
                 packet_stats.reset();
                 // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
@@ -173,7 +166,7 @@ impl ModelSync {
             // Update assignments
             let num_updates = scheduler.update(&self.model_stats, self.gamma.gamma);
             if num_updates <= 0 && global_timer.get_duration() - last_cluster_update >= 10.0 {
-                scheduler.print_log();
+                scheduler.print_log(num_consecutive_err);
                 last_cluster_update = global_timer.get_duration();
             } else if num_updates > 0 {
                 last_cluster_update = global_timer.get_duration();
@@ -183,24 +176,24 @@ impl ModelSync {
             let packet = packet_receiver.try_recv();
             if packet.is_err() {
                 // debug!("model_manager, packet error, {:?}", packet);
+                num_consecutive_err += 1;
                 continue;
             }
+            num_consecutive_err = 0;
             let packet: Packet = packet.unwrap();
-            // TODO: adjust any gamma needs to be re-upload
             let packet_type = packet.get_packet_type(
                 &self.current_sample_version, &self.model_stats.model_sig);
             packet_stats.handle_new_packet(&packet, &packet_type);
             let node_count = self.get_node_counts(packet.node_id);
             match packet_type {
-                PacketType::EmptyRoot => {
+                PacketType::EmptyRoot | PacketType::EmptyNonroot => {
                     scheduler.handle_failure(&packet, node_count);
-                    self.gamma.decrease_root_gamma();
-                    self.broadcast_model(last_timestamp, false);
+                    if packet.node_id == 0 {  // is root
+                        self.gamma.decrease_root_gamma();
+                        self.broadcast_model(last_timestamp, false);
+                    }
                 },
-                PacketType::EmptyNonroot => {
-                    scheduler.handle_failure(&packet, node_count);
-                },
-                PacketType::AcceptNonroot => {
+                PacketType::AcceptNonroot | PacketType::AcceptRoot => {
                     last_timestamp = global_timer.get_duration();
                     let num_new_nodes =
                         self.update_model(&packet, node_count, last_timestamp);
@@ -208,28 +201,19 @@ impl ModelSync {
                     if scheduler.handle_success(&packet, &self.model_stats, node_count) {
                         // the tree node can no longer be extended
                         self.model_stats.avail_nodes -= 1;
+                        if packet.node_id == 0 {  // is root
+                            self.model_stats.avail_new_tree -= 1;
+                        }
                     }
                 },
-                PacketType::AcceptRoot => {
-                    last_timestamp = global_timer.get_duration();
-                    let num_new_nodes =
-                        self.update_model(&packet, node_count, last_timestamp);
-                    scheduler.append_new_nodes(num_new_nodes);
-                    if scheduler.handle_success(&packet, &self.model_stats, node_count) {
-                        // the tree node can no longer be extended
-                        self.model_stats.avail_nodes -= 1;
-                        self.model_stats.avail_new_tree -= 1;
-                    }
-                },
-                PacketType::RejectBaseModel => {
-                },
-                PacketType::RejectSample => {
+                PacketType::RejectBaseModel | PacketType::RejectSample => {
+                    // TODO: Reject because of the sample version might not be necessary
                 },
             }
         }
 
         info!("Model sync quits, {}, Model length, {}, Is gamma significant, {}",
-                continue_training, self.model_stats.model.size(), self.gamma.is_valid());
+                self.continue_training(), self.model_stats.model.size(), self.gamma.is_valid());
         write_model(&self.model_stats.model, last_timestamp, false);
         {
             debug!("sampler state, false, model sync quits");
@@ -275,5 +259,11 @@ impl ModelSync {
         } else {
             c[node_id]
         }
+    }
+
+    fn continue_training(&self) -> bool {
+        let t = self.sampler_state.read().unwrap();
+        *t && self.gamma.is_valid() && (
+            self.num_iterations <= 0 || self.model_stats.model.size() < self.num_iterations)
     }
 }
