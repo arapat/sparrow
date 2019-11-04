@@ -12,8 +12,8 @@ use self::learner::get_base_node;
 
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
+use commons::packet::Packet;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::NetworkPacket;
 use commons::bins::Bins;
 use self::learner::Learner;
 
@@ -30,7 +30,7 @@ pub struct Boosting {
     base_model_sig: String,
     base_model_size: usize,
 
-    network_sender: Option<mpsc::Sender<NetworkPacket>>,
+    network_sender: Option<mpsc::Sender<Packet>>,
     local_name: String,
     local_id: usize,
     packet_counter: usize,
@@ -144,7 +144,7 @@ impl Boosting {
     /// and is only used for debugging purpose.
     /// `port` is the port number that used for network communication.
     pub fn enable_network(&mut self, name: String, port: u16) {
-        let (local_s, local_r): (mpsc::Sender<NetworkPacket>, mpsc::Receiver<NetworkPacket>) =
+        let (local_s, local_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) =
             mpsc::channel();
         start_network_only_send(name.as_ref(), port, local_r);
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
@@ -242,23 +242,20 @@ impl Boosting {
         self.check_remote_model_and_gamma(full_scanned_no_update)
     }
 
-    fn get_signatures(&self, packet_counter: usize) -> (String, String) {
-        let model_sig = self.local_name.clone() + "_" + &self.model.size().to_string();
-        (format!("packet_{}_{}", model_sig, packet_counter), model_sig)
-    }
-
     fn send_packet(&mut self) -> bool {
         self.packet_counter += 1;
-        let (packet_sig, new_model_sig) = self.get_signatures(self.packet_counter);
         let tree_slice = self.model.model_updates.create_slice(
             self.last_sent_model_length..self.model.size());
-        let packet: NetworkPacket = (
-            packet_sig,
+        let packet = Packet::new(
+            &self.local_name,
+            self.local_id,
+            self.packet_counter,
+            self.learner.expand_node,
+            self.model.size(),
             tree_slice,
             self.learner.rho_gamma,
             self.training_loader.current_version,
             self.base_model_sig.clone(),
-            new_model_sig,
         );
         let send_result = self.network_sender.as_ref().unwrap()
                                 .send(packet);
