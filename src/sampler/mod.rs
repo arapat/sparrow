@@ -15,6 +15,7 @@ use commons::channel;
 use commons::io::raw_read_all;
 use commons::Model;
 use commons::bins::Bins;
+use commons::INIT_MODEL_PREFIX;
 use config::Config;
 use config::SampleMode;
 
@@ -31,7 +32,7 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
     let gen_sample_version = Arc::new(RwLock::new(0));
     debug!("Starting the stratified structure.");
-    let init_model_name = "init".to_string();
+    let init_model_name = INIT_MODEL_PREFIX.to_string();
     let stratified_structure = StratifiedStorage::new(
         init_tree.clone(),
         init_model_name.clone(),

@@ -3,6 +3,7 @@ mod learner;
 use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
+use std::fmt::Display;
 use tmsn::network::start_network_only_send;
 
 use commons::persistent_io::download_assignments;
@@ -10,6 +11,7 @@ use commons::persistent_io::download_model;
 use commons::persistent_io::write_model;
 use self::learner::get_base_node;
 
+use commons::INIT_MODEL_PREFIX;
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
 use commons::bins::Bins;
@@ -50,6 +52,7 @@ pub struct Boosting {
 
     max_sample_size: usize,
     save_process: bool,
+    verbose: bool,
 }
 
 impl Boosting {
@@ -100,6 +103,7 @@ impl Boosting {
 
             max_sample_size: max_sample_size,
             save_process: save_process,
+            verbose: false,
         }
     }
 
@@ -109,7 +113,7 @@ impl Boosting {
             sleep(Duration::from_millis(2000));
         }
         debug!("booster, first sample is loaded");
-        while self.base_model_sig != "init" {
+        while !self.base_model_sig.starts_with(INIT_MODEL_PREFIX) {
             self.handle_network(false);
             sleep(Duration::from_secs(2));
         }
@@ -175,6 +179,7 @@ impl Boosting {
         let mut last_logging_ts = global_timer.get_duration();
 
         let mut total_data_size_without_fire = 0;
+        self.verbose = false;
         while self.learner.is_gamma_significant() &&
                 (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
             if global_timer.get_duration() - last_logging_ts >= 10.0 {
@@ -182,7 +187,7 @@ impl Boosting {
                 last_logging_ts = global_timer.get_duration();
             }
 
-            debug!("Line 185");
+            self.print_verbose_log("Line 185");
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -198,10 +203,10 @@ impl Boosting {
             };
             total_data_size_without_fire += batch_size;
             global_timer.update(batch_size);
-            debug!("Line 201");
+            self.print_verbose_log("Line 201");
 
             if switched {
-                debug!("Line 204");
+                self.print_verbose_log("Line 204");
                 self.is_sample_version_changed = true;
                 self.update_model(
                     self.training_loader.base_model.clone(),
@@ -209,7 +214,7 @@ impl Boosting {
                     "loader",
                 );
             }
-            debug!("Line 212");
+            self.print_verbose_log("Line 212");
             let is_new_rule_added = self.process_new_rule(
                 new_rule, total_data_size_without_fire, prep_time + global_timer.get_duration());
 
@@ -217,7 +222,7 @@ impl Boosting {
                 total_data_size_without_fire = 0;
             }
 
-            debug!("Line 220");
+            self.print_verbose_log("Line 220");
             let is_communicated = self.handle_network(
                 total_data_size_without_fire >= self.training_loader.size);
             if is_communicated {
@@ -225,7 +230,7 @@ impl Boosting {
                 _last_communication_ts = global_timer.get_duration();
             }
 
-            debug!("Line 228");
+            self.print_verbose_log("Line 228");
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
@@ -372,5 +377,11 @@ impl Boosting {
                     self.is_sample_version_changed.to_string(),
                 ].join(", ")
         );
+    }
+
+    fn print_verbose_log<T>(&self, message: T) where T: Display {
+        if self.verbose {
+            debug!("booster, verbose, {}", message);
+        }
     }
 }
