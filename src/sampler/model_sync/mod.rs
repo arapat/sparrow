@@ -156,7 +156,8 @@ impl ModelSync {
         let mut last_timestamp = global_timer.get_duration();
         while self.continue_training() {
             // adjust gamma
-            if self.gamma.adjust(&packet_stats) {
+            let avail_nodes = self.model_stats.avail_nodes;
+            if self.gamma.adjust(&packet_stats, avail_nodes) {
                 self.broadcast_model(last_timestamp, false);
                 packet_stats.reset();
                 // TODO: should we allow re-assessing all tree nodes if we have increased gamma,

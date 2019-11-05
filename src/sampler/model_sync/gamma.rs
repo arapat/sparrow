@@ -25,8 +25,8 @@ impl Gamma {
         self.gamma >= self.min_gamma
     }
 
-    pub fn adjust(&mut self, packet_stats: &PacketStats) -> bool {
-        if !packet_stats.is_triggered() {
+    pub fn adjust(&mut self, packet_stats: &PacketStats, avail_nodes: usize) -> bool {
+        if !packet_stats.is_triggered(avail_nodes) {
             return false;
         }
         if packet_stats.is_nonroot_same_trend() {

@@ -1,4 +1,5 @@
 use std::cmp::max;
+use std::cmp::min;
 
 use commons::packet::Packet;
 use commons::packet::PacketType;
@@ -123,8 +124,8 @@ impl PacketStats {
         self.curr_nonroot_condition = cond;
     }
 
-    pub fn is_triggered(&self) -> bool {
-        self.total_packets >= max(10, self.num_machines * 2)
+    pub fn is_triggered(&self, avail_nodes: usize) -> bool {
+        self.total_packets >= min(avail_nodes, max(10, self.num_machines * 2))
     }
 
     pub fn is_nonroot_same_trend(&self) -> bool {

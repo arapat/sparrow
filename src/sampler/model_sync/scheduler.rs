@@ -121,8 +121,8 @@ impl Scheduler {
     pub fn print_log(&self, num_consecutive_err: u32) {
         let node_status: Vec<Option<_>> = self.node_status.iter().map(|t| t.1).collect();
         debug!("model_manager, cluster status, {}, {}, {}",
-                num_consecutive_err, vec_to_string(&node_status),
-                vec_to_string(&self.scanner_task));
+                num_consecutive_err,
+                vec_to_string(&self.scanner_task), vec_to_string(&node_status));
     }
 }
 
