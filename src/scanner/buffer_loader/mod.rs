@@ -142,9 +142,15 @@ impl BufferLoader {
             self.sampling_pm.pause();
             return false;
         }
+        let mut new_buffer = new_buffer.unwrap();
+        if new_buffer.is_none() {
+            self.sampling_pm.pause();
+            return false;
+        }
 
         let (new_version, new_examples, new_model, model_sig): VersionedSampleModel =
-            new_buffer.unwrap().take().unwrap();
+            new_buffer.take().unwrap();
+        drop(new_buffer);
         let old_version = self.current_version;
         self.current_version = new_version;
         self.examples = set_init_weight(new_examples);
