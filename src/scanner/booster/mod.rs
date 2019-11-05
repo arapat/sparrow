@@ -182,6 +182,7 @@ impl Boosting {
                 last_logging_ts = global_timer.get_duration();
             }
 
+            debug!("Line 185");
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -197,8 +198,10 @@ impl Boosting {
             };
             total_data_size_without_fire += batch_size;
             global_timer.update(batch_size);
+            debug!("Line 201");
 
             if switched {
+                debug!("Line 204");
                 self.is_sample_version_changed = true;
                 self.update_model(
                     self.training_loader.base_model.clone(),
@@ -206,6 +209,7 @@ impl Boosting {
                     "loader",
                 );
             }
+            debug!("Line 212");
             let is_new_rule_added = self.process_new_rule(
                 new_rule, total_data_size_without_fire, prep_time + global_timer.get_duration());
 
@@ -213,6 +217,7 @@ impl Boosting {
                 total_data_size_without_fire = 0;
             }
 
+            debug!("Line 220");
             let is_communicated = self.handle_network(
                 total_data_size_without_fire >= self.training_loader.size);
             if is_communicated {
@@ -220,6 +225,7 @@ impl Boosting {
                 _last_communication_ts = global_timer.get_duration();
             }
 
+            debug!("Line 228");
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
