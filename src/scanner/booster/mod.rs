@@ -171,10 +171,16 @@ impl Boosting {
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
         let mut last_communication_ts = global_timer.get_duration();
+        let mut last_logging_ts = global_timer.get_duration();
 
         let mut total_data_size_without_fire = 0;
         while self.learner.is_gamma_significant() &&
                 (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
+            if global_timer.get_duration() - last_logging_ts >= 10.0 {
+                self.print_log(total_data_size_without_fire);
+                last_logging_ts = global_timer.get_duration();
+            }
+
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -207,12 +213,8 @@ impl Boosting {
 
             let is_communicated = self.handle_network(
                 total_data_size_without_fire >= self.training_loader.size);
-            let silence_window = global_timer.get_duration() - last_communication_ts;
             if is_communicated {
                 total_data_size_without_fire = 0;
-                last_communication_ts = global_timer.get_duration();
-            } else if silence_window >= 10.0 {
-                self.print_log(total_data_size_without_fire);
                 last_communication_ts = global_timer.get_duration();
             }
 
