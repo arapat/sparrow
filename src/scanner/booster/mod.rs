@@ -124,7 +124,7 @@ impl Boosting {
               self.model.size(), max_sample_size, max_sample_size, 0, 0);
     }
 
-    fn update_model(&mut self, model: Model, model_sig: String) {
+    fn update_model(&mut self, model: Model, model_sig: String, source: &str) {
         let (old_size, old_base_size) = (self.model.size(), self.base_model_size);
         self.model = model;
         self.base_model_sig = model_sig;
@@ -138,8 +138,8 @@ impl Boosting {
             self.training_loader.reset_scores();
         }
         self.learner.reset();
-        debug!("model-replaced, {}, {}, {}",
-                self.model.size(), old_size, self.base_model_sig);
+        debug!("model-replaced, {}, {}, {}, {}",
+                self.model.size(), old_size, self.base_model_sig, source);
     }
 
     /// Enable network communication. `name` is the name of this worker, which can be arbitrary
@@ -166,11 +166,12 @@ impl Boosting {
     ) {
         debug!("Start training.");
         self.init();
+        debug!("Finished initialization");
 
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
-        let mut last_communication_ts = global_timer.get_duration();
+        let mut _last_communication_ts = global_timer.get_duration();
         let mut last_logging_ts = global_timer.get_duration();
 
         let mut total_data_size_without_fire = 0;
@@ -202,6 +203,7 @@ impl Boosting {
                 self.update_model(
                     self.training_loader.base_model.clone(),
                     self.training_loader.base_model_sig.clone(),
+                    "loader",
                 );
             }
             let is_new_rule_added = self.process_new_rule(
@@ -215,7 +217,7 @@ impl Boosting {
                 total_data_size_without_fire >= self.training_loader.size);
             if is_communicated {
                 total_data_size_without_fire = 0;
-                last_communication_ts = global_timer.get_duration();
+                _last_communication_ts = global_timer.get_duration();
             }
 
             global_timer.write_log("boosting-overall");
@@ -282,7 +284,7 @@ impl Boosting {
         // If it is newer, overwrite local model
         // Otherwise, push the current update to remote
         if remote_model_sig != self.base_model_sig {
-            self.update_model(remote_model, remote_model_sig);
+            self.update_model(remote_model, remote_model_sig, "network");
             false
         } else if self.model.size() > self.last_sent_model_length ||
                     self.is_sample_version_changed {

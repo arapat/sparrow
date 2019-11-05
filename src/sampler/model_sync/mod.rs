@@ -143,7 +143,7 @@ impl ModelSync {
 
     pub fn run_with_network(&mut self) {
         let global_timer = PerformanceMonitor::new();
-        let mut last_cluster_update = global_timer.get_duration();
+        let mut _last_cluster_update = global_timer.get_duration();
         let mut packet_stats = self.packet_stats.take().unwrap();
         let mut scheduler = Scheduler::new(
             packet_stats.num_machines, &self.model_stats, &self.exp_name);
@@ -174,7 +174,7 @@ impl ModelSync {
             // Update assignments
             let num_updates = scheduler.update(&self.model_stats, self.gamma.gamma);
             if num_updates > 0 {
-                last_cluster_update = global_timer.get_duration();
+                _last_cluster_update = global_timer.get_duration();
             }
 
             // Handle packets
