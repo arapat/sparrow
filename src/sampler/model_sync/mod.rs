@@ -180,7 +180,8 @@ impl ModelSync {
                 continue;
             }
             num_consecutive_err = 0;
-            let packet: Packet = packet.unwrap();
+            let mut packet: Packet = packet.unwrap();
+            packet.source_machine_id = packet.source_machine_id % packet_stats.num_machines;
             let packet_type = packet.get_packet_type(
                 &self.current_sample_version, &self.model_stats.model_sig);
             packet_stats.handle_new_packet(&packet, &packet_type);
