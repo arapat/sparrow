@@ -77,7 +77,7 @@ impl PacketStats {
 
     pub fn handle_new_packet(&mut self, packet: &Packet, packet_type: &PacketType) {
         self.total_packets += 1;
-        let machine_id = packet.source_machine_id;
+        let machine_id = packet.source_machine_id % self.num_machines;
         self.num_packs[machine_id] += 1;
         match packet_type {
             PacketType::AcceptRoot => {
