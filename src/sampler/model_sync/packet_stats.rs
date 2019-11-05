@@ -164,8 +164,8 @@ impl PacketStats {
             .for_each(|t| *t = 0);
     }
 
-    fn print_log(&self) {
-        debug!("model_manager, packet stats, {}",
+    pub fn print_log(&self) {
+        debug!("model_manager, packet stats, status, {}",
             (vec![
                 self.total_packets.to_string(),
                 self.empty_packets.to_string(),

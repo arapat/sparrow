@@ -166,10 +166,12 @@ impl ModelSync {
 
             // Update assignments
             let num_updates = scheduler.update(&self.model_stats, self.gamma.gamma);
-            if num_updates <= 0 && global_timer.get_duration() - last_cluster_update >= 10.0 {
-                scheduler.print_log(num_consecutive_err);
+            let no_cluster_update_window = global_timer.get_duration() - last_cluster_update;
+            if num_updates > 0 {
                 last_cluster_update = global_timer.get_duration();
-            } else if num_updates > 0 {
+            } else if no_cluster_update_window >= 10.0 {
+                scheduler.print_log(num_consecutive_err);
+                packet_stats.print_log();
                 last_cluster_update = global_timer.get_duration();
             }
 

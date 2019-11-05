@@ -16,6 +16,7 @@ use commons::packet::Packet;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::bins::Bins;
 use self::learner::Learner;
+use self::learner::TreeNode;
 
 
 /// The boosting algorithm. It contains two functions, one for starting
@@ -168,10 +169,10 @@ impl Boosting {
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
+        let mut last_communication_ts = global_timer.get_duration();
 
-        let mut is_gamma_significant = true;
-        let mut total_data_size = 0;
-        while is_gamma_significant &&
+        let mut total_data_size_without_fire = 0;
+        while self.learner.is_gamma_significant() &&
                 (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
@@ -186,7 +187,7 @@ impl Boosting {
                 learner_timer.pause();
                 (new_rule, data.len(), switched)
             };
-            total_data_size += batch_size;
+            total_data_size_without_fire += batch_size;
             global_timer.update(batch_size);
 
             if switched {
@@ -196,33 +197,22 @@ impl Boosting {
                     self.training_loader.base_model_sig.clone(),
                 );
             }
+            let is_new_rule_added = self.process_new_rule(
+                new_rule, total_data_size_without_fire, prep_time + global_timer.get_duration());
 
-            if new_rule.is_some() {
-                let new_rule = new_rule.unwrap();
-                new_rule.write_log();
-                let index = self.model.add_nodes(
-                    new_rule.prt_index,
-                    new_rule.feature,
-                    new_rule.threshold,
-                    new_rule.predict,
-                    new_rule.gamma,
-                );
-                info!("scanner, added new rule, {}, {}, {}, {}, {}",
-                      self.model.size(), new_rule.num_scanned, total_data_size, index.0, index.1);
-
-                // post updates
-                is_gamma_significant = self.learner.is_gamma_significant();
-                self.learner.reset();
-                if self.model.size() % self.save_interval == 0 {
-                    self.handle_persistent(prep_time + global_timer.get_duration());
-                }
-                self.is_scanner_status_changed = true;
-                total_data_size = 0;
+            if is_new_rule_added {
+                total_data_size_without_fire = 0;
             }
 
-            let full_scanned_no_update = total_data_size >= self.training_loader.size;
-            if self.handle_network(full_scanned_no_update) {
-                total_data_size = 0;
+            let is_communicated = self.handle_network(
+                total_data_size_without_fire >= self.training_loader.size);
+            let silence_window = global_timer.get_duration() - last_communication_ts;
+            if is_communicated {
+                total_data_size_without_fire = 0;
+                last_communication_ts = global_timer.get_duration();
+            } else if silence_window >= 10.0 {
+                self.print_log(total_data_size_without_fire);
+                last_communication_ts = global_timer.get_duration();
             }
 
             global_timer.write_log("boosting-overall");
@@ -231,6 +221,32 @@ impl Boosting {
         self.handle_persistent(prep_time + global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
               self.model.size(), self.learner.is_gamma_significant());
+    }
+
+    fn process_new_rule(
+        &mut self, new_rule: Option<TreeNode>, total_data_size: usize, ts: f32,
+    ) -> bool {
+        if new_rule.is_none() {
+            return false;
+        }
+        let rule = new_rule.unwrap();
+        rule.write_log();
+        let (left_index, right_index) = self.model.add_nodes(
+            rule.prt_index,
+            rule.feature,
+            rule.threshold,
+            rule.predict,
+            rule.gamma,
+        );
+        info!("scanner, added new rule, {}, {}, {}, {}, {}",
+                self.model.size(), rule.num_scanned, total_data_size, left_index, right_index);
+        // post updates
+        self.learner.reset();
+        if self.model.size() % self.save_interval == 0 {
+            self.handle_persistent(ts);
+        }
+        self.is_scanner_status_changed = true;
+        true
     }
 
     // return true if gamma changed
@@ -323,5 +339,20 @@ impl Boosting {
     fn handle_persistent(&mut self, timestamp: f32) {
         self.persist_id += 1;
         write_model(&self.model, timestamp, self.save_process);
+    }
+
+    fn print_log(&self, total_data_size_without_fire: usize) {
+        debug!("booster, status, {}",
+                vec![
+                    self.base_model_sig.to_string(),
+                    self.model.size().to_string(),
+                    self.last_sent_model_length.to_string(),
+                    total_data_size_without_fire.to_string(),
+                    self.learner.rho_gamma.to_string(),
+                    self.learner.root_gamma.to_string(),
+                    self.is_scanner_status_changed.to_string(),
+                    self.is_sample_version_changed.to_string(),
+                ].join(", ")
+        );
     }
 }
