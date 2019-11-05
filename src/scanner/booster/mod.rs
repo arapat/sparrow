@@ -12,9 +12,10 @@ use self::learner::get_base_node;
 
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
+use commons::bins::Bins;
 use commons::packet::Packet;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::bins::Bins;
+use commons::persistent_io::ModelPack;
 use self::learner::Learner;
 use self::learner::TreeNode;
 
@@ -249,13 +250,56 @@ impl Boosting {
         true
     }
 
-    // return true if gamma changed
-    fn handle_network(&mut self, full_scanned_no_update: bool) -> bool {
+    // return true if a packet is sent out
+    fn handle_network(&mut self, full_scanned: bool) -> bool {
         if self.network_sender.is_none() {
             return false;
         }
+        let pack = download_model(&self.exp_name);
+        let ret = {
+            if pack.is_some() {
+                let (r_model, r_model_sig, current_gamma, root_gamma): ModelPack = pack.unwrap();
+                let is_packet_sent = self.check_and_send_packet(r_model, r_model_sig, full_scanned);
+                if self.learner.set_gamma(current_gamma, root_gamma) {
+                    self.is_scanner_status_changed = true;
+                }
+                is_packet_sent
+            } else {
+                debug!("booster, download-model, failed");
+                false
+            }
+        };
         self.update_assignment();
-        self.check_remote_model_and_gamma(full_scanned_no_update)
+        ret
+    }
+
+    // return true if a new packet is sent out
+    fn check_and_send_packet(
+        &mut self, remote_model: Model, remote_model_sig: String, full_scanned_no_update: bool,
+    ) -> bool {
+        // If it is newer, overwrite local model
+        // Otherwise, push the current update to remote
+        if remote_model_sig != self.base_model_sig {
+            self.update_model(remote_model, remote_model_sig);
+            false
+        } else if self.model.size() > self.last_sent_model_length ||
+                    self.is_sample_version_changed {
+            // send out the local patch
+            self.send_packet();
+            self.is_sample_version_changed = false;
+            debug!("scanner, send-message, nonempty, {}, {}",
+                    self.model.size() - self.last_sent_model_length, self.model.size());
+            true
+        } else if full_scanned_no_update && self.is_scanner_status_changed {
+            // send out the empty message
+            self.send_packet();
+            self.is_scanner_status_changed = false;
+            debug!("scanner, send-message, empty, {}, {}",
+                    self.model.size() - self.last_sent_model_length, self.model.size());
+            true
+        } else {
+            false
+        }
     }
 
     fn send_packet(&mut self) -> bool {
@@ -283,42 +327,6 @@ impl Boosting {
             info!("Sent the local model to the network module");
             self.last_sent_model_length = self.model.size();
             true
-        }
-    }
-
-    // return true if gamma is changed
-    fn check_remote_model_and_gamma(&mut self, full_scanned_no_update: bool) -> bool {
-        // 0. Get the latest model
-        // 1. If it is newer, overwrite local model
-        // 2. Otherwise, push the current update to remote
-        let model_score = download_model(&self.exp_name);
-        if model_score.is_none() {
-            debug!("booster, download-model, failed");
-            return false;
-        }
-        let (remote_model, remote_model_sig,
-                current_gamma, root_gamma): (Model, String, f32, f32) = model_score.unwrap();
-        if remote_model_sig != self.base_model_sig {
-            self.update_model(remote_model, remote_model_sig);
-        } else if self.model.size() > self.last_sent_model_length ||
-                    self.is_sample_version_changed {
-            // send out the local patch
-            self.send_packet();
-            self.is_sample_version_changed = false;
-            debug!("scanner, send-message, nonempty, {}, {}",
-                    self.model.size() - self.last_sent_model_length, self.model.size());
-        } else if full_scanned_no_update && self.is_scanner_status_changed {
-            // send out the empty message
-            self.send_packet();
-            self.is_scanner_status_changed = false;
-            debug!("scanner, send-message, empty, {}, {}",
-                    self.model.size() - self.last_sent_model_length, self.model.size());
-        }
-        if self.learner.set_gamma(current_gamma, root_gamma) {
-            self.is_scanner_status_changed = true;
-            true
-        } else {
-            false
         }
     }
 

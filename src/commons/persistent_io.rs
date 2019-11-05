@@ -18,6 +18,7 @@ use commons::Model;
 
 
 pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model, String);
+pub type ModelPack = (Model, String, f32, f32);
 
 
 const S3_PATH_SAMPLE:  &str = "sparrow-samples/";
@@ -136,7 +137,7 @@ pub fn read_model() -> (f32, usize, Model) {
 }
 
 
-pub fn download_model(exp_name: &String) -> Option<(Model, String, f32, f32)> {
+pub fn download_model(exp_name: &String) -> Option<ModelPack> {
     // debug!("sampler, start, download model");
     let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
     let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME);
