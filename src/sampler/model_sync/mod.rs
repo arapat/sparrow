@@ -8,6 +8,7 @@ use std::sync::mpsc;
 
 use tmsn::network::start_network_only_recv;
 
+use commons::INIT_MODEL_PREFIX;
 use commons::Model;
 use commons::channel::Sender;
 use commons::packet::Packet;
@@ -25,6 +26,8 @@ use self::scheduler::Scheduler;
 
 pub struct ModelStats {
     pub model: Model,
+    model_prefix: String,
+    gamma_version: usize,
     pub model_sig: String,
     pub avail_nodes: usize,
     pub avail_new_tree: usize,
@@ -51,9 +54,13 @@ impl ModelStats {
             }
         }
 
+        let (model_prefix, gamma_version) = (INIT_MODEL_PREFIX.to_string(), 0);
+        let model_sig = get_model_sig(&model_prefix, gamma_version);
         ModelStats {
             model: model,
-            model_sig: "init".to_string(),
+            model_prefix: model_prefix,
+            gamma_version: gamma_version,
+            model_sig: model_sig,
             avail_nodes: avail_nodes,
             avail_new_tree: avail_new_tree,
 
@@ -62,18 +69,28 @@ impl ModelStats {
         }
     }
 
-    fn update(&mut self, patch: &UpdateList, gamma: f32) -> (usize, usize, usize) {
+    fn update(
+        &mut self, patch: &UpdateList, new_prefix: &String, gamma: f32,
+    ) -> (usize, usize, usize) {
         let new_nodes_depth = self.model.append_patch(&patch, gamma);
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
         self.avail_nodes    += new_nodes_depth.len();
         self.avail_new_tree += new_nodes_depth.iter().filter(|depth| **depth == 1).count();
+        self.model_prefix = new_prefix.clone();
+        self.model_sig = get_model_sig(&self.model_prefix, self.gamma_version);
         (new_nodes_depth.len(), count_new, count_updates)
     }
 
-    fn update_signature(&mut self, new_signature: &String) {
-        self.model_sig = new_signature.clone();
+    fn update_gamma(&mut self, gamma_version: usize) {
+        self.gamma_version = gamma_version;
+        self.model_sig = get_model_sig(&self.model_prefix, self.gamma_version);
     }
+}
+
+
+fn get_model_sig(prefix: &String, gamma_version: usize) -> String {
+    format!("{}_{}", prefix, gamma_version)
 }
 
 
@@ -165,6 +182,7 @@ impl ModelSync {
             // adjust gamma
             let avail_nodes = self.model_stats.avail_nodes;
             if self.gamma.adjust(&packet_stats, avail_nodes) {
+                self.model_stats.update_gamma(self.gamma.gamma_version);
                 self.broadcast_model(last_model_timestamp, false);
                 packet_stats.reset();
                 // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
@@ -196,6 +214,7 @@ impl ModelSync {
                     scheduler.handle_failure(&packet, node_count);
                     if packet.node_id == 0 {  // is root
                         self.gamma.decrease_root_gamma();
+                        self.model_stats.update_gamma(self.gamma.gamma_version);
                         self.broadcast_model(last_model_timestamp, false);
                     }
                 },
@@ -230,25 +249,26 @@ impl ModelSync {
 
 
     fn broadcast_model(&mut self, last_timestamp: f32, is_model_updated: bool) {
-        let model_gamma_sig = format!("{}_{}",
-                self.model_stats.model_sig, self.gamma.gamma_version);
         let is_upload_success = upload_model(
-            &self.model_stats.model, &model_gamma_sig, self.gamma.gamma, self.gamma.root_gamma,
+            &self.model_stats.model, &self.model_stats.model_sig,
+            self.gamma.gamma, self.gamma.root_gamma,
             &self.exp_name);
         if is_model_updated {
-            self.model_stats.update_signature(&model_gamma_sig);
-            self.next_model_sender.send((self.model_stats.model.clone(), model_gamma_sig.clone()));
+            self.next_model_sender.send(
+                (self.model_stats.model.clone(), self.model_stats.model_sig.clone()));
             write_model(&self.model_stats.model, last_timestamp, true);
         }
-        debug!("model_manager, upload model, {}, {}", is_upload_success, model_gamma_sig);
+        debug!("model_manager, upload model, {}, {}",
+                is_upload_success, self.model_stats.model_sig);
     }
 
 
     fn update_model(
         &mut self, packet: &Packet, node_count: u32, last_timestamp: f32,
     ) -> usize {
+        assert!(packet.updates.size > 0);
         let (num_new_nodes, count_new, count_updates) = self.model_stats.update(
-            &packet.updates, self.gamma.gamma);
+            &packet.updates, &packet.this_model_signature, self.gamma.gamma);
         self.broadcast_model(last_timestamp, true);
         debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                 packet.packet_signature, packet.source_machine_id, packet.node_id, node_count,
