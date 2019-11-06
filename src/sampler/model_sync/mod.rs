@@ -163,7 +163,7 @@ impl ModelSync {
         let mut _last_cluster_update = global_timer.get_duration();
         let mut packet_stats = self.packet_stats.take().unwrap();
         let mut scheduler = Scheduler::new(
-            packet_stats.num_machines, &self.model_stats, &self.exp_name);
+            packet_stats.num_machines, &self.model_stats, &self.exp_name, &self.gamma);
         let packet_receiver = self.packet_receiver.take().unwrap();
 
         // start listening to network
@@ -190,7 +190,7 @@ impl ModelSync {
             }
 
             // Update assignments
-            let num_updates = scheduler.update(&self.model_stats, self.gamma.gamma);
+            let num_updates = scheduler.update(&self.model_stats, &self.gamma);
             if num_updates > 0 {
                 _last_cluster_update = global_timer.get_duration();
             }
@@ -211,7 +211,7 @@ impl ModelSync {
             let node_count = self.get_node_counts(packet.node_id);
             match packet_type {
                 PacketType::EmptyRoot | PacketType::EmptyNonroot => {
-                    scheduler.handle_failure(&packet, node_count);
+                    scheduler.handle_failure(&packet, &self.gamma, node_count);
                     if packet.node_id == 0 {  // is root
                         self.gamma.decrease_root_gamma();
                         self.model_stats.update_gamma(self.gamma.gamma_version);
@@ -223,7 +223,8 @@ impl ModelSync {
                     let num_new_nodes =
                         self.update_model(&packet, node_count, last_model_timestamp);
                     scheduler.append_new_nodes(num_new_nodes);
-                    if scheduler.handle_success(&packet, &self.model_stats, node_count) {
+                    if scheduler.handle_success(
+                        &packet, &self.model_stats, &self.gamma, node_count) {
                         // the tree node can no longer be extended
                         self.model_stats.avail_nodes -= 1;
                         if packet.node_id == 0 {  // is root

@@ -62,10 +62,12 @@ impl Packet {
         // Empty packets
         if self.updates.size == 0 {
             if self.node_id == 0 {
-                debug!("model_manager, packet, empty root, {}", self.source_machine_id);
+                debug!("model_manager, packet, empty root, {}, {}",
+                        self.source_machine_id, self.node_id);
                 return PacketType::EmptyRoot;
             }
-            debug!("model_manager, packet, empty nonroot, {}", self.source_machine_id);
+            debug!("model_manager, packet, empty nonroot, {}, {}",
+                    self.source_machine_id, self.node_id);
             return PacketType::EmptyNonroot;
         }
 
@@ -73,7 +75,8 @@ impl Packet {
         if self.base_model_signature != *sampler_model_version {
             debug!("model_manager, reject for base model mismatch, {}, {}, {}",
                     self.base_model_signature, sampler_model_version, self.packet_signature);
-            debug!("model_manager, packet, reject model, {}", self.source_machine_id);
+            debug!("model_manager, packet, reject model, {}, {}",
+                    self.source_machine_id, self.node_id);
             return PacketType::RejectBaseModel;
         }
         let current_version: usize = {
@@ -82,16 +85,19 @@ impl Packet {
         if self.sample_version != current_version {
             debug!("model_manager, reject for sample version mismatch, {}, {}, {}",
                     self.sample_version, current_version, self.packet_signature);
-            debug!("model_manager, packet, reject sample, {}", self.source_machine_id);
+            debug!("model_manager, packet, reject sample, {}, {}",
+                    self.source_machine_id, self.node_id);
             return PacketType::RejectSample;
         }
 
         // Accept packets
         if self.node_id == 0 {
-            debug!("model_manager, packet, accept root, {}", self.source_machine_id);
+            debug!("model_manager, packet, accept root, {}, {}",
+                    self.source_machine_id, self.node_id);
             return PacketType::AcceptRoot;
         }
-        debug!("model_manager, packet, accept nonroot, {}", self.source_machine_id);
+        debug!("model_manager, packet, accept nonroot, {}, {}",
+                self.source_machine_id, self.node_id);
         PacketType::AcceptNonroot
     }
 }

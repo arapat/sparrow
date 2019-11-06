@@ -321,6 +321,12 @@ impl Boosting {
         self.packet_counter += 1;
         let tree_slice = self.model.model_updates.create_slice(
             self.last_sent_model_length..self.model.size());
+        let gamma =
+            if self.learner.expand_node == 0 {
+                self.learner.root_gamma
+            } else {
+                self.learner.rho_gamma
+            };
         let packet = Packet::new(
             &self.local_name,
             self.local_id,
@@ -328,7 +334,7 @@ impl Boosting {
             self.learner.expand_node,
             self.model.size(),
             tree_slice,
-            self.learner.rho_gamma,
+            gamma,
             self.training_loader.current_version,
             self.base_model_sig.clone(),
         );

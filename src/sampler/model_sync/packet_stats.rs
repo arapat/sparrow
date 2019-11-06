@@ -34,6 +34,7 @@ pub struct PacketStats {
     rejected_packets_sample: usize,
 
     avg_accept_nonroot_rate: f32,
+    last_accept_nonroot_rate: f32,
     threshold:               f32,
 
     last_nonroot_condition:  UpdateSpeed,
@@ -63,6 +64,7 @@ impl PacketStats {
             rejected_packets_sample: 0,
 
             avg_accept_nonroot_rate: 0.5,
+            last_accept_nonroot_rate: 0.5,
             threshold:               THRESHOLD,
 
             last_nonroot_condition:  UpdateSpeed::Okay,
@@ -116,11 +118,12 @@ impl PacketStats {
 
     fn update_condition(&mut self) {
         self.last_nonroot_condition = self.curr_nonroot_condition.clone();
-        let (rate, cond) = get_condition_updates(
+        let (avg_rate, last_rate, cond) = get_condition_updates(
             self.accept_nonroot_packets, self.empty_nonroot_packets, self.avg_accept_nonroot_rate,
             self.threshold,
         );
-        self.avg_accept_nonroot_rate = rate;
+        self.avg_accept_nonroot_rate = avg_rate;
+        self.last_accept_nonroot_rate = last_rate;
         self.curr_nonroot_condition = cond;
     }
 
@@ -180,6 +183,7 @@ impl PacketStats {
                 self.rejected_packets_sample.to_string(),
 
                 self.avg_accept_nonroot_rate.to_string(),
+                self.last_accept_nonroot_rate.to_string(),
                 format!("{:?}", self.curr_nonroot_condition),
 
                 vec_to_string(&self.num_packs),
@@ -194,7 +198,7 @@ impl PacketStats {
 
 fn get_condition_updates(
     accept: usize, empty: usize, old_avg_rate: f32, threshold: f32,
-) -> (f32, UpdateSpeed) {
+) -> (f32, f32, UpdateSpeed) {
     let accept_rate = (accept as f32) / (max(1, accept + empty) as f32);
     let new_avg_rate = (1.0 - ETA) * old_avg_rate + ETA * accept_rate;
     let condition = {
@@ -206,7 +210,7 @@ fn get_condition_updates(
             UpdateSpeed::Okay
         }
     };
-    (new_avg_rate, condition)
+    (new_avg_rate, accept_rate, condition)
 }
 
 
