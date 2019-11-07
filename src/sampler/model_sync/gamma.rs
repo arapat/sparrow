@@ -39,8 +39,9 @@ impl Gamma {
         if packet_stats.curr_nonroot_condition != UpdateSpeed::Okay {
             // gamma is changed
             self.gamma_version += 1;
-            debug!("model_mamanger, gamma update, non-root, {}, {}, {}, {}",
-                    self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor);
+            debug!("model_mamanger, gamma update, non-root, {}, {}, {}, {}, {}, {}",
+                    self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor,
+                    packet_stats.avg_accept_nonroot_rate, packet_stats.last_accept_nonroot_rate);
             true
         } else {
             false

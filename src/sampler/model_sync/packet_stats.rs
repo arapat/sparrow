@@ -33,8 +33,8 @@ pub struct PacketStats {
     rejected_packets_model:  usize,
     rejected_packets_sample: usize,
 
-    avg_accept_nonroot_rate: f32,
-    last_accept_nonroot_rate: f32,
+    pub avg_accept_nonroot_rate:  f32,
+    pub last_accept_nonroot_rate: f32,
     threshold:               f32,
 
     last_nonroot_condition:  UpdateSpeed,
@@ -143,8 +143,6 @@ impl PacketStats {
     }
 
     pub fn reset(&mut self) {
-        self.print_log(true);
-
         self.total_packets = 0;
         self.empty_packets = 0;
         self.accept_packets = 0;
@@ -167,7 +165,7 @@ impl PacketStats {
             .for_each(|t| *t = 0);
     }
 
-    pub fn print_log(&self, reset: bool) {
+    pub fn print_log(&self) {
         debug!("model_manager, packet stats, status, {}",
             (vec![
                 self.total_packets.to_string(),
@@ -184,7 +182,6 @@ impl PacketStats {
 
                 self.avg_accept_nonroot_rate.to_string(),
                 self.last_accept_nonroot_rate.to_string(),
-                if reset { "1".to_string() } else { "0".to_string() },
                 format!("{:?}", self.curr_nonroot_condition),
 
                 vec_to_string(&self.num_packs),

@@ -175,7 +175,7 @@ impl ModelSync {
         while self.continue_training() {
             if global_timer.get_duration() - last_logging_timestamp >= 10.0 {
                 scheduler.print_log(num_consecutive_err);
-                packet_stats.print_log(false);
+                packet_stats.print_log();
                 last_logging_timestamp = global_timer.get_duration();
             }
 
