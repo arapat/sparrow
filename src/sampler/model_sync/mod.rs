@@ -88,7 +88,11 @@ impl ModelStats {
     }
 
     fn print_log(&self) {
-        debug!("model stats, status, {}. {}. {}, {}, {}, {}, {}",
+        let num_roots = self.model.depth.iter().filter(|t| **t == 1).count();
+        debug!("model stats, status, {}, {}, {}, {}. {}. {}, {}, {}, {}, {}",
+                self.model.tree_size,
+                self.model.size(),
+                num_roots,
                 self.model_prefix,
                 self.gamma_version,
                 self.model_sig,
