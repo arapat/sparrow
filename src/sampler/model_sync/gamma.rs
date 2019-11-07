@@ -25,10 +25,7 @@ impl Gamma {
         self.gamma >= self.min_gamma
     }
 
-    pub fn adjust(&mut self, packet_stats: &PacketStats, avail_nodes: usize) -> bool {
-        if !packet_stats.is_triggered(avail_nodes) {
-            return false;
-        }
+    pub fn adjust(&mut self, packet_stats: &PacketStats) -> bool {
         if packet_stats.is_nonroot_same_trend() {
             self.shrink_factor = (0.8 + self.shrink_factor) / 2.0;
         } else if packet_stats.is_nonroot_opposite_trend() {

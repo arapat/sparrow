@@ -175,18 +175,19 @@ impl ModelSync {
         while self.continue_training() {
             if global_timer.get_duration() - last_logging_timestamp >= 10.0 {
                 scheduler.print_log(num_consecutive_err);
-                packet_stats.print_log();
+                packet_stats.print_log(false);
                 last_logging_timestamp = global_timer.get_duration();
             }
 
             // adjust gamma
-            let avail_nodes = self.model_stats.avail_nodes;
-            if self.gamma.adjust(&packet_stats, avail_nodes) {
-                self.model_stats.update_gamma(self.gamma.gamma_version);
-                self.broadcast_model(last_model_timestamp, false);
+            if packet_stats.is_triggered(self.model_stats.avail_nodes) {
+                if self.gamma.adjust(&packet_stats) {
+                    self.model_stats.update_gamma(self.gamma.gamma_version);
+                    self.broadcast_model(last_model_timestamp, false);
+                    // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
+                    // by setting `last_failed_gamma` in `node_status` to 1.0
+                }
                 packet_stats.reset();
-                // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
-                // by setting `last_failed_gamma` in `node_status` to 1.0
             }
 
             // Update assignments
