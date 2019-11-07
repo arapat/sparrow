@@ -32,7 +32,7 @@ impl Scheduler {
         scheduler
     }
 
-    pub fn update(&mut self, model_stats: &ModelStats, gamma: &Gamma) -> usize {
+    pub fn update(&mut self, model_stats: &ModelStats, gamma: &Gamma) -> (usize, bool) {
         let num_nodes = self.node_status.len();
         let valid_nodes: Vec<usize> = (0..num_nodes).filter(|node_index| {
             self.is_valid_node(*node_index, model_stats, gamma)
@@ -44,7 +44,8 @@ impl Scheduler {
                 .map(|(scanner_index, _)| scanner_index)
                 .collect();
 
-        let num_updates = min(idle_scanners.len(), valid_nodes.len());
+        let num_idle_scanners = idle_scanners.len();
+        let num_updates = min(num_idle_scanners, valid_nodes.len());
         for (scanner_index, node_index) in idle_scanners.into_iter().zip(valid_nodes.into_iter()) {
             let (last_failed_gamma, _) = self.node_status[node_index];
             self.node_status[node_index] = (last_failed_gamma, Some(scanner_index));
@@ -56,8 +57,15 @@ impl Scheduler {
         if num_updates > 0 {
             debug!("model-manager, assign updates, {}", num_updates);
             upload_assignments(&self.scanner_task, &self.exp_name);
+            (num_updates, false)
+        } else if num_idle_scanners > 0 {
+            let restricted_by_gamma = (1..num_nodes).filter(|node_index| {
+                self.restricted_by_gamma(*node_index, model_stats, gamma)
+            }).count();
+            (0, restricted_by_gamma > 0)
+        } else {
+            (0, false)
         }
-        num_updates
     }
 
     pub fn handle_success(
@@ -109,6 +117,17 @@ impl Scheduler {
         }
     }
 
+    fn restricted_by_gamma(&self, index: usize, model_stats: &ModelStats, gamma: &Gamma) -> bool {
+        if index == 0 {
+            return false;
+        }
+        let (last_failed_gamma, assigner) = self.node_status[index];
+        let num_child = model_stats.model.children[index].len();
+        let depth = model_stats.model.depth[index];
+        assigner.is_none() && depth < model_stats.max_depth && num_child <= 0 &&
+            last_failed_gamma <= gamma.gamma  // gamma is the only condition that does not pass
+    }
+
     fn get_node_id(&self, packet: &Packet, desc: &str) -> Option<usize> {
         if self.scanner_task[packet.source_machine_id].is_none() {
             debug!("model_manager, scheduler, {}, no assignment, {}, {}, {}",
@@ -126,10 +145,12 @@ impl Scheduler {
     }
 
     pub fn print_log(&self, num_consecutive_err: u32) {
-        let node_status: Vec<Option<_>> = self.node_status.iter().map(|t| t.1).collect();
-        debug!("model_manager, scheduler, status, {}, {}, {}",
+        let node_status1: Vec<Option<_>> = self.node_status.iter().map(|t| t.1).collect();
+        let node_status0: Vec<_> = self.node_status.iter().map(|t| t.0.to_string()).collect();
+        debug!("model_manager, scheduler, status, {}, {}, {}, {}",
                 num_consecutive_err,
-                vec_to_string(&self.scanner_task), vec_to_string(&node_status));
+                vec_to_string(&self.scanner_task), vec_to_string(&node_status1),
+                node_status0.join(", "));
     }
 }
 

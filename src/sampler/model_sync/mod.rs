@@ -191,9 +191,9 @@ impl ModelSync {
             }
 
             // Update assignments
-            let num_updates = scheduler.update(&self.model_stats, &self.gamma);
-            if num_updates > 0 {
-                _last_cluster_update = global_timer.get_duration();
+            let (_num_updates, force_dec_gamma) = scheduler.update(&self.model_stats, &self.gamma);
+            if force_dec_gamma {
+                self.gamma.decrease_gamma();
             }
 
             // Handle packets
