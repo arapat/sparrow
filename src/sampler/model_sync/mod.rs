@@ -86,6 +86,17 @@ impl ModelStats {
         self.gamma_version = gamma_version;
         self.model_sig = get_model_sig(&self.model_prefix, self.gamma_version);
     }
+
+    fn print_log(&self) {
+        debug!("model stats, status, {}. {}. {}, {}, {}, {}, {}",
+                self.model_prefix,
+                self.gamma_version,
+                self.model_sig,
+                self.avail_nodes,
+                self.avail_new_tree,
+                self.max_num_trees,
+                self.max_depth);
+    }
 }
 
 
@@ -176,6 +187,7 @@ impl ModelSync {
             if global_timer.get_duration() - last_logging_timestamp >= 10.0 {
                 scheduler.print_log(num_consecutive_err);
                 packet_stats.print_log();
+                self.model_stats.print_log();
                 last_logging_timestamp = global_timer.get_duration();
             }
 

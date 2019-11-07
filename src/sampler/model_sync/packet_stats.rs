@@ -128,7 +128,8 @@ impl PacketStats {
     }
 
     pub fn is_triggered(&self, avail_nodes: usize) -> bool {
-        self.total_packets >= min(avail_nodes, max(10, self.num_machines * 2))
+        let total = self.accept_nonroot_packets + self.empty_nonroot_packets;
+        total >= min(avail_nodes, max(10, self.num_machines * 2))
     }
 
     pub fn is_nonroot_same_trend(&self) -> bool {
