@@ -284,7 +284,8 @@ impl ModelSync {
         let (num_new_nodes, count_new, count_updates) = self.model_stats.update(
             &packet.updates, &packet.this_model_signature, self.gamma.gamma);
         self.broadcast_model(last_timestamp, true);
-        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+                self.model_stats.model.tree_size, self.model_stats.model.size(),
                 packet.packet_signature, packet.source_machine_id, packet.node_id, node_count,
                 self.model_stats.model.depth[packet.node_id], packet.gamma, packet.updates.size,
                 count_new, count_updates);
