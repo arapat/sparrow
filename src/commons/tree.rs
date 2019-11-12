@@ -77,9 +77,11 @@ impl Tree {
         &mut self, parent: usize,
         feature: usize, threshold: TFeature, pred_value: (f32, f32), gamma: f32,
     ) -> (usize, usize) {
+        // TODO: set always add new a parameter
+        let always_new_node = true;
         (
-            self.add_node(parent, feature, threshold, true, pred_value.0, gamma),
-            self.add_node(parent, feature, threshold, false, pred_value.1, gamma)
+            self.add_node(parent, feature, threshold, true, pred_value.0, gamma, always_new_node),
+            self.add_node(parent, feature, threshold, false, pred_value.1, gamma, always_new_node)
         )
     }
 
@@ -106,9 +108,13 @@ impl Tree {
     fn add_node(
         &mut self, parent: usize,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
+        always_new_node: bool,
     ) -> usize {
         let depth = self.depth[parent] + 1;
-        let node = self.find_child_node(parent, feature, threshold, evaluation);
+        let node =
+            if always_new_node { None } else {
+                self.find_child_node(parent, feature, threshold, evaluation)
+            };
         let (new_index, is_new) = {
             if let Some(index) = node {
                 self.predicts[index] += pred_value;
@@ -217,7 +223,10 @@ impl Tree {
         false
     }
 
-    pub fn append_patch(&mut self, patch: &UpdateList, last_gamma: f32) -> Vec<usize> {
+    // return the indices of the added nodes and whether they are new nodes
+    pub fn append_patch(
+        &mut self, patch: &UpdateList, last_gamma: f32, always_new_node: bool,
+    ) -> Vec<(usize, bool)> {
         let prev_tree_size = self.tree_size;
         let mut node_indices = vec![];
         for i in 0..patch.size {
@@ -226,15 +235,14 @@ impl Tree {
             } else {
                 node_indices.push(self.add_node(
                     patch.parent[i] as usize, patch.feature[i], patch.threshold[i],
-                    patch.evaluation[i], patch.predicts[i], 0.0,
+                    patch.evaluation[i], patch.predicts[i], 0.0, always_new_node,
                 ));
             }
         }
         self.last_gamma = last_gamma;
         self.base_version = self.model_updates.size;
         node_indices.iter()
-                    .filter(|t| (**t) >= prev_tree_size)  // newly added indices
-                    .map(|t| self.depth[*t])
+                    .map(|t| (*t, (*t) >= prev_tree_size))  // newly added indices
                     .collect()
     }
 

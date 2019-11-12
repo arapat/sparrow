@@ -71,15 +71,18 @@ impl ModelStats {
 
     fn update(
         &mut self, patch: &UpdateList, new_prefix: &String, gamma: f32,
-    ) -> (usize, usize, usize) {
-        let new_nodes_depth = self.model.append_patch(&patch, gamma);
+    ) -> (Vec<usize>, usize, usize) {
+        let node_indices: Vec<(usize, bool)> = self.model.append_patch(&patch, gamma, true);
+        let new_nodes_depth: Vec<usize> = node_indices.iter()
+                                                      .map(|(i, _)| self.model.depth[*i])
+                                                      .collect();
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
         self.avail_nodes    += new_nodes_depth.len();
         self.avail_new_tree += new_nodes_depth.iter().filter(|depth| **depth == 1).count();
         self.model_prefix = new_prefix.clone();
         self.model_sig = get_model_sig(&self.model_prefix, self.gamma_version);
-        (new_nodes_depth.len(), count_new, count_updates)
+        (node_indices.into_iter().map(|(i, _)| i).collect(), count_new, count_updates)
     }
 
     fn update_gamma(&mut self, gamma_version: usize) {
@@ -237,9 +240,9 @@ impl ModelSync {
                 },
                 PacketType::AcceptNonroot | PacketType::AcceptRoot => {
                     last_model_timestamp = global_timer.get_duration();
-                    let num_new_nodes =
+                    let new_node_indices =
                         self.update_model(&packet, node_count, last_model_timestamp);
-                    scheduler.append_new_nodes(num_new_nodes);
+                    scheduler.append_new_nodes(&new_node_indices);
                     if scheduler.handle_success(
                         &packet, &self.model_stats, &self.gamma, node_count) {
                         // the tree node can no longer be extended
@@ -257,7 +260,8 @@ impl ModelSync {
 
         info!("Model sync quits, {}, Model length, {}, Is gamma significant, {}",
                 self.continue_training(), self.model_stats.model.size(), self.gamma.is_valid());
-        write_model(&self.model_stats.model, last_model_timestamp, false);
+        let final_model = write_model(&self.model_stats.model, last_model_timestamp, false);
+        debug!("model_manager, final model, {}", final_model);
         {
             debug!("sampler state, false, model sync quits");
             let mut state = self.sampler_state.write().unwrap();
@@ -283,9 +287,9 @@ impl ModelSync {
 
     fn update_model(
         &mut self, packet: &Packet, node_count: u32, last_timestamp: f32,
-    ) -> usize {
+    ) -> Vec<usize> {
         assert!(packet.updates.size > 0);
-        let (num_new_nodes, count_new, count_updates) = self.model_stats.update(
+        let (new_node_indices, count_new, count_updates) = self.model_stats.update(
             &packet.updates, &packet.this_model_signature, self.gamma.gamma);
         self.broadcast_model(last_timestamp, true);
         debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
@@ -293,7 +297,7 @@ impl ModelSync {
                 packet.packet_signature, packet.source_machine_id, packet.node_id, node_count,
                 self.model_stats.model.depth[packet.node_id], packet.gamma, packet.updates.size,
                 count_new, count_updates);
-        num_new_nodes
+        new_node_indices
     }
 
 

@@ -1,3 +1,4 @@
+use std::cmp::max;
 use std::cmp::min;
 
 use commons::packet::Packet;
@@ -99,7 +100,9 @@ impl Scheduler {
         }
     }
 
-    pub fn append_new_nodes(&mut self, num_new_nodes: usize) {
+    pub fn append_new_nodes(&mut self, new_node_indices: &Vec<usize>) {
+        let max_new_index = new_node_indices.iter().fold(0, |curr_max, val| max(curr_max, *val));
+        let num_new_nodes = (max_new_index + 1) - self.node_status.len();
         self.node_status.append(&mut vec![(1.0, None); num_new_nodes]);
     }
 
@@ -145,12 +148,12 @@ impl Scheduler {
     }
 
     pub fn print_log(&self, num_consecutive_err: u32) {
-        let node_status1: Vec<Option<_>> = self.node_status.iter().map(|t| t.1).collect();
-        let node_status0: Vec<_> = self.node_status.iter().map(|t| t.0.to_string()).collect();
-        debug!("model_manager, scheduler, status, {}, {}, {}, {}",
+        let scanner_id: Vec<Option<_>> = self.node_status.iter().map(|t| t.1).collect();
+        let last_failed_gamma: Vec<_> = self.node_status.iter().map(|t| t.0.to_string()).collect();
+        debug!("model_manager, scheduler, status, {}, |||, {}, |||, {}, |||, {}",
                 num_consecutive_err,
-                vec_to_string(&self.scanner_task), vec_to_string(&node_status1),
-                node_status0.join(", "));
+                vec_to_string(&self.scanner_task), vec_to_string(&scanner_id),
+                last_failed_gamma.join(", "));
     }
 }
 

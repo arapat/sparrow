@@ -107,7 +107,7 @@ pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSa
 
 // read/write model
 
-pub fn write_model(model: &Model, timestamp: f32, save_process: bool) {
+pub fn write_model(model: &Model, timestamp: f32, save_process: bool) -> String {
     let json = serde_json::to_string(&(timestamp, model.size(), model)).expect(
         "Local model cannot be serialized."
     );
@@ -119,6 +119,7 @@ pub fn write_model(model: &Model, timestamp: f32, save_process: bool) {
         }
     };
     create_bufwriter(&filename).write(json.as_ref()).unwrap();
+    json
 }
 
 
