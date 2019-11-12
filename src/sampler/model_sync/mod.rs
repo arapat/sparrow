@@ -247,7 +247,7 @@ impl ModelSync {
                         &packet, &self.model_stats, &self.gamma, node_count) {
                         // the tree node can no longer be extended
                         self.model_stats.avail_nodes -= 1;
-                        if packet.node_id == 0 {  // is root
+                        if self.model_stats.model.depth[packet.node_id] == 1 {  // is root
                             self.model_stats.avail_new_tree -= 1;
                         }
                     }
