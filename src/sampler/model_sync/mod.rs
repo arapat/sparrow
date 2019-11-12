@@ -192,7 +192,7 @@ impl ModelSync {
         let mut last_logging_timestamp = global_timer.get_duration();
         while self.continue_training() {
             if global_timer.get_duration() - last_logging_timestamp >= 10.0 {
-                scheduler.print_log(num_consecutive_err);
+                scheduler.print_log(num_consecutive_err, &self.model_stats, &self.gamma);
                 packet_stats.print_log();
                 self.model_stats.print_log();
                 last_logging_timestamp = global_timer.get_duration();

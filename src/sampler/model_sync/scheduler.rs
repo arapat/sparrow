@@ -147,13 +147,21 @@ impl Scheduler {
         Some(node_id)
     }
 
-    pub fn print_log(&self, num_consecutive_err: u32) {
+    pub fn print_log(&self, num_consecutive_err: u32, model_stats: &ModelStats, gamma: &Gamma) {
         let scanner_id: Vec<Option<_>> = self.node_status.iter().map(|t| t.1).collect();
         let last_failed_gamma: Vec<_> = self.node_status.iter().map(|t| t.0.to_string()).collect();
-        debug!("model_manager, scheduler, status, {}, |||, {}, |||, {}, |||, {}",
-                num_consecutive_err,
+        let depth: Vec<_> = self.node_status.iter().enumerate()
+                                .map(|(index, _)| model_stats.model.depth[index].to_string())
+                                .collect();
+        let num_child: Vec<_> = self.node_status.iter().enumerate()
+                                    .map(|(index, _)| model_stats.model.children[index].len()
+                                                                                       .to_string())
+                                    .collect();
+        debug!("model_manager, scheduler, status, {}, {}, {}, \
+                |||, {}, |||, {}, |||, {}, |||, {}, |||, {}",
+                num_consecutive_err, gamma.gamma, gamma.root_gamma,
                 vec_to_string(&self.scanner_task), vec_to_string(&scanner_id),
-                last_failed_gamma.join(", "));
+                last_failed_gamma.join(", "), depth.join(", "), num_child.join(", "));
     }
 }
 
