@@ -17,7 +17,8 @@ use commons::io::write_s3 as io_write_s3;
 use commons::Model;
 
 
-pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model);
+pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model, String);
+pub type ModelPack = (Model, String, f32, f32);
 
 
 const S3_PATH_SAMPLE:  &str = "sparrow-samples/";
@@ -35,11 +36,12 @@ const BINS_FILENAME:   &str = "bins.json";
 pub fn write_sample_local(
     new_sample: Vec<ExampleWithScore>,
     model: Model,
+    model_sig: String,
     version: usize,
     _exp_name: &str,
 ) {
     let filename = SAMPLE_FILENAME.to_string() + "_WRITING";
-    let data: VersionedSampleModel = (version, new_sample, model);
+    let data: VersionedSampleModel = (version, new_sample, model, model_sig);
     write_all(&filename, &serialize(&data).unwrap())
         .expect("Failed to write the sample set to file");
     rename(filename, SAMPLE_FILENAME.to_string()).unwrap();
@@ -49,10 +51,11 @@ pub fn write_sample_local(
 pub fn write_sample_s3(
     new_sample: Vec<ExampleWithScore>,
     model: Model,
+    model_sig: String,
     version: usize,
     exp_name: &str,
 ) {
-    let data: VersionedSampleModel = (version, new_sample, model);
+    let data: VersionedSampleModel = (version, new_sample, model, model_sig);
     debug!("sampler, start, write new sample to s3, {}", version);
     let s3_path = format!("{}/{}", exp_name, S3_PATH_SAMPLE);
     io_write_s3(REGION, BUCKET, s3_path.as_str(), SAMPLE_FILENAME, &serialize(&data).unwrap());
@@ -70,11 +73,11 @@ pub fn load_sample_local(last_version: usize, _exp_name: &str) -> Option<Version
     let ori_filename = SAMPLE_FILENAME.to_string();
     let filename = ori_filename.clone() + "_READING";
     if rename(ori_filename, filename.clone()).is_ok() {
-        let (version, sample, model): VersionedSampleModel =
+        let (version, sample, model, model_sig): VersionedSampleModel =
             deserialize(read_all(&filename).as_ref()).unwrap();
         if version > last_version {
             remove_file(filename).unwrap();
-            return Some((version, sample, model));
+            return Some((version, sample, model, model_sig));
         }
     }
     None
@@ -90,9 +93,9 @@ pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSa
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        let (version, sample, model) = deserialize(&data).unwrap();
+        let (version, sample, model, model_sig) = deserialize(&data).unwrap();
         if version > last_version {
-            return Some((version, sample, model));
+            return Some((version, sample, model, model_sig));
         }
         debug!("scanner, finished, download sample from s3, remote sample is old, {}, {}",
                version, last_version);
@@ -104,7 +107,7 @@ pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSa
 
 // read/write model
 
-pub fn write_model(model: &Model, timestamp: f32, save_process: bool) {
+pub fn write_model(model: &Model, timestamp: f32, save_process: bool) -> String {
     let json = serde_json::to_string(&(timestamp, model.size(), model)).expect(
         "Local model cannot be serialized."
     );
@@ -116,6 +119,7 @@ pub fn write_model(model: &Model, timestamp: f32, save_process: bool) {
         }
     };
     create_bufwriter(&filename).write(json.as_ref()).unwrap();
+    json
 }
 
 
@@ -134,7 +138,7 @@ pub fn read_model() -> (f32, usize, Model) {
 }
 
 
-pub fn download_model(exp_name: &String) -> Option<(Model, String, f32, f32)> {
+pub fn download_model(exp_name: &String) -> Option<ModelPack> {
     // debug!("sampler, start, download model");
     let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
     let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME);

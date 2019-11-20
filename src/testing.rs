@@ -94,7 +94,9 @@ pub fn validate(
                     mvalidate(&sorted_scores_labels, &eval_funcs).iter()
                                                                  .map(|t| t.to_string())
                                                                  .collect();
-                let meta_info = vec![filepath.clone(), ts.to_string(), model.size().to_string()];
+                let meta_info = vec![
+                    filepath.clone(), ts.to_string(), model.tree_size.to_string(),
+                    model.size().to_string()];
                 let output = format!("{},{}\n", meta_info.join(","), performance_scores.join(","));
                 out.write(output.as_bytes())
                    .expect("Failed to write the performance scores to file.");

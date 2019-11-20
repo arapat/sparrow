@@ -66,13 +66,9 @@ impl PerformanceMonitor {
         self.status = PerformanceMonitorStatus::PAUSE;
     }
 
-    pub fn set_adjust(&mut self, adjust_val: f32) {
-        self.duration_adjust = adjust_val;
-    }
-
     pub fn write_log(&mut self, name: &str) -> bool {
         let (since_last_check, count, duration, speed) = self.get_performance();
-        if since_last_check >= 5 {
+        if since_last_check >= 20 {
             debug!("{}-perf-mon, {:.2}, {}, {:.2}", name, duration, count, speed);
             self.last_check = PreciseTime::now();
             true

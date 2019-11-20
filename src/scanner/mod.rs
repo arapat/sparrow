@@ -27,7 +27,6 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
         sample_mode.clone(),
         config.sleep_duration,
         config.min_ess,
-        config.sampler_scanner.clone(),
         config.exp_name.clone(),
     );
     debug!("Starting the booster.");

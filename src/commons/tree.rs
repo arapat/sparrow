@@ -77,14 +77,16 @@ impl Tree {
         &mut self, parent: usize,
         feature: usize, threshold: TFeature, pred_value: (f32, f32), gamma: f32,
     ) -> (usize, usize) {
+        // TODO: set always add new a parameter
+        let always_new_node = true;
         (
-            self.add_node(parent, feature, threshold, true, pred_value.0, gamma),
-            self.add_node(parent, feature, threshold, false, pred_value.1, gamma)
+            self.add_node(parent, feature, threshold, true, pred_value.0, gamma, always_new_node),
+            self.add_node(parent, feature, threshold, false, pred_value.1, gamma, always_new_node)
         )
     }
 
     // TODO: allow update root
-    pub fn add_root(&mut self, pred_value: f32, gamma: f32) {
+    pub fn add_root(&mut self, pred_value: f32, gamma: f32) -> usize {
         assert_eq!(self.tree_size, 0);
 
         self.parent.push(0);
@@ -97,17 +99,22 @@ impl Tree {
         self.tree_size += 1;
 
         self.last_gamma = gamma;
-        self.model_updates.add(0, 0, 0, false, pred_value, vec![], true);
+        self.model_updates.add(-1, 0, 0, false, pred_value, vec![], true);
 
-        debug!("new-tree-node, 0, true, 0, 0, 0, 0, false, {}", pred_value)
+        debug!("new-tree-node, 0, true, 0, 0, 0, 0, false, {}", pred_value);
+        0
     }
 
     fn add_node(
         &mut self, parent: usize,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
+        always_new_node: bool,
     ) -> usize {
         let depth = self.depth[parent] + 1;
-        let node = self.find_child_node(parent, feature, threshold, evaluation);
+        let node =
+            if always_new_node { None } else {
+                self.find_child_node(parent, feature, threshold, evaluation)
+            };
         let (new_index, is_new) = {
             if let Some(index) = node {
                 self.predicts[index] += pred_value;
@@ -129,7 +136,7 @@ impl Tree {
         self.last_gamma = gamma;
         let condition = self.get_conditions(new_index);
         self.model_updates.add(
-            parent, feature, threshold, evaluation, pred_value, condition, is_new);
+            parent as i32, feature, threshold, evaluation, pred_value, condition, is_new);
         debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
                new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
         new_index
@@ -195,6 +202,9 @@ impl Tree {
     }
 
     pub fn is_visited(&self, data: &Example, target: usize) -> bool {
+        if self.tree_size <= 0 {
+            return false;
+        }
         let feature = &(data.feature);
         let mut queue = VecDeque::new();
         queue.push_back(0);
@@ -213,20 +223,26 @@ impl Tree {
         false
     }
 
-    pub fn append_patch(&mut self, patch: &UpdateList, last_gamma: f32) -> Vec<usize> {
+    // return the indices of the added nodes and whether they are new nodes
+    pub fn append_patch(
+        &mut self, patch: &UpdateList, last_gamma: f32, always_new_node: bool,
+    ) -> Vec<(usize, bool)> {
         let prev_tree_size = self.tree_size;
         let mut node_indices = vec![];
         for i in 0..patch.size {
-            node_indices.push(self.add_node(
-                patch.parent[i], patch.feature[i], patch.threshold[i],
-                patch.evaluation[i], patch.predicts[i], 0.0,
-            ));
+            if patch.parent[i] < 0 {
+                node_indices.push(self.add_root(patch.predicts[i], 0.0));
+            } else {
+                node_indices.push(self.add_node(
+                    patch.parent[i] as usize, patch.feature[i], patch.threshold[i],
+                    patch.evaluation[i], patch.predicts[i], 0.0, always_new_node,
+                ));
+            }
         }
         self.last_gamma = last_gamma;
         self.base_version = self.model_updates.size;
         node_indices.iter()
-                    .filter(|t| (**t) >= prev_tree_size)  // newly added indices
-                    .map(|t| self.depth[*t])
+                    .map(|t| (*t, (*t) >= prev_tree_size))  // newly added indices
                     .collect()
     }
 
@@ -273,7 +289,7 @@ impl Eq for Tree {}
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdateList {
     pub size:   usize,
-    pub parent:     Vec<usize>,
+    pub parent:     Vec<i32>,
     pub feature:    Vec<usize>,
     pub threshold:  Vec<TFeature>,
     pub evaluation: Vec<bool>,
@@ -321,7 +337,7 @@ impl UpdateList {
 
     pub fn add(
         &mut self,
-        parent: usize,
+        parent: i32,
         feature: usize,
         threshold: TFeature,
         evaluation: bool,

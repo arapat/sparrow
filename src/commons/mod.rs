@@ -3,6 +3,7 @@ pub mod channel;
 pub mod io;
 // The class of the training examples.
 pub mod labeled_data;
+pub mod packet;
 pub mod performance_monitor;
 // Functions to read/write samples, models, and worker assignments
 pub mod persistent_io;
@@ -13,7 +14,6 @@ use rayon::prelude::*;
 use std::f32::INFINITY;
 
 use commons::tree::Tree;
-use commons::tree::UpdateList;
 
 use super::Example;
 
@@ -21,14 +21,13 @@ use super::Example;
 pub type ExampleInSampleSet = (Example, (f32, f32, usize, usize));  // weight, score, new_ver, base_ver
 pub type ExampleWithScore = (Example, (f32, usize));
 pub type Model = Tree;
-// Signature of a model patch must start with "machineID_"
-pub type ModelSig = (UpdateList, f32, usize, String, String);
 
 const DELTA: f32  = 0.000001;
 const SHRINK: f32 = 1.0;
 const THRESHOLD_FACTOR: f32 = 1.0;
 const ALMOST_ZERO: f32 = 1e-8;
 
+pub const INIT_MODEL_PREFIX: &str = "init";
 
 // Boosting related
 

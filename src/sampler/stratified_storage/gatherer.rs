@@ -21,7 +21,7 @@ pub struct Gatherer {
     gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
     new_sample_capacity:    usize,
     gen_sample_version:     Arc<RwLock<usize>>,
-    model:                  Arc<RwLock<Model>>,
+    model:                  Arc<RwLock<(Model, String)>>,
     pub counter:            Arc<RwLock<Vec<u32>>>,
     exp_name:               String,
 }
@@ -33,7 +33,7 @@ impl Gatherer {
         gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
         new_sample_capacity:    usize,
         gen_sample_version:     Arc<RwLock<usize>>,
-        model:                  Arc<RwLock<Model>>,
+        model:                  Arc<RwLock<(Model, String)>>,
         exp_name:               String,
     ) -> Gatherer {
         Gatherer {
@@ -98,10 +98,10 @@ fn gather<F>(
     gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
     handler: F,
     version: usize,
-    model: Arc<RwLock<Model>>,
+    model_with_sig: Arc<RwLock<(Model, String)>>,
     exp_name: &str,
 ) -> Vec<u32>
-where F: Fn(Vec<ExampleWithScore>, Model, usize, &str) {
+where F: Fn(Vec<ExampleWithScore>, Model, String, usize, &str) {
     debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
     pm.start();
@@ -133,8 +133,8 @@ where F: Fn(Vec<ExampleWithScore>, Model, usize, &str) {
     }
     thread_rng().shuffle(&mut new_sample);
     // TODO: count number of examples fall, make sure the numbering is the same as the assignments
-    let model = {
-        let lock = model.read().unwrap();
+    let (model, model_sig) = {
+        let lock = model_with_sig.read().unwrap();
         lock.clone()
     };
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}, {}",
@@ -153,7 +153,7 @@ where F: Fn(Vec<ExampleWithScore>, Model, usize, &str) {
         .expect("Failed to write the sample set to file for snapshot");
     rename(filename, "latest_sample.bin".to_string()).unwrap();
     // Send the sample to the handler
-    handler(new_sample, model, version, exp_name);
+    handler(new_sample, model, model_sig, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
     counts

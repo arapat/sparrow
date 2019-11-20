@@ -7,16 +7,16 @@ use std::sync::RwLock;
 
 use SampleMode;
 use commons::get_weight;
+use commons::persistent_io::VersionedSampleModel;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::ExampleInSampleSet;
 use commons::ExampleWithScore;
+use commons::ExampleInSampleSet;
 use commons::Model;
 use self::loader::Loader;
 
 
 // LockedBuffer is set to None once it is read by the receiver
-pub type LockedBuffer = Arc<RwLock<Option<(usize, Vec<ExampleWithScore>)>>>;
-pub type LockedModelBuffer = Arc<RwLock<Option<Model>>>;
+pub type LockedBuffer = Arc<RwLock<Option<VersionedSampleModel>>>;
 
 
 /// Double-buffered sample set. It consists of two buffers stores in memory. One of the
@@ -33,9 +33,10 @@ pub struct BufferLoader {
     num_batch: usize,
 
     examples: Vec<ExampleInSampleSet>,
-    pub new_model: LockedModelBuffer,
+    pub base_model: Model,
+    pub base_model_sig: String,
     pub current_version: usize,
-    pub new_examples: LockedBuffer,
+    pub new_buffer: LockedBuffer,
     loader: Loader,
     pub sample_mode: SampleMode,
 
@@ -62,23 +63,22 @@ impl BufferLoader {
         sample_mode: SampleMode,
         sleep_duration: usize,
         min_ess: f32,
-        sampler_scanner: String,
         exp_name: String,
     ) -> BufferLoader {
-        let new_examples = Arc::new(RwLock::new(None));
-        let new_model = Arc::new(RwLock::new(None));
+        let new_buffer = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;
         // Strata -> BufferLoader
-        let loader = Loader::new(new_examples.clone(), new_model.clone(), sleep_duration, exp_name);
+        let loader = Loader::new(new_buffer.clone(), sleep_duration, exp_name);
         let buffer_loader = BufferLoader {
             size: size,
             batch_size: batch_size,
             num_batch: num_batch,
 
             examples: vec![],
-            new_model: new_model,
+            base_model: Model::new(1),
+            base_model_sig: "default".to_string(),
             current_version: 0,
-            new_examples: new_examples,
+            new_buffer: new_buffer,
             loader: loader,
             sample_mode: sample_mode.clone(),
 
@@ -87,9 +87,7 @@ impl BufferLoader {
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
-        if sampler_scanner.to_lowercase().as_str() != "sampler" {
-            buffer_loader.loader.run(sample_mode.clone());
-        }
+        buffer_loader.loader.run(sample_mode.clone());
         buffer_loader
     }
 
@@ -113,7 +111,7 @@ impl BufferLoader {
     pub fn get_next_batch_and_update(
         &mut self,
         allow_switch: bool,
-        model: &Model
+        model: &Model,
     ) -> (&[ExampleInSampleSet], bool) {
         let (batch, switched) = self.get_next_mut_batch(allow_switch);
         update_scores(batch, model);
@@ -139,36 +137,32 @@ impl BufferLoader {
 
     pub fn try_switch(&mut self) -> bool {
         self.sampling_pm.resume();
-        let switched = {
-            if let Ok(mut new_examples_version) = self.new_examples.try_write() {
-                if new_examples_version.is_none() {
-                    false
-                } else {
-                    let (new_version, new_examples): (usize, Vec<_>) =
-                        new_examples_version.take().unwrap();
-                    self.examples = new_examples.iter()
-                                                .map(|t| {
-                                                    let (a, s) = t;
-                                                    // sampling weights are ignored
-                                                    let w = get_weight(&a, 0.0);
-                                                    (a.clone(), (w, 0.0, s.1, s.1))
-                                                }).collect();
-                    let old_version = self.current_version;
-                    self.current_version = new_version;
-                    self.curr_example = 0;
-                    debug!("scanner, switched-buffer, {}, {}, {}",
-                           old_version, self.current_version, self.examples.len());
-                    true
-                }
-            } else {
-                false
-            }
-        };
-        if switched {
-            self.update_ess();
+        let new_buffer = self.new_buffer.try_write();
+        if new_buffer.is_err() {
+            self.sampling_pm.pause();
+            return false;
         }
+        let mut new_buffer = new_buffer.unwrap();
+        if new_buffer.is_none() {
+            self.sampling_pm.pause();
+            return false;
+        }
+
+        let (new_version, new_examples, new_model, model_sig): VersionedSampleModel =
+            new_buffer.take().unwrap();
+        drop(new_buffer);
+        let old_version = self.current_version;
+        self.current_version = new_version;
+        self.examples = set_init_weight(new_examples);
+        self.base_model = new_model;
+        self.base_model_sig = model_sig;
+        self.curr_example = 0;
+
+        self.update_ess();
+        debug!("scanner, switched-buffer, {}, {}, {}",
+                old_version, self.current_version, self.examples.len());
         self.sampling_pm.pause();
-        switched
+        true
     }
 
     // ESS and others
@@ -182,8 +176,13 @@ impl BufferLoader {
         debug!("loader-reset, {}", self.ess);
     }
 
-    pub fn get_sampling_duration(&self) -> f32 {
-        self.sampling_pm.get_duration()
+    pub fn reset_scores(&mut self) {
+        debug!("buffer-loader, reset all examples");
+        reset_scores(&mut self.examples, &self.base_model);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.examples.is_empty()
     }
 }
 
@@ -202,6 +201,29 @@ fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
             get_weight(&example.0, updated_score), updated_score, new_version, base_version);
     });
 }
+
+
+/// Reset scores to the base model
+fn reset_scores(data: &mut [ExampleInSampleSet], base_model: &Model) {
+    let base_version = base_model.base_version;
+    data.par_iter_mut().for_each(|example| {
+        (*example).1 = (get_weight(&example.0, 0.0), 0.0, base_version, base_version);
+    });
+}
+
+
+
+/// Set initial weights to the samples
+fn set_init_weight(examples: Vec<ExampleWithScore>) -> Vec<ExampleInSampleSet> {
+    examples.into_iter()
+            .map(|t| {
+                let (example, (_score, model_size)) = t;
+                // sampling weights are ignored
+                let w = get_weight(&example, 0.0);
+                (example.clone(), (w, 0.0, model_size, model_size))
+            }).collect()
+}
+
 
 
 #[cfg(test)]
