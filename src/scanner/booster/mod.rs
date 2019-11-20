@@ -182,12 +182,14 @@ impl Boosting {
         self.verbose = false;
         while self.learner.is_gamma_significant() &&
                 (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
+            // Logging for the status check
             if global_timer.get_duration() - last_logging_ts >= 10.0 {
                 self.print_log(total_data_size_without_fire);
                 last_logging_ts = global_timer.get_duration();
             }
 
-            self.print_verbose_log("Line 185");
+            // Get the new sample
+            self.training_loader.check_ess_blocking();
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -203,10 +205,9 @@ impl Boosting {
             };
             total_data_size_without_fire += batch_size;
             global_timer.update(batch_size);
-            self.print_verbose_log("Line 201");
 
+            // Try to find new rule
             if switched {
-                self.print_verbose_log("Line 204");
                 self.is_sample_version_changed = true;
                 self.update_model(
                     self.training_loader.base_model.clone(),
@@ -214,7 +215,6 @@ impl Boosting {
                     "loader",
                 );
             }
-            self.print_verbose_log("Line 212");
             let is_new_rule_added = self.process_new_rule(
                 new_rule, total_data_size_without_fire, prep_time + global_timer.get_duration());
 
@@ -222,7 +222,7 @@ impl Boosting {
                 total_data_size_without_fire = 0;
             }
 
-            self.print_verbose_log("Line 220");
+            // Communicate
             let is_communicated = self.handle_network(
                 total_data_size_without_fire >= self.training_loader.size);
             if is_communicated {
@@ -230,7 +230,6 @@ impl Boosting {
                 _last_communication_ts = global_timer.get_duration();
             }
 
-            self.print_verbose_log("Line 228");
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
@@ -385,6 +384,7 @@ impl Boosting {
         );
     }
 
+    #[allow(dead_code)]
     fn print_verbose_log<T>(&self, message: T) where T: Display {
         if self.verbose {
             debug!("booster, verbose, {}", message);
