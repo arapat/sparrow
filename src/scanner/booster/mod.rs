@@ -11,7 +11,6 @@ use commons::persistent_io::download_model;
 use commons::persistent_io::write_model;
 use self::learner::get_base_node;
 
-use commons::INIT_MODEL_PREFIX;
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
 use commons::bins::Bins;
@@ -20,6 +19,9 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::ModelPack;
 use self::learner::Learner;
 use self::learner::TreeNode;
+
+
+pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";
 
 
 /// The boosting algorithm. It contains two functions, one for starting
@@ -111,12 +113,24 @@ impl Boosting {
     }
 
     fn init(&mut self) {
+        let mut timer = PerformanceMonitor::new();
+        let mut last_reported_time = 0.0;
+        timer.start();
         while self.training_loader.is_empty() {
+            if timer.get_duration() - last_reported_time > 60.0 {
+                last_reported_time = timer.get_duration();
+                debug!("scanner, init, waiting the first sample, {}",  last_reported_time);
+            }
             self.training_loader.try_switch();
             sleep(Duration::from_millis(2000));
         }
         debug!("booster, first sample is loaded");
-        while !self.base_model_sig.starts_with(INIT_MODEL_PREFIX) {
+        last_reported_time = timer.get_duration();
+        while self.base_model_sig == MODEL_SIG_PLACEHOLDER {
+            if timer.get_duration() - last_reported_time > 60.0 {
+                last_reported_time = timer.get_duration();
+                debug!("scanner, init, waiting the initial model, {}", last_reported_time);
+            }
             self.handle_network(false);
             sleep(Duration::from_secs(2));
         }
