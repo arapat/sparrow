@@ -46,6 +46,8 @@ pub struct Boosting {
     // for re-sending the empty packet if the scanner status changed
     // track: expanding node, gamma value
     is_scanner_status_changed: bool,
+    // assignment is none if this scanner didn't receive any task from the sampler
+    is_assignment_none: bool,
 
     persist_id: u32,
     save_interval: usize,
@@ -92,6 +94,7 @@ impl Boosting {
             is_sample_version_changed: true,
             is_scanner_status_changed: true,
             last_sent_model_length: 0,
+            is_assignment_none: true,
 
             network_sender: None,
             local_name: "".to_string(),
@@ -190,6 +193,13 @@ impl Boosting {
 
             // Get the new sample
             self.training_loader.check_ess_blocking();
+            // Check assignment
+            if self.is_assignment_none {
+                self.update_assignment();
+                sleep(Duration::from_secs(1));
+                continue;
+            }
+
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -355,6 +365,7 @@ impl Boosting {
         if assigns.is_some() {
             let assignments = assigns.unwrap();
             let expand_node = assignments[self.local_id % assignments.len()];
+            self.is_assignment_none = expand_node.is_none();
             if expand_node.is_some() {
                 if self.learner.set_expand_node(expand_node.unwrap()) {
                     self.is_scanner_status_changed = true;

@@ -200,7 +200,7 @@ impl ModelSync {
 
             // adjust gamma
             if packet_stats.is_triggered(self.model_stats.avail_nodes) {
-                if self.gamma.adjust(&packet_stats) {
+                if self.gamma.adjust(&packet_stats, self.model_stats.model.size()) {
                     self.model_stats.update_gamma(self.gamma.gamma_version);
                     self.broadcast_model(last_model_timestamp, false);
                     // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
@@ -212,7 +212,7 @@ impl ModelSync {
             // Update assignments
             let (_num_updates, force_dec_gamma) = scheduler.update(&self.model_stats, &self.gamma);
             if force_dec_gamma {
-                self.gamma.decrease_gamma();
+                self.gamma.decrease_gamma(self.model_stats.model.size());
             }
 
             // Handle packets
@@ -233,7 +233,7 @@ impl ModelSync {
                 PacketType::EmptyRoot | PacketType::EmptyNonroot => {
                     scheduler.handle_failure(&packet, &self.gamma, node_count);
                     if packet.node_id == 0 {  // is root
-                        self.gamma.decrease_root_gamma();
+                        self.gamma.decrease_root_gamma(self.model_stats.model.size());
                         self.model_stats.update_gamma(self.gamma.gamma_version);
                         self.broadcast_model(last_model_timestamp, false);
                     }

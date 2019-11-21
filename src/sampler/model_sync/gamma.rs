@@ -25,7 +25,7 @@ impl Gamma {
         self.gamma >= self.min_gamma
     }
 
-    pub fn adjust(&mut self, packet_stats: &PacketStats) -> bool {
+    pub fn adjust(&mut self, packet_stats: &PacketStats, model_size: usize) -> bool {
         if packet_stats.is_nonroot_same_trend() {
             self.shrink_factor = (0.8 + self.shrink_factor) / 2.0;
         } else if packet_stats.is_nonroot_opposite_trend() {
@@ -39,8 +39,8 @@ impl Gamma {
         if packet_stats.curr_nonroot_condition != UpdateSpeed::Okay {
             // gamma is changed
             self.gamma_version += 1;
-            debug!("model_mamanger, gamma update, non-root, {}, {}, {}, {}, {}, {}",
-                    self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor,
+            debug!("model_mamanger, gamma update, non-root, {}, {}, {}, {}, {}, {}, {}",
+                    self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor, model_size,
                     packet_stats.avg_accept_nonroot_rate, packet_stats.last_accept_nonroot_rate);
             true
         } else {
@@ -48,17 +48,17 @@ impl Gamma {
         }
     }
 
-    pub fn decrease_gamma(&mut self) {
+    pub fn decrease_gamma(&mut self, model_size: usize) {
         self.gamma *= self.shrink_factor;
         self.gamma_version += 1;
-        debug!("model_manager, gamma update, forced non-root, {}, {}, {}, {}",
-                self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor);
+        debug!("model_manager, gamma update, forced non-root, {}, {}, {}, {}, {}",
+                self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor, model_size);
     }
 
-    pub fn decrease_root_gamma(&mut self) {
+    pub fn decrease_root_gamma(&mut self, model_size: usize) {
         self.root_gamma *= 0.8;
         self.gamma_version += 1;
-        debug!("model_manager, gamma update, root, {}, {}, {}, {}",
-                self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor);
+        debug!("model_manager, gamma update, root, {}, {}, {}, {}, {}",
+                self.gamma_version, self.gamma, self.root_gamma, self.shrink_factor, model_size);
     }
 }
