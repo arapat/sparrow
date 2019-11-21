@@ -192,7 +192,7 @@ impl Boosting {
             }
 
             // Get the new sample
-            self.training_loader.check_ess_blocking();
+            // self.training_loader.check_ess_blocking();
             // Check assignment
             // if self.is_assignment_none {
             //     self.update_assignment();
@@ -344,6 +344,7 @@ impl Boosting {
             self.model.size(),
             tree_slice,
             gamma,
+            self.training_loader.ess,
             self.training_loader.current_version,
             self.base_model_sig.clone(),
         );

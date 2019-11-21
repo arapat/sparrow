@@ -8,6 +8,7 @@ use commons::tree::UpdateList;
 pub enum PacketType {
     AcceptRoot,
     AcceptNonroot,
+    EmptySmallEffSize,
     EmptyRoot,
     EmptyNonroot,
     RejectSample,
@@ -24,6 +25,7 @@ pub struct Packet {
     pub updates: UpdateList,
     pub gamma: f32,
     pub sample_version: usize,
+    pub ess: f32,
     pub base_model_signature: String,
     pub this_model_signature: String,
 }
@@ -38,6 +40,7 @@ impl Packet {
         final_model_size: usize,
         updates: UpdateList,
         gamma: f32,
+        ess: f32,
         sample_version: usize,
         base_model_sig: String,
     ) -> Packet {
@@ -51,6 +54,7 @@ impl Packet {
             updates: updates,
             gamma: gamma,
             sample_version: sample_version,
+            ess: ess,
             base_model_signature: base_model_sig,
             this_model_signature: this_model_sig,
         }
@@ -58,16 +62,22 @@ impl Packet {
 
     pub fn get_packet_type(
         &self, sampler_sample_version: &Arc<RwLock<usize>>, sampler_model_version: &String,
+        min_ess: f32,
     ) -> PacketType {
         // Empty packets
         if self.updates.size == 0 {
+            if self.ess < min_ess {
+                debug!("model_manager, packet, empty small ess, {}, {}, {}",
+                        self.source_machine_id, self.node_id, self.ess);
+                return PacketType::EmptySmallEffSize;
+            }
             if self.node_id == 0 {
-                debug!("model_manager, packet, empty root, {}, {}",
-                        self.source_machine_id, self.node_id);
+                debug!("model_manager, packet, empty root, {}, {}, {}",
+                        self.source_machine_id, self.node_id, self.ess);
                 return PacketType::EmptyRoot;
             }
-            debug!("model_manager, packet, empty nonroot, {}, {}",
-                    self.source_machine_id, self.node_id);
+            debug!("model_manager, packet, empty nonroot, {}, {}, {}",
+                    self.source_machine_id, self.node_id, self.ess);
             return PacketType::EmptyNonroot;
         }
 
@@ -92,12 +102,12 @@ impl Packet {
 
         // Accept packets
         if self.node_id == 0 {
-            debug!("model_manager, packet, accept root, {}, {}",
-                    self.source_machine_id, self.node_id);
+            debug!("model_manager, packet, accept root, {}, {}, {}",
+                    self.source_machine_id, self.node_id, self.ess);
             return PacketType::AcceptRoot;
         }
-        debug!("model_manager, packet, accept nonroot, {}, {}",
-                self.source_machine_id, self.node_id);
+        debug!("model_manager, packet, accept nonroot, {}, {}, {}",
+                self.source_machine_id, self.node_id, self.ess);
         PacketType::AcceptNonroot
     }
 }

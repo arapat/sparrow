@@ -42,7 +42,7 @@ pub struct BufferLoader {
     loader: Loader,
     pub sample_mode: SampleMode,
 
-    ess: f32,
+    pub ess: f32,
     min_ess: f32,
     curr_example: usize,
     sampling_pm: PerformanceMonitor,
@@ -175,11 +175,11 @@ impl BufferLoader {
         let mut last_report_time = 0.0;
         timer.start();
         while self.ess < self.min_ess && !self.try_switch() {
-            if timer.get_duration() - last_report_time > 10 {
+            if timer.get_duration() - last_report_time > 10.0 {
                 last_report_time = timer.get_duration();
                 debug!("loader, blocking, {}, {}, {}, {}, {}",
                         last_report_time, self.ess, self.min_ess, self.base_model_sig,
-                        self.curr_version);
+                        self.current_version);
             }
             sleep(Duration::from_secs(2));
         }
