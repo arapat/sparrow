@@ -171,7 +171,16 @@ impl BufferLoader {
 
     // Check ess, if it is too small, block the thread until a new sample is received
     pub fn check_ess_blocking(&mut self) {
+        let mut timer = PerformanceMonitor::new();
+        let mut last_report_time = 0.0;
+        timer.start();
         while self.ess < self.min_ess && !self.try_switch() {
+            if timer.get_duration() - last_report_time > 10 {
+                last_report_time = timer.get_duration();
+                debug!("loader, blocking, {}, {}, {}, {}, {}",
+                        last_report_time, self.ess, self.min_ess, self.base_model_sig,
+                        self.curr_version);
+            }
             sleep(Duration::from_secs(2));
         }
     }

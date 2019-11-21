@@ -194,11 +194,11 @@ impl Boosting {
             // Get the new sample
             self.training_loader.check_ess_blocking();
             // Check assignment
-            if self.is_assignment_none {
-                self.update_assignment();
-                sleep(Duration::from_secs(1));
-                continue;
-            }
+            // if self.is_assignment_none {
+            //     self.update_assignment();
+            //     sleep(Duration::from_secs(1));
+            //     continue;
+            // }
 
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =

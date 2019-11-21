@@ -29,11 +29,11 @@ impl Scheduler {
             scanner_task: vec![None; num_machines],
             exp_name: exp_name.clone(),
         };
-        scheduler.scanner_task[0] = Some(0);
-        if scheduler.node_status.len() > 0 {
-            scheduler.node_status[0] = (1.0, Some(0));
-        }
-        upload_assignments(&scheduler.scanner_task, exp_name);
+        // scheduler.scanner_task[0] = Some(0);
+        // if scheduler.node_status.len() > 0 {
+        //     scheduler.node_status[0] = (1.0, Some(0));
+        // }
+        // upload_assignments(&scheduler.scanner_task, exp_name);
         scheduler.update(model_stats, gamma);
         scheduler
     }
