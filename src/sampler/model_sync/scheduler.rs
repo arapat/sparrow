@@ -117,7 +117,8 @@ impl Scheduler {
         let depth = model_stats.model.depth[index];
         if index == 0 {
             // `depth < max_depth` and `old_gamma > root_gamma` is guaranteed for the root
-            assigner.is_none() && model_stats.avail_new_tree < MAX_EMPTY_TREE &&
+            assigner.is_none() &&
+                model_stats.avail_new_tree < max(self.scanner_task.len() * 2, MAX_EMPTY_TREE) &&
                 num_child < model_stats.max_num_trees
         } else {
             assigner.is_none() && depth < model_stats.max_depth && num_child <= 0 &&
