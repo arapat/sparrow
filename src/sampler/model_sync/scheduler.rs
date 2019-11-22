@@ -65,8 +65,10 @@ impl Scheduler {
                     num_updates += 1;
                 }
             }
-            let (last_failed_gamma, _) = self.node_status[0];
-            self.node_status[0] = (last_failed_gamma, Some(0));
+            if self.node_status.len() > 0 {
+                let (last_failed_gamma, _) = self.node_status[0];
+                self.node_status[0] = (last_failed_gamma, Some(0));
+            }
             if num_updates > 0 {
                 debug!("model-manager, assign all set to root, {}", num_updates);
                 upload_assignments(&self.scanner_task, &self.exp_name);
