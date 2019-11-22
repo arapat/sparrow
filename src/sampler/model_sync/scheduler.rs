@@ -39,19 +39,18 @@ impl Scheduler {
     }
 
     pub fn update(&mut self, model_stats: &ModelStats, gamma: &Gamma) -> (usize, bool) {
-        let num_nodes = self.node_status.len();
         // if there is no enough root nodes, set the cluster into the emergency state
         if model_stats.avail_new_tree <= self.node_status.len() {
             let mut num_updates = 0;
-            for i in 0..num_nodes {
-                if self.scanner_task[i].is_none() {
-                    self.scanner_task[i] = Some(0);
+            for scanner_task in self.scanner_task.iter_mut() {
+                if scanner_task.is_none() {
+                    *scanner_task = Some(0);
                     num_updates += 1;
-                } else if self.scanner_task[i] != Some(0) {
-                    let node_id = self.scanner_task[i].take().unwrap();
+                } else if *scanner_task != Some(0) {
+                    let node_id = scanner_task.take().unwrap();
                     let (last_failed_gamma, _) = self.node_status[node_id];
                     self.node_status[node_id] = (last_failed_gamma, None);
-                    self.scanner_task[i] = Some(0);
+                    *scanner_task = Some(0);
                 }
             }
             debug!("model-manager, assign all set to root, {}", num_updates);
@@ -59,6 +58,7 @@ impl Scheduler {
             return (num_updates, false);
         }
 
+        let num_nodes = self.node_status.len();
         let valid_nodes: Vec<usize> = (0..num_nodes).filter(|node_index| {
             self.is_valid_node(*node_index, model_stats, gamma)
         }).collect();
