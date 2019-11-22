@@ -233,7 +233,10 @@ impl ModelSync {
             packet_stats.handle_new_packet(&packet, &packet_type);
             let node_count = self.get_node_counts(packet.node_id);
             match packet_type {
-                PacketType::EmptyNonroot | PacketType::EmptySmallEffSize => {
+                PacketType::SmallEffSize => {
+                    // TODO: adjust scheduler accordingly if the scanner keeps having a low ess
+                },
+                PacketType::EmptyNonroot => {
                     scheduler.handle_failure(&packet, &self.gamma, node_count);
                 },
                 PacketType::EmptyRoot => {

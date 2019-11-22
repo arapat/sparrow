@@ -8,9 +8,9 @@ use commons::tree::UpdateList;
 pub enum PacketType {
     AcceptRoot,
     AcceptNonroot,
-    EmptySmallEffSize,
     EmptyRoot,
     EmptyNonroot,
+    SmallEffSize,
     RejectSample,
     RejectBaseModel,
 }
@@ -64,13 +64,15 @@ impl Packet {
         &self, sampler_sample_version: &Arc<RwLock<usize>>, sampler_model_version: &String,
         min_ess: f32,
     ) -> PacketType {
+        // Ignore any claims made on a very small effective sample
+        if self.ess < min_ess {
+            debug!("model_manager, packet, empty small ess, {}, {}, {}",
+                    self.source_machine_id, self.node_id, self.ess);
+            return PacketType::SmallEffSize;
+        }
+
         // Empty packets
         if self.updates.size == 0 {
-            if self.ess < min_ess {
-                debug!("model_manager, packet, empty small ess, {}, {}, {}",
-                        self.source_machine_id, self.node_id, self.ess);
-                return PacketType::EmptySmallEffSize;
-            }
             if self.node_id == 0 {
                 debug!("model_manager, packet, empty root, {}, {}, {}",
                         self.source_machine_id, self.node_id, self.ess);

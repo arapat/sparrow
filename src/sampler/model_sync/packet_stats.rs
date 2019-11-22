@@ -25,12 +25,12 @@ pub struct PacketStats {
     empty_packets:           usize,
     accept_packets:          usize,
     rejected_packets:        usize,
+    small_ess_packets:       usize,
 
     accept_root_packets:     usize,
     accept_nonroot_packets:  usize,
     empty_root_packets:      usize,
     empty_nonroot_packets:   usize,
-    empty_small_ess_packets: usize,
     rejected_packets_model:  usize,
     rejected_packets_sample: usize,
 
@@ -61,7 +61,7 @@ impl PacketStats {
             accept_nonroot_packets:  0,
             empty_root_packets:      0,
             empty_nonroot_packets:   0,
-            empty_small_ess_packets: 0,
+            small_ess_packets:       0,
             rejected_packets_model:  0,
             rejected_packets_sample: 0,
 
@@ -94,11 +94,6 @@ impl PacketStats {
                 self.accept_nonroot_packets  += 1;
                 self.num_acc_nonroot_packs[machine_id] += 1;
             },
-            PacketType::EmptySmallEffSize => {
-                self.empty_packets           += 1;
-                self.empty_small_ess_packets += 1;
-                self.num_empty_packs[machine_id] += 1;
-            },
             PacketType::EmptyRoot => {
                 self.empty_packets           += 1;
                 self.empty_root_packets      += 1;
@@ -108,6 +103,9 @@ impl PacketStats {
                 self.empty_packets           += 1;
                 self.empty_nonroot_packets   += 1;
                 self.num_empty_packs[machine_id] += 1;
+            },
+            PacketType::SmallEffSize => {
+                self.small_ess_packets       += 1;
             },
             PacketType::RejectSample => {
                 self.rejected_packets        += 1;
@@ -159,8 +157,8 @@ impl PacketStats {
         self.accept_root_packets = 0;
         self.accept_nonroot_packets = 0;
         self.empty_root_packets = 0;
-        self.empty_small_ess_packets = 0;
         self.empty_nonroot_packets = 0;
+        self.small_ess_packets = 0;
         self.rejected_packets_model = 0;
         self.rejected_packets_sample = 0;
 
@@ -186,7 +184,7 @@ impl PacketStats {
                 self.accept_nonroot_packets.to_string(),
                 self.empty_root_packets.to_string(),
                 self.empty_nonroot_packets.to_string(),
-                self.empty_small_ess_packets.to_string(),
+                self.small_ess_packets.to_string(),
                 self.rejected_packets_model.to_string(),
                 self.rejected_packets_sample.to_string(),
 

@@ -40,7 +40,18 @@ impl Scheduler {
 
     pub fn update(&mut self, model_stats: &ModelStats, gamma: &Gamma) -> (usize, bool) {
         // if there is no enough root nodes, set the cluster into the emergency state
-        if model_stats.avail_new_tree <= self.node_status.len() {
+        let is_too_many_root_nodes = model_stats.model.children.len() > 0 && (
+            model_stats.model.children[0].len() >= model_stats.max_num_trees ||
+            model_stats.avail_new_tree >= self.scanner_task.len() * 3);
+        if is_too_many_root_nodes && (self.node_status[0].1).is_some() {
+            for scanner_task in self.scanner_task.iter_mut() {
+                if *scanner_task == Some(0) {
+                    *scanner_task = None;
+                }
+            }
+            let (last_failed_gamma, _) = self.node_status[0];
+            self.node_status[0] = (last_failed_gamma, None);
+        } else if !is_too_many_root_nodes && model_stats.avail_new_tree <= self.node_status.len() {
             let mut num_updates = 0;
             for scanner_task in self.scanner_task.iter_mut() {
                 if scanner_task.is_none() {
@@ -54,6 +65,8 @@ impl Scheduler {
                     num_updates += 1;
                 }
             }
+            let (last_failed_gamma, _) = self.node_status[0];
+            self.node_status[0] = (last_failed_gamma, Some(0));
             if num_updates > 0 {
                 debug!("model-manager, assign all set to root, {}", num_updates);
                 upload_assignments(&self.scanner_task, &self.exp_name);
