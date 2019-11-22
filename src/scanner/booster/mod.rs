@@ -326,9 +326,10 @@ impl Boosting {
             self.send_packet();
             self.is_sample_version_changed = false;
             debug!("scanner, send-message, nonempty, {}, {}",
-                    self.model.size() - self.last_sent_model_length, self.model.size());
+                    self.model.size() - self.base_model_size, self.model.size());
             true
-        } else if full_scanned_no_update && self.is_scanner_status_changed {
+        } else if self.model.size() == self.base_model_size &&
+                    full_scanned_no_update && self.is_scanner_status_changed {
             // send out the empty message
             self.send_packet();
             self.is_scanner_status_changed = false;
@@ -343,7 +344,7 @@ impl Boosting {
     fn send_packet(&mut self) -> bool {
         self.packet_counter += 1;
         let tree_slice = self.model.model_updates.create_slice(
-            self.last_sent_model_length..self.model.size());
+            self.base_model_size..self.model.size());
         let gamma =
             if self.learner.expand_node == 0 {
                 self.learner.root_gamma
