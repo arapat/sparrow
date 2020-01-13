@@ -86,17 +86,11 @@ impl Scheduler {
                 .filter(|(_, assignment)| assignment.is_none())
                 .map(|(scanner_index, _)| scanner_index)
                 .collect();
-
         let num_idle_scanners = idle_scanners.len();
-        let num_updates = min(num_idle_scanners, valid_nodes.len());
-        for (scanner_index, node_index) in idle_scanners.into_iter().zip(valid_nodes.into_iter()) {
-            let (last_failed_gamma, _) = self.node_status[node_index];
-            self.node_status[node_index] = (last_failed_gamma, Some(scanner_index));
-            self.scanner_task[scanner_index] = Some(node_index);
-            let gamma_val = if node_index == 0 { gamma.root_gamma } else { gamma.gamma };
-            debug!("model-manager, assign, {}, {}, {}, {}",
-                    scanner_index, node_index, last_failed_gamma, gamma_val);
-        }
+
+        // TODO: make an option for the different scheduler policies
+        let num_updates = self.assign_by_level(gamma, idle_scanners, valid_nodes);
+
         if num_updates > 0 {
             debug!("model-manager, assign updates, {}", num_updates);
             upload_assignments(&self.scanner_task, &self.exp_name);
@@ -109,6 +103,22 @@ impl Scheduler {
         } else {
             (0, false)
         }
+    }
+
+    fn assign_by_level(
+        &mut self, gamma: &Gamma, idle_scanners: Vec<usize>, valid_nodes: Vec<usize>,
+    ) -> usize {
+        let num_idle_scanners = idle_scanners.len();
+        let num_updates = min(num_idle_scanners, valid_nodes.len());
+        for (scanner_index, node_index) in idle_scanners.into_iter().zip(valid_nodes.into_iter()) {
+            let (last_failed_gamma, _) = self.node_status[node_index];
+            self.node_status[node_index] = (last_failed_gamma, Some(scanner_index));
+            self.scanner_task[scanner_index] = Some(node_index);
+            let gamma_val = if node_index == 0 { gamma.root_gamma } else { gamma.gamma };
+            debug!("model-manager, assign, {}, {}, {}, {}",
+                    scanner_index, node_index, last_failed_gamma, gamma_val);
+        }
+        num_updates
     }
 
     pub fn handle_success(
@@ -219,12 +229,3 @@ fn vec_to_string(vec: &Vec<Option<usize>>) -> String {
     }).collect();
     s.join(", ")
 }
-
-/*
-if packet_stats.curr_nonroot_condition == UpdateSpeed::TooFast {
-    for node_id in 0..node_status.len() {
-        let (status, _remote_gamma, assignment) = node_status[node_id];
-        node_status[node_id] = (status, 1.0, assignment);
-    }
-}
-*/
