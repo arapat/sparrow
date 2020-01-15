@@ -116,6 +116,7 @@ pub struct ModelSync {
     model_stats: ModelStats,
     num_iterations: usize,
     exp_name: String,
+    min_ess: f32,
 
     gamma: Gamma,
     sampler_state: Arc<RwLock<bool>>,
@@ -133,6 +134,7 @@ impl ModelSync {
         model_stats: ModelStats,
         num_iterations: usize,
         exp_name: &String,
+        min_ess: f32,
         gamma: Gamma,
         sampler_state: Arc<RwLock<bool>>,
         next_model_sender: Sender<(Model, String)>,
@@ -146,6 +148,7 @@ impl ModelSync {
             // Configurations
             num_iterations: num_iterations,
             exp_name: exp_name.clone(),
+            min_ess: min_ess,
 
             // cluster status
             gamma: gamma,
@@ -200,7 +203,7 @@ impl ModelSync {
 
             // adjust gamma
             if packet_stats.is_triggered(self.model_stats.avail_nodes) {
-                if self.gamma.adjust(&packet_stats) {
+                if self.gamma.adjust(&packet_stats, self.model_stats.model.size()) {
                     self.model_stats.update_gamma(self.gamma.gamma_version);
                     self.broadcast_model(last_model_timestamp, false);
                     // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
@@ -212,7 +215,7 @@ impl ModelSync {
             // Update assignments
             let (_num_updates, force_dec_gamma) = scheduler.update(&self.model_stats, &self.gamma);
             if force_dec_gamma {
-                self.gamma.decrease_gamma();
+                self.gamma.decrease_gamma(self.model_stats.model.size());
             }
 
             // Handle packets
@@ -226,17 +229,22 @@ impl ModelSync {
             let mut packet: Packet = packet.unwrap();
             packet.source_machine_id = packet.source_machine_id % packet_stats.num_machines;
             let packet_type = packet.get_packet_type(
-                &self.current_sample_version, &self.model_stats.model_sig);
+                &self.current_sample_version, &self.model_stats.model_sig, self.min_ess);
             packet_stats.handle_new_packet(&packet, &packet_type);
             let node_count = self.get_node_counts(packet.node_id);
             match packet_type {
-                PacketType::EmptyRoot | PacketType::EmptyNonroot => {
+                PacketType::SmallEffSize => {
+                    // TODO: adjust scheduler accordingly if the scanner keeps having a low ess
+                },
+                PacketType::EmptyNonroot => {
                     scheduler.handle_failure(&packet, &self.gamma, node_count);
-                    if packet.node_id == 0 {  // is root
-                        self.gamma.decrease_root_gamma();
-                        self.model_stats.update_gamma(self.gamma.gamma_version);
-                        self.broadcast_model(last_model_timestamp, false);
-                    }
+                },
+                PacketType::EmptyRoot => {
+                    scheduler.handle_failure(&packet, &self.gamma, node_count);
+                    // decrease root gamma
+                    self.gamma.decrease_root_gamma(self.model_stats.model.size());
+                    self.model_stats.update_gamma(self.gamma.gamma_version);
+                    self.broadcast_model(last_model_timestamp, false);
                 },
                 PacketType::AcceptNonroot | PacketType::AcceptRoot => {
                     last_model_timestamp = global_timer.get_duration();

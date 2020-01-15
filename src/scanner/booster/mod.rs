@@ -11,7 +11,6 @@ use commons::persistent_io::download_model;
 use commons::persistent_io::write_model;
 use self::learner::get_base_node;
 
-use commons::INIT_MODEL_PREFIX;
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
 use commons::bins::Bins;
@@ -20,6 +19,9 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::ModelPack;
 use self::learner::Learner;
 use self::learner::TreeNode;
+
+
+pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";
 
 
 /// The boosting algorithm. It contains two functions, one for starting
@@ -46,6 +48,8 @@ pub struct Boosting {
     // for re-sending the empty packet if the scanner status changed
     // track: expanding node, gamma value
     is_scanner_status_changed: bool,
+    // assignment is none if this scanner didn't receive any task from the sampler
+    is_assignment_none: bool,
 
     persist_id: u32,
     save_interval: usize,
@@ -92,6 +96,7 @@ impl Boosting {
             is_sample_version_changed: true,
             is_scanner_status_changed: true,
             last_sent_model_length: 0,
+            is_assignment_none: true,
 
             network_sender: None,
             local_name: "".to_string(),
@@ -108,12 +113,24 @@ impl Boosting {
     }
 
     fn init(&mut self) {
+        let mut timer = PerformanceMonitor::new();
+        let mut last_reported_time = 0.0;
+        timer.start();
         while self.training_loader.is_empty() {
+            if timer.get_duration() - last_reported_time > 60.0 {
+                last_reported_time = timer.get_duration();
+                debug!("scanner, init, waiting the first sample, {}",  last_reported_time);
+            }
             self.training_loader.try_switch();
             sleep(Duration::from_millis(2000));
         }
         debug!("booster, first sample is loaded");
-        while !self.base_model_sig.starts_with(INIT_MODEL_PREFIX) {
+        last_reported_time = timer.get_duration();
+        while self.base_model_sig == MODEL_SIG_PLACEHOLDER {
+            if timer.get_duration() - last_reported_time > 60.0 {
+                last_reported_time = timer.get_duration();
+                debug!("scanner, init, waiting the initial model, {}", last_reported_time);
+            }
             self.handle_network(false);
             sleep(Duration::from_secs(2));
         }
@@ -182,12 +199,21 @@ impl Boosting {
         self.verbose = false;
         while self.learner.is_gamma_significant() &&
                 (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
+            // Logging for the status check
             if global_timer.get_duration() - last_logging_ts >= 10.0 {
                 self.print_log(total_data_size_without_fire);
                 last_logging_ts = global_timer.get_duration();
             }
 
-            self.print_verbose_log("Line 185");
+            // Get the new sample
+            // self.training_loader.check_ess_blocking();
+            // Check assignment
+            // if self.is_assignment_none {
+            //     self.update_assignment();
+            //     sleep(Duration::from_secs(1));
+            //     continue;
+            // }
+
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -203,10 +229,9 @@ impl Boosting {
             };
             total_data_size_without_fire += batch_size;
             global_timer.update(batch_size);
-            self.print_verbose_log("Line 201");
 
+            // Try to find new rule
             if switched {
-                self.print_verbose_log("Line 204");
                 self.is_sample_version_changed = true;
                 self.update_model(
                     self.training_loader.base_model.clone(),
@@ -214,7 +239,6 @@ impl Boosting {
                     "loader",
                 );
             }
-            self.print_verbose_log("Line 212");
             let is_new_rule_added = self.process_new_rule(
                 new_rule, total_data_size_without_fire, prep_time + global_timer.get_duration());
 
@@ -222,7 +246,7 @@ impl Boosting {
                 total_data_size_without_fire = 0;
             }
 
-            self.print_verbose_log("Line 220");
+            // Communicate
             let is_communicated = self.handle_network(
                 total_data_size_without_fire >= self.training_loader.size);
             if is_communicated {
@@ -230,7 +254,6 @@ impl Boosting {
                 _last_communication_ts = global_timer.get_duration();
             }
 
-            self.print_verbose_log("Line 228");
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
@@ -303,9 +326,10 @@ impl Boosting {
             self.send_packet();
             self.is_sample_version_changed = false;
             debug!("scanner, send-message, nonempty, {}, {}",
-                    self.model.size() - self.last_sent_model_length, self.model.size());
+                    self.model.size() - self.base_model_size, self.model.size());
             true
-        } else if full_scanned_no_update && self.is_scanner_status_changed {
+        } else if self.model.size() == self.base_model_size &&
+                    full_scanned_no_update && self.is_scanner_status_changed {
             // send out the empty message
             self.send_packet();
             self.is_scanner_status_changed = false;
@@ -320,7 +344,7 @@ impl Boosting {
     fn send_packet(&mut self) -> bool {
         self.packet_counter += 1;
         let tree_slice = self.model.model_updates.create_slice(
-            self.last_sent_model_length..self.model.size());
+            self.base_model_size..self.model.size());
         let gamma =
             if self.learner.expand_node == 0 {
                 self.learner.root_gamma
@@ -335,6 +359,7 @@ impl Boosting {
             self.model.size(),
             tree_slice,
             gamma,
+            self.training_loader.ess,
             self.training_loader.current_version,
             self.base_model_sig.clone(),
         );
@@ -356,6 +381,7 @@ impl Boosting {
         if assigns.is_some() {
             let assignments = assigns.unwrap();
             let expand_node = assignments[self.local_id % assignments.len()];
+            self.is_assignment_none = expand_node.is_none();
             if expand_node.is_some() {
                 if self.learner.set_expand_node(expand_node.unwrap()) {
                     self.is_scanner_status_changed = true;
@@ -385,6 +411,7 @@ impl Boosting {
         );
     }
 
+    #[allow(dead_code)]
     fn print_verbose_log<T>(&self, message: T) where T: Display {
         if self.verbose {
             debug!("booster, verbose, {}", message);

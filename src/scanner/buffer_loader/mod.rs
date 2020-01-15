@@ -4,6 +4,8 @@ use rayon::prelude::*;
 use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::thread::sleep;
+use std::time::Duration;
 
 use SampleMode;
 use commons::get_weight;
@@ -40,7 +42,7 @@ pub struct BufferLoader {
     loader: Loader,
     pub sample_mode: SampleMode,
 
-    ess: f32,
+    pub ess: f32,
     _min_ess: f32,
     curr_example: usize,
     sampling_pm: PerformanceMonitor,
@@ -166,6 +168,24 @@ impl BufferLoader {
     }
 
     // ESS and others
+
+    // Check ess, if it is too small, block the thread until a new sample is received
+    #[allow(dead_code)]
+    pub fn check_ess_blocking(&mut self) {
+        let mut timer = PerformanceMonitor::new();
+        let mut last_report_time = 0.0;
+        timer.start();
+        while self.ess < self._min_ess && !self.try_switch() {
+            if timer.get_duration() - last_report_time > 10.0 {
+                last_report_time = timer.get_duration();
+                debug!("loader, blocking, {}, {}, {}, {}, {}",
+                        last_report_time, self.ess, self._min_ess, self.base_model_sig,
+                        self.current_version);
+            }
+            sleep(Duration::from_secs(2));
+        }
+    }
+
     /// Get the estimate of the effective sample size of the current sample set.
     fn update_ess(&mut self) {
         let (sum_weights, sum_weight_squared): (f32, f32) =

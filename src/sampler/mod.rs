@@ -71,6 +71,7 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
         model_stats,
         config.num_iterations,
         &config.exp_name,
+        config.min_ess,
         gamma,
         sampler_state.clone(),
         next_model_s,
