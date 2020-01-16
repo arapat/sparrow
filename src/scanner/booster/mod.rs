@@ -1,4 +1,5 @@
-mod learner;
+pub mod learner;
+pub mod learner_helpers;
 
 use std::sync::mpsc;
 use std::thread::sleep;

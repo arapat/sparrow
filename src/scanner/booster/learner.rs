@@ -10,6 +10,8 @@ use commons::is_zero;
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
 
+use super::learner_helpers;
+
 // TODO: The tree generation and score updates are for AdaBoost only,
 // extend it to other potential functions
 
@@ -25,14 +27,14 @@ Each split corresponds to 2 types of predictions,
     1. Left +1, Right -1;
     2. Left -1, Right +1;
 */
-const NUM_PREDS: usize = 2;
+pub const NUM_PREDS: usize = 2;
 const NUM_RULES: usize = NUM_PREDS;
-const PREDS: [(f32, f32); NUM_PREDS] = [(-1.0, 1.0), (1.0, -1.0)];
+pub const PREDS: [(f32, f32); NUM_PREDS] = [(-1.0, 1.0), (1.0, -1.0)];
 // (pred1, false), (pred1, true), (pred2, false), (pred2, true)
 type ScoreBoard = Vec<Vec<[f32; NUM_RULES]>>;
 type ScoreBoard1 = Vec<Vec<f32>>;
 // (f32, f32) -> Stats if falls under left, and if falls under right
-type RuleStats = [[(f32, f32); 2]; NUM_PREDS];
+pub type RuleStats = [[(f32, f32); 2]; NUM_PREDS];
 
 
 /// A weak rule with an edge larger or equal to the targetting value of `gamma`
@@ -186,11 +188,10 @@ impl Learner {
         self.total_weight_sq = 0.0;
     }
 
-    /*
     fn get_max_empirical_ratio(&self) -> (f32, (usize, usize, usize)) {
         let mut max_ratio = 0.0;
         let mut actual_ratio = 0.0;
-        let mut rule_id = (0, 0, 0, 0, 0);
+        let mut rule_id = (0, 0, 0);
         for i in 0..self.num_features {
             for j in 0..self.bins[i].len() {
                 for k in 0..NUM_RULES {
@@ -206,7 +207,6 @@ impl Learner {
         }
         (actual_ratio, rule_id)
     }
-    */
 
     pub fn is_gamma_significant(&self) -> bool {
         self.rho_gamma >= self.min_gamma
@@ -214,19 +214,16 @@ impl Learner {
 
     /// Update the statistics of all candidate weak rules using current batch of
     /// training examples.
-    // validate_set1: &Vec<Example>, validate_w1: &Vec<f32>,
-    // validate_set2: &Vec<Example>, validate_w2: &Vec<f32>,
     pub fn update(
         &mut self,
         tree: &Model,
         data: &[ExampleInSampleSet],
     ) -> Option<TreeNode> {
         // update global stats
-        self.total_count += data.len();
+        self.total_count       += data.len();
         self.total_weight      += data.par_iter().map(|t| (t.1).0).sum::<f32>();
         self.total_weight_sq   += data.par_iter().map(|t| ((t.1).0) * ((t.1).0)).sum::<f32>();
 
-        // preprocess examples - Complexity: O(Examples * NumRules)
         let expand_node = self.expand_node;
         let rho_gamma = {
             if expand_node == 0 {
@@ -235,26 +232,10 @@ impl Learner {
                 self.rho_gamma
             }
         };
-        let data: Vec<(f32, (&Example, RuleStats))> = {
-            data.par_iter().map(|(example, (weight, _, _, _))| {
-                let labeled_weight = weight * (example.label as f32);
-                // let null_weight = 2.0 * rho_gamma * weight;
-                let null_weight = 2.0 * rho_gamma * weight;
-                let mut vals: RuleStats = [[(0.0, 0.0); 2]; NUM_PREDS];
-                PREDS.iter().enumerate().for_each(|(i, pred)| {
-                    let abs_val = (pred.0 * labeled_weight, pred.1 * labeled_weight);
-                    let ci      = (abs_val.0 - null_weight, abs_val.1 - null_weight);
-                    vals[i][0]  = abs_val;
-                    vals[i][1]  = (
-                        ci.0 * ci.0 - null_weight * null_weight,
-                        ci.1 * ci.1 - null_weight * null_weight
-                    );
-                });
-                (tree.is_visited(example, expand_node), *weight, (example, vals))
-            }).filter(|(contains, _, _)| *contains)
-              .map(|(_, w, b)| (w, b))
-              .collect()
-        };
+
+        // preprocess examples - Complexity: O(Examples * NumRules)
+        let data: Vec<(f32, (&Example, RuleStats))> = learner_helpers::preprocess_data(
+            data, tree, expand_node, rho_gamma);
 
         // Calculate total sum of the weights and the number of examples
         let (batch_sum_weight, batch_count): (f32, usize) = {
