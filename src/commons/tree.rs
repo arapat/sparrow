@@ -51,6 +51,7 @@ impl Clone for Tree {
     }
 }
 
+// TODO: remove the queue-like accessing if we no longer use the AD-tree structure
 impl Tree {
     pub fn new(max_nodes: usize) -> Tree {
         Tree {
@@ -221,6 +222,21 @@ impl Tree {
             });
         }
         false
+    }
+
+    pub fn get_leaf_index_prediction(&self, starting_index: usize, data: &Example) -> usize {
+        let mut node: usize = starting_index;
+        let feature = &(data.feature);
+        while self.children[node].len() > 0 {
+            for child in self.children[node] {
+                if (feature[self.split_feature[child]] <= self.threshold[child]) ==
+                    self.evaluation[child] {
+                        node = child;
+                        break;
+                    }
+            }
+        }
+        node
     }
 
     // return the indices of the added nodes and whether they are new nodes

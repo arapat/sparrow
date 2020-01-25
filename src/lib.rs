@@ -90,7 +90,8 @@ pub fn training(config_filepath: &String) {
             model
         } else {
             debug!("Created a new tree");
-            Tree::new(config.num_iterations)
+            // TODO: extend for the cases that more than 4 nodes were used for creating grids
+            Tree::new(config.num_trees * (4 + config.num_splits + 1) + 10)
         }
     };
     if config.sampler_scanner == "scanner" {

@@ -33,7 +33,8 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
     let mut booster = Boosting::new(
         config.exp_name.clone(),
         init_tree.clone(),
-        config.num_iterations,
+        config.num_trees,
+        config.num_splits,
         config.num_features,
         config.min_gamma,
         buffer_loader,

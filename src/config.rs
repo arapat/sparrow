@@ -29,12 +29,12 @@ pub struct Config {
     /// Minimum effective sample size for triggering resample
     pub min_ess: f32,
 
-    /// Number of boosting iterations
-    pub num_iterations: usize,
+    // Number of boosting iterations
+    // pub num_iterations: usize,
     /// Number of decision trees (i.e. second-layer tree nodes)
     pub num_trees: usize,
-    /// Maximum depth of the tree leaves
-    pub max_depth: usize,
+    /// Maximum number of splits per tree
+    pub num_splits: usize,
 
     /// Maximum number of elements in the channel connecting scanner and sampler
     pub channel_size: usize,

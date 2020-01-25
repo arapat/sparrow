@@ -10,7 +10,7 @@ use tmsn::network::start_network_only_send;
 use commons::persistent_io::download_assignments;
 use commons::persistent_io::download_model;
 use commons::persistent_io::write_model;
-use self::learner::get_base_node;
+use self::learner_helpers::get_base_node;
 
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
@@ -29,7 +29,7 @@ pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";
 /// the network communication, the other for starting the training procedure.
 pub struct Boosting {
     exp_name: String,
-    num_iterations: usize,
+    num_trees: usize,
     training_loader: BufferLoader,
 
     learner: Learner,
@@ -63,7 +63,7 @@ pub struct Boosting {
 impl Boosting {
     /// Create a boosting training class.
     ///
-    /// * `num_iterations`: the number of boosting iteration. If it equals to 0, then the algorithm runs indefinitely.
+    /// * `num_trees`: the number of boosting iteration. If it equals to 0, then the algorithm runs indefinitely.
     /// * `training_loader`: the double-buffered data loader that provides examples to the algorithm.
     /// over multiple workers, it might be a subset of the full feature set.
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
@@ -71,7 +71,8 @@ impl Boosting {
     pub fn new(
         exp_name: String,
         init_model: Model,
-        num_iterations: usize,
+        num_trees: usize,
+        num_splits: usize,
         num_features: usize,
         min_gamma: f32,
         training_loader: BufferLoader,
@@ -83,10 +84,10 @@ impl Boosting {
     ) -> Boosting {
         // TODO: make num_cadid a paramter
         let learner = Learner::new(
-            min_gamma, default_gamma, num_features, bins);
+            min_gamma, default_gamma, num_features, bins, num_splits);
         Boosting {
             exp_name: exp_name,
-            num_iterations: num_iterations,
+            num_trees: num_trees,
             training_loader: training_loader,
 
             learner: learner,
@@ -199,7 +200,7 @@ impl Boosting {
         let mut total_data_size_without_fire = 0;
         self.verbose = false;
         while self.learner.is_gamma_significant() &&
-                (self.num_iterations <= 0 || self.model.size() < self.num_iterations) {
+                (self.num_trees <= 0 || self.model.tree_size < self.num_trees) {
             // Logging for the status check
             if global_timer.get_duration() - last_logging_ts >= 10.0 {
                 self.print_log(total_data_size_without_fire);

@@ -29,31 +29,13 @@ pub struct ModelStats {
     model_prefix: String,
     gamma_version: usize,
     pub model_sig: String,
-    pub avail_nodes: usize,
-    pub avail_new_tree: usize,
 
     pub max_num_trees: usize,
-    pub max_depth: usize,
 }
 
 
 impl ModelStats {
-    pub fn new(model: Model, max_num_trees: usize, max_depth: usize) -> ModelStats {
-        let mut avail_nodes = 0;
-        let mut avail_new_tree = 0;
-        if model.tree_size > 0 && max_depth > 0 && model.children[0].len() < max_num_trees {
-            avail_nodes += 1;
-        }
-        for i in 1..model.tree_size {
-            let (depth, num_child) = (model.depth[i], model.children[i].len());
-            if num_child <= 0 && depth == 1 {
-                avail_new_tree += 1;
-            }
-            if num_child <= 0 && depth < max_depth {
-                avail_nodes += 1;
-            }
-        }
-
+    pub fn new(model: Model, max_num_trees: usize) -> ModelStats {
         let (model_prefix, gamma_version) = (INIT_MODEL_PREFIX.to_string(), 0);
         let model_sig = get_model_sig(&model_prefix, gamma_version);
         ModelStats {
@@ -61,11 +43,7 @@ impl ModelStats {
             model_prefix: model_prefix,
             gamma_version: gamma_version,
             model_sig: model_sig,
-            avail_nodes: avail_nodes,
-            avail_new_tree: avail_new_tree,
-
             max_num_trees: max_num_trees,
-            max_depth: max_depth,
         }
     }
 
@@ -78,8 +56,6 @@ impl ModelStats {
                                                       .collect();
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
-        self.avail_nodes    += new_nodes_depth.len();
-        self.avail_new_tree += new_nodes_depth.iter().filter(|depth| **depth == 1).count();
         self.model_prefix = new_prefix.clone();
         self.model_sig = get_model_sig(&self.model_prefix, self.gamma_version);
         (node_indices.into_iter().map(|(i, _)| i).collect(), count_new, count_updates)
@@ -92,17 +68,14 @@ impl ModelStats {
 
     fn print_log(&self) {
         let num_roots = self.model.depth.iter().filter(|t| **t == 1).count();
-        debug!("model stats, status, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
+        debug!("model stats, status, {}, {}, {}, {}, {}, {}, {}",
                 self.model.tree_size,
                 self.model.size(),
                 num_roots,
                 self.model_prefix,
                 self.gamma_version,
                 self.model_sig,
-                self.avail_nodes,
-                self.avail_new_tree,
-                self.max_num_trees,
-                self.max_depth);
+                self.max_num_trees);
     }
 }
 
@@ -114,7 +87,7 @@ fn get_model_sig(prefix: &String, gamma_version: usize) -> String {
 
 pub struct ModelSync {
     model_stats: ModelStats,
-    num_iterations: usize,
+    num_trees: usize,
     exp_name: String,
     min_ess: f32,
 
@@ -132,7 +105,7 @@ pub struct ModelSync {
 impl ModelSync {
     pub fn new(
         model_stats: ModelStats,
-        num_iterations: usize,
+        num_trees: usize,
         exp_name: &String,
         min_ess: f32,
         gamma: Gamma,
@@ -146,7 +119,7 @@ impl ModelSync {
             model_stats: model_stats,
 
             // Configurations
-            num_iterations: num_iterations,
+            num_trees: num_trees,
             exp_name: exp_name.clone(),
             min_ess: min_ess,
 
@@ -202,7 +175,7 @@ impl ModelSync {
             }
 
             // adjust gamma
-            if packet_stats.is_triggered(self.model_stats.avail_nodes) {
+            if packet_stats.is_triggered() {
                 if self.gamma.adjust(&packet_stats, self.model_stats.model.size()) {
                     self.model_stats.update_gamma(self.gamma.gamma_version);
                     self.broadcast_model(last_model_timestamp, false);
@@ -251,14 +224,8 @@ impl ModelSync {
                     let new_node_indices =
                         self.update_model(&packet, node_count, last_model_timestamp);
                     scheduler.append_new_nodes(&new_node_indices);
-                    if scheduler.handle_success(
-                        &packet, &self.model_stats, &self.gamma, node_count) {
-                        // the tree node can no longer be extended
-                        self.model_stats.avail_nodes -= 1;
-                        if self.model_stats.model.depth[packet.node_id] == 1 {  // is root
-                            self.model_stats.avail_new_tree -= 1;
-                        }
-                    }
+                    scheduler.handle_success(
+                        &packet, &self.model_stats, &self.gamma, node_count);
                 },
                 PacketType::RejectBaseModel | PacketType::RejectSample => {
                     // TODO: Reject because of the sample version might not be necessary
@@ -321,6 +288,6 @@ impl ModelSync {
     fn continue_training(&self) -> bool {
         let t = self.sampler_state.read().unwrap();
         *t && self.gamma.is_valid() && (
-            self.num_iterations <= 0 || self.model_stats.model.size() < self.num_iterations)
+            self.num_trees <= 0 || self.model_stats.model.tree_size < self.num_trees)
     }
 }

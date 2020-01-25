@@ -65,11 +65,11 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
     );
 
     debug!("Starting the model sync.");
-    let model_stats = ModelStats::new(init_tree.clone(), config.num_trees, config.max_depth);
+    let model_stats = ModelStats::new(init_tree.clone(), config.num_trees);
     let gamma = Gamma::new(config.default_gamma, config.min_gamma);
     let mut model_sync = ModelSync::new(
         model_stats,
-        config.num_iterations,
+        config.num_trees,
         &config.exp_name,
         config.min_ess,
         gamma,
