@@ -11,6 +11,10 @@ use commons::persistent_io::write_bins_s3;
 use sampler::stratified_storage::serial_storage::SerialStorage;
 
 
+// If discretized to 1 value, keep the largest value;
+// if discretized to 2 values, keep the median and the largest values;
+// etc.
+
 // TODO: support NaN feature values
 /// The percentiles of a specific feature dimension,
 /// which would be used as the candidates weak rules on that dimension.
@@ -27,19 +31,22 @@ struct DistinctValues {
 
 impl Bins {
     fn new(size: usize, distinct_vals: &DistinctValues) -> Bins {
-        let avg_bin_size = (distinct_vals.total_vals / size) as usize;
+        let avg_bin_size = (distinct_vals.total_vals / size).ceil() as usize;
         let mut last_val = 0.0;
         let mut counter = 0;
         let mut vals: Vec<f32> = vec![];
         distinct_vals.distinct.iter().for_each(|(k, v)| {
+            counter += *v as usize;
             let k = k.into_inner();
             if counter > avg_bin_size {
-                vals.push((last_val + k) / 2.0);
+                vals.push(k);
                 counter = 0;
             }
-            counter += *v as usize;
-            last_val = k;
+            last_val = k.into_inner();
         });
+        if counter > 0 {
+            vals.push(k);
+        }
         Bins {
             size: vals.len(),
             vals: vals
@@ -58,20 +65,17 @@ impl Bins {
     }
 
     pub fn get_split_index(&self, val: f32) -> TFeature {
-        if self.vals.len() <= 0 || val <= self.vals[0] {
-            return 0;
-        }
         let mut left = 0;
         let mut right = self.size;
         while left + 1 < right {
             let medium = (left + right) / 2;
-            if val <= self.vals[medium] {
-                right = medium;
-            } else {
+            if self.vals[medium] <= val {
                 left = medium;
+            } else {
+                right = medium;
             }
         }
-        right as TFeature
+        left as TFeature
     }
 }
 

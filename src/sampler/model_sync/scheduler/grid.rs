@@ -1,38 +1,67 @@
 use std::collections::HashMap;
 
+use math::round::ceil;
 use commons::bins::Bins;
 
 
-type KeyType = (usize, usize, usize, usize);
+// TODO: extends to more than 2 features for generating the grid
+// bounding [ threshold[t-k], threshold[t] ), k is the grid size
 
-struct Grid {
+pub struct Grid {
+    num_splits_on: usize,
+    splits_on: Vec<usize>,
     range: Vec<usize>,
-    status: HashMap<(usize, usize, usize, usize), Option<usize>>,
+    num_workers: usize,
+    status: HashMap<String, Option<usize>>,
+    grid_size: usize,
 }
 
 impl Grid {
-    pub fn new(bins: &Vec<Bins>) -> Grid {
-        Grid {
-            range: bins.iter().map(|t| t.len() + 1).collect(),
+    pub fn new(num_splits_on: usize, num_workers: usize, bins: &Vec<Bins>) -> Grid {
+        let mut grid = Grid {
+            num_splits_on: num_splits_on,
+            splits_on: vec![],
+            range: bins.iter().map(|t| t.len()).collect(),
+            num_workers: num_workers,
             status: HashMap::new(),
-        }
+            grid_size: 1,
+        };
+        grid.reset_splits_on();
     }
 
-    pub fn get_new_grid(&mut self, scanner_id: usize) -> KeyType {
+    pub fn reset_splits_on(&mut self) {
         loop {
-            let f1   = rand::random::<usize>() % self.range.len();
-            let thr1 = rand::random::<usize>() % self.range[f1];
-            let f2 =   rand::random::<usize>() % self.range.len();
-            let thr2 = rand::random::<usize>() % self.range[f2];
-            let key = (f1, thr1, f2, thr2);
-            if !self.status.contains_key(&key) || self.status[&key].is_none() {
-                self.status.insert(key, Some(scanner_id));
-                return key;
+            self.splits_on = rand::thread_rng().sample_slice(0..range, count);
+            let total_grid = self.splits_on.iter().map(|i| self.range[i].log2()).sum();
+            let target_grid = (10 * self.num_workers).log2();
+            if total_grid >= target_grid {
+                let logsize = (total_grid - target_grid) / self.num_splits_on;
+                self.grid_size = (2.0).power(logsize) as usize;
+                self.splits_on.sort();
+                break;
             }
         }
     }
 
-    pub fn release_grid(&mut self, key: KeyType) {
+    pub fn get_new_grid(&mut self, scanner_id: usize) -> (String, Vec<(usize, usize, usize)>) {
+        loop {
+            let thresholds = self.splits_on.iter().map(|i| {
+                let range = self.range[i];
+                let discr = (range / self.grid_size).ceil();
+                let thr = min((rand::random::<usize>() % discr + 1) * self.grid_size, range)
+                (i, thr - self.grid_size, thr)
+            }.collect();
+            let hashkey = thresholds.iter()
+                                    .map(|(index, thr_l, thr_r)| format!("{},{}", index, thr_r))
+                                    .join(";");
+            if !self.status.contains_key(&key) || self.status[&key].is_none() {
+                self.status.insert(key, Some(scanner_id));
+                return (key, thresholds);
+            }
+        }
+    }
+
+    pub fn release_grid(&mut self, key: String) {
         self.status.insert(key, None);
     }
 }
