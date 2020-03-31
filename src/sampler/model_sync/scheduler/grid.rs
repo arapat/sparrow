@@ -1,6 +1,6 @@
+use std::cmp::min;
 use std::collections::HashMap;
 
-use math::round::ceil;
 use commons::bins::Bins;
 
 
@@ -31,7 +31,8 @@ impl Grid {
 
     pub fn reset_splits_on(&mut self) {
         loop {
-            self.splits_on = rand::thread_rng().sample_slice(0..range, count);
+            self.splits_on = rand::thread_rng().sample_slice(
+                0..self.range.len(), self.num_splits_on);
             let total_grid = self.splits_on.iter().map(|i| self.range[i].log2()).sum();
             let target_grid = (10 * self.num_workers).log2();
             if total_grid >= target_grid {
@@ -48,20 +49,20 @@ impl Grid {
             let thresholds = self.splits_on.iter().map(|i| {
                 let range = self.range[i];
                 let discr = (range / self.grid_size).ceil();
-                let thr = min((rand::random::<usize>() % discr + 1) * self.grid_size, range)
+                let thr = min((rand::random::<usize>() % discr + 1) * self.grid_size, range);
                 (i, thr - self.grid_size, thr)
-            }.collect();
+            }).collect();
             let hashkey = thresholds.iter()
                                     .map(|(index, thr_l, thr_r)| format!("{},{}", index, thr_r))
                                     .join(";");
-            if !self.status.contains_key(&key) || self.status[&key].is_none() {
-                self.status.insert(key, Some(scanner_id));
-                return (key, thresholds);
+            if !self.status.contains_key(&hashkey) || self.status[&hashkey].is_none() {
+                self.status.insert(hashkey, Some(scanner_id));
+                return (hashkey, thresholds);
             }
         }
     }
 
-    pub fn release_grid(&mut self, key: String) {
-        self.status.insert(key, None);
+    pub fn release_grid(&mut self, hashkey: String) {
+        self.status.insert(hashkey, None);
     }
 }

@@ -1,13 +1,10 @@
 mod grid;
 
-use std::cmp::max;
-use std::cmp::min;
-
+use commons::bins::Bins;
 use commons::packet::Packet;
 use commons::persistent_io::upload_assignments;
 use super::Gamma;
-use super::ModelStats;
-use grid::Grid;
+use self::grid::Grid;
 
 pub struct Scheduler {
     grid: Grid,
@@ -52,8 +49,7 @@ impl Scheduler {
             // TODO: create this func
             let node_index = tree.create_node(grid);
             self.scanner_task[scanner_id] = Some((key, node_index));
-            debug!("model-manager, assign, {}, {}, {}, {}",
-                    scanner_index, node_index, last_failed_gamma, gamma_val);
+            debug!("model-manager, assign, {}, {}", scanner_id, node_index);
         });
         assignment.len()
     }
@@ -65,9 +61,10 @@ impl Scheduler {
         }
         let (key, node_id) = node_id.unwrap();
         self.scanner_task[packet.source_machine_id] = None;
-        self.grid.release(key);
+        self.grid.release_grid(key);
         debug!("model_manager, scheduler, success, reset, {}, {}, {}",
                 packet.source_machine_id, node_id, packet.gamma);
+        true
     }
 
     fn get_node_id(&self, packet: &Packet, desc: &str) -> Option<(String, usize)> {

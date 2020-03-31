@@ -10,6 +10,7 @@ use tmsn::network::start_network_only_recv;
 
 use commons::INIT_MODEL_PREFIX;
 use commons::Model;
+use commons::bins::Bins;
 use commons::channel::Sender;
 use commons::packet::Packet;
 use commons::packet::PacketType;
@@ -152,12 +153,11 @@ impl ModelSync {
     }
 
 
-    pub fn run_with_network(&mut self) {
+    pub fn run_with_network(&mut self, bins: &Vec<Bins>) {
         let global_timer = PerformanceMonitor::new();
         let mut _last_cluster_update = global_timer.get_duration();
         let mut packet_stats = self.packet_stats.take().unwrap();
-        let mut scheduler = Scheduler::new(
-            packet_stats.num_machines, &self.model_stats, &self.exp_name, &self.gamma);
+        let mut scheduler = Scheduler::new(packet_stats.num_machines, &self.exp_name, bins);
         let packet_receiver = self.packet_receiver.take().unwrap();
 
         // start listening to network
@@ -168,7 +168,7 @@ impl ModelSync {
         let mut last_logging_timestamp = global_timer.get_duration();
         while self.continue_training() {
             if global_timer.get_duration() - last_logging_timestamp >= 10.0 {
-                scheduler.print_log(num_consecutive_err, &self.model_stats, &self.gamma);
+                scheduler.print_log(num_consecutive_err, &self.gamma);
                 packet_stats.print_log();
                 self.model_stats.print_log();
                 last_logging_timestamp = global_timer.get_duration();
@@ -186,10 +186,7 @@ impl ModelSync {
             }
 
             // Update assignments
-            let (_num_updates, force_dec_gamma) = scheduler.update(&self.model_stats, &self.gamma);
-            if force_dec_gamma {
-                self.gamma.decrease_gamma(self.model_stats.model.size());
-            }
+            let _num_updates = scheduler.update(&self.model_stats, &self.gamma);
 
             // Handle packets
             let packet = packet_receiver.try_recv();
@@ -207,28 +204,15 @@ impl ModelSync {
             let node_count = self.get_node_counts(packet.node_id);
             match packet_type {
                 PacketType::SmallEffSize => {
-                    // TODO: adjust scheduler accordingly if the scanner keeps having a low ess
+                    // Ignore updates generated on a small-ess sample
                 },
-                PacketType::EmptyNonroot => {
-                    scheduler.handle_failure(&packet, &self.gamma, node_count);
-                },
-                PacketType::EmptyRoot => {
-                    scheduler.handle_failure(&packet, &self.gamma, node_count);
-                    // decrease root gamma
-                    self.gamma.decrease_root_gamma(self.model_stats.model.size());
-                    self.model_stats.update_gamma(self.gamma.gamma_version);
-                    self.broadcast_model(last_model_timestamp, false);
-                },
-                PacketType::AcceptNonroot | PacketType::AcceptRoot => {
+                PacketType::Accept => {
                     last_model_timestamp = global_timer.get_duration();
                     let new_node_indices =
                         self.update_model(&packet, node_count, last_model_timestamp);
                     scheduler.append_new_nodes(&new_node_indices);
                     scheduler.handle_success(
                         &packet, &self.model_stats, &self.gamma, node_count);
-                },
-                PacketType::RejectBaseModel | PacketType::RejectSample => {
-                    // TODO: Reject because of the sample version might not be necessary
                 },
             }
         }

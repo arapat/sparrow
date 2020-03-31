@@ -31,7 +31,7 @@ struct DistinctValues {
 
 impl Bins {
     fn new(size: usize, distinct_vals: &DistinctValues) -> Bins {
-        let avg_bin_size = (distinct_vals.total_vals / size).ceil() as usize;
+        let avg_bin_size = (distinct_vals.total_vals as f32 / size as f32).ceil() as usize;
         let mut last_val = 0.0;
         let mut counter = 0;
         let mut vals: Vec<f32> = vec![];
@@ -42,10 +42,10 @@ impl Bins {
                 vals.push(k);
                 counter = 0;
             }
-            last_val = k.into_inner();
+            last_val = k;
         });
         if counter > 0 {
-            vals.push(k);
+            vals.push(last_val);
         }
         Bins {
             size: vals.len(),
