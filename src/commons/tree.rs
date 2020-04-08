@@ -143,6 +143,15 @@ impl Tree {
         new_index
     }
 
+    fn add_grid(
+        &mut self, grid: Vec<(usize, usize, usize)>,  // Format: Vec<(index, thr_l, thr_r)>
+    ) -> usize {
+        // TODO: what if the node already exists?
+        for index, thr_left, thr_right in grid {
+        }
+        self.add_node(parent, feature, threshold, true, pred_value.0, gamma, always_new_node),
+    }
+
     fn find_child_node(
         &self, parent: usize, feature: usize, threshold: TFeature, evaluation: bool,
     ) -> Option<usize> {

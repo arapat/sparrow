@@ -1,5 +1,6 @@
 mod grid;
 
+use commons::Model;
 use commons::bins::Bins;
 use commons::packet::Packet;
 use commons::persistent_io::upload_assignments;
@@ -40,14 +41,13 @@ impl Scheduler {
     }
 
     // assign a non-taken grid to each idle scanner
-    fn assign(&mut self, idle_scanners: Vec<usize>) -> usize {
+    fn assign(&mut self, idle_scanners: Vec<usize>, tree: &mut Model) -> usize {
         let assignment: Vec<(usize, (String, Vec<(usize, usize, usize)>))> =
             idle_scanners.into_iter()
                          .map(|scanner_id| (scanner_id, self.grid.get_new_grid(scanner_id)))
                          .collect();
         assignment.iter().for_each(|(scanner_id, (key, grid))| {
-            // TODO: create this func
-            let node_index = tree.create_node(grid);
+            let node_index = tree.add_grid(grid);
             self.scanner_task[scanner_id] = Some((key, node_index));
             debug!("model-manager, assign, {}, {}", scanner_id, node_index);
         });
