@@ -5,6 +5,7 @@ use std::collections::VecDeque;
 use Example;
 use TFeature;
 use commons::is_zero;
+use sampler::model_sync::scheduler::kdtree::Grid;
 
 
 // split_feature, threshold, evaluation
@@ -17,7 +18,7 @@ Why JSON but not binary?
     - BufReader-friendly by using newline as separator
 */
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Tree {
+pub struct ADTree {
     pub tree_size:       usize,
     pub parent:         Vec<usize>,
     pub children:       Vec<Vec<usize>>,
@@ -32,9 +33,9 @@ pub struct Tree {
     pub model_updates:  UpdateList,
 }
 
-impl Clone for Tree {
-    fn clone(&self) -> Tree {
-        Tree {
+impl Clone for ADTree {
+    fn clone(&self) -> ADTree {
+        ADTree {
             tree_size:      self.tree_size,
             parent:         self.parent.clone(),
             children:       self.children.clone(),
@@ -52,9 +53,9 @@ impl Clone for Tree {
 }
 
 // TODO: remove the queue-like accessing if we no longer use the AD-tree structure
-impl Tree {
-    pub fn new(max_nodes: usize) -> Tree {
-        Tree {
+impl ADTree {
+    pub fn new(max_nodes: usize) -> ADTree {
+        ADTree {
             tree_size:      0,
             parent:         Vec::with_capacity(max_nodes),
             children:       Vec::with_capacity(max_nodes),
@@ -106,6 +107,15 @@ impl Tree {
         0
     }
 
+    pub fn add_grid(&mut self, grid: Grid) -> usize {
+        let mut curr_node_id = 0;
+        for (dim, thr, condition) in grid {
+            curr_node_id = self.add_node(curr_node_id,
+                dim, thr, condition, 0.0, 0.0, false);
+        }
+        curr_node_id
+    }
+
     fn add_node(
         &mut self, parent: usize,
         feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
@@ -141,15 +151,6 @@ impl Tree {
         debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
                new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
         new_index
-    }
-
-    fn add_grid(
-        &mut self, grid: Vec<(usize, usize, usize)>,  // Format: Vec<(index, thr_l, thr_r)>
-    ) -> usize {
-        // TODO: what if the node already exists?
-        for index, thr_left, thr_right in grid {
-        }
-        self.add_node(parent, feature, threshold, true, pred_value.0, gamma, always_new_node),
     }
 
     fn find_child_node(
@@ -237,12 +238,15 @@ impl Tree {
         let mut node: usize = starting_index;
         let feature = &(data.feature);
         while self.children[node].len() > 0 {
-            for child in self.children[node] {
+            let mut child_index = 0;
+            while child_index < self.children[node].len() {
+                let child = self.children[node][child_index];
                 if (feature[self.split_feature[child]] <= self.threshold[child]) ==
                     self.evaluation[child] {
-                        node = child;
-                        break;
-                    }
+                    node = child;
+                    break;
+                }
+                child_index += 1;
             }
         }
         node
@@ -288,8 +292,8 @@ impl Tree {
     }
 }
 
-impl PartialEq for Tree {
-    fn eq(&self, other: &Tree) -> bool {
+impl PartialEq for ADTree {
+    fn eq(&self, other: &ADTree) -> bool {
         let k = self.tree_size;
         if k == other.tree_size &&
            self.split_feature[0..k] == other.split_feature[0..k] &&
@@ -308,7 +312,7 @@ impl PartialEq for Tree {
 }
 
 
-impl Eq for Tree {}
+impl Eq for ADTree {}
 
 
 #[derive(Serialize, Deserialize, Debug)]

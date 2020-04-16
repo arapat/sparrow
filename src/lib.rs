@@ -39,7 +39,7 @@ use config::Config;
 use config::SampleMode;
 use commons::Model;
 use commons::bins::Bins;
-use commons::tree::Tree;
+use commons::tree::ADTree as Tree;
 
 use scanner::start as start_scanner;
 use sampler::start as start_sampler;

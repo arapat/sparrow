@@ -1,6 +1,8 @@
 use std::fs::rename;
 use std::fs::remove_file;
 use std::io::Write;
+use std::sync::Arc;
+use std::sync::RwLock;
 
 use REGION;
 use BUCKET;
@@ -14,11 +16,14 @@ use commons::io::create_bufwriter;
 use commons::io::raw_read_all;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
+use commons::performance_monitor::PerformanceMonitor;
 use commons::Model;
 
 
 pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model, String);
-pub type ModelPack = (Model, String, f32, f32);
+pub type ModelPack = (Model, String, f32);
+// LockedBuffer is set to None once it is read by the receiver
+pub type LockedBuffer = Arc<RwLock<Option<VersionedSampleModel>>>;
 
 
 const S3_PATH_SAMPLE:  &str = "sparrow-samples/";
@@ -68,6 +73,29 @@ pub fn write_sample_s3(
 
 
 // For loader
+
+pub fn load_sample<F>(
+    new_buffer: LockedBuffer,
+    handler: F,
+    last_version: usize,
+    exp_name: &str,
+) -> usize
+where F: Fn(usize, &str) -> Option<VersionedSampleModel> {
+    let mut pm = PerformanceMonitor::new();
+    pm.start();
+    let ret = handler(last_version, exp_name);
+    if ret.is_none() {
+        debug!("scanner, failed to receive a new sample");
+        last_version
+    } else {
+        let (version, new_sample, new_model, model_sig) = ret.unwrap();
+        let new_buffer = new_buffer.write();
+        *(new_buffer.unwrap()) = Some((version, new_sample, new_model, model_sig));
+        debug!("scanner, received a new sample, {}, {}", version, pm.get_duration());
+        version
+    }
+}
+
 
 pub fn load_sample_local(last_version: usize, _exp_name: &str) -> Option<VersionedSampleModel> {
     let ori_filename = SAMPLE_FILENAME.to_string();
@@ -124,9 +152,9 @@ pub fn write_model(model: &Model, timestamp: f32, save_process: bool) -> String 
 
 
 pub fn upload_model(
-    model: &Model, sig: &String, gamma: f32, root_gamma: f32, exp_name: &String,
+    model: &Model, sig: &String, gamma: f32, exp_name: &String,
 ) -> bool {
-    let data: (Model, String, f32, f32) = (model.clone(), sig.clone(), gamma, root_gamma);
+    let data: ModelPack = (model.clone(), sig.clone(), gamma);
     let s3_path = format!("{}/{}", exp_name, S3_PATH_MODELS);
     io_write_s3(REGION, BUCKET, s3_path.as_str(), MODEL_FILENAME, &serialize(&data).unwrap())
 }

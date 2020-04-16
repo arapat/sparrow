@@ -1,6 +1,6 @@
 pub mod gamma;
 pub mod packet_stats;
-mod scheduler;
+pub mod scheduler;
 
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -23,9 +23,10 @@ use commons::persistent_io::write_model;
 use self::gamma::Gamma;
 use self::packet_stats::PacketStats;
 use self::scheduler::Scheduler;
+use self::scheduler::kdtree::Grid;
 
 
-pub struct ModelStats {
+pub struct ModelWithVersion {
     pub model: Model,
     model_prefix: String,
     gamma_version: usize,
@@ -35,11 +36,11 @@ pub struct ModelStats {
 }
 
 
-impl ModelStats {
-    pub fn new(model: Model, max_num_trees: usize) -> ModelStats {
+impl ModelWithVersion {
+    pub fn new(model: Model, max_num_trees: usize) -> ModelWithVersion {
         let (model_prefix, gamma_version) = (INIT_MODEL_PREFIX.to_string(), 0);
         let model_sig = get_model_sig(&model_prefix, gamma_version);
-        ModelStats {
+        ModelWithVersion {
             model: model,
             model_prefix: model_prefix,
             gamma_version: gamma_version,
@@ -48,13 +49,14 @@ impl ModelStats {
         }
     }
 
+    pub fn add_grid(&mut self, grid: Grid) -> usize {
+        self.model.add_grid(grid)
+    }
+
     fn update(
         &mut self, patch: &UpdateList, new_prefix: &String, gamma: f32,
     ) -> (Vec<usize>, usize, usize) {
         let node_indices: Vec<(usize, bool)> = self.model.append_patch(&patch, gamma, true);
-        let new_nodes_depth: Vec<usize> = node_indices.iter()
-                                                      .map(|(i, _)| self.model.depth[*i])
-                                                      .collect();
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
         self.model_prefix = new_prefix.clone();
@@ -87,7 +89,7 @@ fn get_model_sig(prefix: &String, gamma_version: usize) -> String {
 
 
 pub struct ModelSync {
-    model_stats: ModelStats,
+    model: ModelWithVersion,
     num_trees: usize,
     exp_name: String,
     min_ess: f32,
@@ -105,7 +107,7 @@ pub struct ModelSync {
 
 impl ModelSync {
     pub fn new(
-        model_stats: ModelStats,
+        init_tree: &Model,
         num_trees: usize,
         exp_name: &String,
         min_ess: f32,
@@ -115,9 +117,9 @@ impl ModelSync {
         current_sample_version: Arc<RwLock<usize>>,
         node_counts: Arc<RwLock<Vec<u32>>>,
     ) -> ModelSync {
-
+        let model = ModelWithVersion::new(init_tree.clone(), num_trees);
         ModelSync {
-            model_stats: model_stats,
+            model: model,
 
             // Configurations
             num_trees: num_trees,
@@ -153,11 +155,12 @@ impl ModelSync {
     }
 
 
-    pub fn run_with_network(&mut self, bins: &Vec<Bins>) {
+    pub fn run_with_network(&mut self, bins: Vec<Bins>) {
         let global_timer = PerformanceMonitor::new();
         let mut _last_cluster_update = global_timer.get_duration();
         let mut packet_stats = self.packet_stats.take().unwrap();
-        let mut scheduler = Scheduler::new(packet_stats.num_machines, &self.exp_name, bins);
+        let mut scheduler = Scheduler::new(
+            packet_stats.num_machines, &self.exp_name, &bins, &mut self.model);
         let packet_receiver = self.packet_receiver.take().unwrap();
 
         // start listening to network
@@ -170,14 +173,14 @@ impl ModelSync {
             if global_timer.get_duration() - last_logging_timestamp >= 10.0 {
                 scheduler.print_log(num_consecutive_err, &self.gamma);
                 packet_stats.print_log();
-                self.model_stats.print_log();
+                self.model.print_log();
                 last_logging_timestamp = global_timer.get_duration();
             }
 
             // adjust gamma
             if packet_stats.is_triggered() {
-                if self.gamma.adjust(&packet_stats, self.model_stats.model.size()) {
-                    self.model_stats.update_gamma(self.gamma.gamma_version);
+                if self.gamma.adjust(&packet_stats, self.model.model.size()) {
+                    self.model.update_gamma(self.gamma.gamma_version);
                     self.broadcast_model(last_model_timestamp, false);
                     // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
                     // by setting `last_failed_gamma` in `node_status` to 1.0
@@ -186,7 +189,7 @@ impl ModelSync {
             }
 
             // Update assignments
-            let _num_updates = scheduler.update(&self.model_stats, &self.gamma);
+            let _num_updates = scheduler.update(&mut self.model);
 
             // Handle packets
             let packet = packet_receiver.try_recv();
@@ -198,28 +201,27 @@ impl ModelSync {
             num_consecutive_err = 0;
             let mut packet: Packet = packet.unwrap();
             packet.source_machine_id = packet.source_machine_id % packet_stats.num_machines;
-            let packet_type = packet.get_packet_type(
-                &self.current_sample_version, &self.model_stats.model_sig, self.min_ess);
+            let packet_type = packet.get_packet_type(self.min_ess);
             packet_stats.handle_new_packet(&packet, &packet_type);
             let node_count = self.get_node_counts(packet.node_id);
             match packet_type {
                 PacketType::SmallEffSize => {
                     // Ignore updates generated on a small-ess sample
                 },
+                PacketType::Empty => {
+                    scheduler.handle_empty(&packet);
+                },
                 PacketType::Accept => {
                     last_model_timestamp = global_timer.get_duration();
-                    let new_node_indices =
-                        self.update_model(&packet, node_count, last_model_timestamp);
-                    scheduler.append_new_nodes(&new_node_indices);
-                    scheduler.handle_success(
-                        &packet, &self.model_stats, &self.gamma, node_count);
+                    self.update_model(&packet, node_count, last_model_timestamp);
+                    scheduler.handle_accept(&packet);
                 },
             }
         }
 
         info!("Model sync quits, {}, Model length, {}, Is gamma significant, {}",
-                self.continue_training(), self.model_stats.model.size(), self.gamma.is_valid());
-        let final_model = write_model(&self.model_stats.model, last_model_timestamp, false);
+                self.continue_training(), self.model.model.size(), self.gamma.is_valid());
+        let final_model = write_model(&self.model.model, last_model_timestamp, false);
         debug!("model_manager, final model, {}", final_model);
         {
             debug!("sampler state, false, model sync quits");
@@ -231,16 +233,14 @@ impl ModelSync {
 
     fn broadcast_model(&mut self, last_timestamp: f32, is_model_updated: bool) {
         let is_upload_success = upload_model(
-            &self.model_stats.model, &self.model_stats.model_sig,
-            self.gamma.gamma, self.gamma.root_gamma,
-            &self.exp_name);
+            &self.model.model, &self.model.model_sig, self.gamma.gamma, &self.exp_name);
         if is_model_updated {
             self.next_model_sender.send(
-                (self.model_stats.model.clone(), self.model_stats.model_sig.clone()));
-            write_model(&self.model_stats.model, last_timestamp, true);
+                (self.model.model.clone(), self.model.model_sig.clone()));
+            write_model(&self.model.model, last_timestamp, true);
         }
         debug!("model_manager, upload model, {}, {}",
-                is_upload_success, self.model_stats.model_sig);
+                is_upload_success, self.model.model_sig);
     }
 
 
@@ -248,13 +248,13 @@ impl ModelSync {
         &mut self, packet: &Packet, node_count: u32, last_timestamp: f32,
     ) -> Vec<usize> {
         assert!(packet.updates.size > 0);
-        let (new_node_indices, count_new, count_updates) = self.model_stats.update(
+        let (new_node_indices, count_new, count_updates) = self.model.update(
             &packet.updates, &packet.this_model_signature, self.gamma.gamma);
         self.broadcast_model(last_timestamp, true);
         debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
-                self.model_stats.model.tree_size, self.model_stats.model.size(),
+                self.model.model.tree_size, self.model.model.size(),
                 packet.packet_signature, packet.source_machine_id, packet.node_id, node_count,
-                self.model_stats.model.depth[packet.node_id], packet.gamma, packet.updates.size,
+                self.model.model.depth[packet.node_id], packet.gamma, packet.updates.size,
                 count_new, count_updates);
         new_node_indices
     }
@@ -272,6 +272,6 @@ impl ModelSync {
     fn continue_training(&self) -> bool {
         let t = self.sampler_state.read().unwrap();
         *t && self.gamma.is_valid() && (
-            self.num_trees <= 0 || self.model_stats.model.tree_size < self.num_trees)
+            self.num_trees <= 0 || self.model.model.tree_size < self.num_trees)
     }
 }

@@ -298,9 +298,9 @@ impl Boosting {
         let pack = download_model(&self.exp_name);
         let ret = {
             if pack.is_some() {
-                let (r_model, r_model_sig, current_gamma, root_gamma): ModelPack = pack.unwrap();
+                let (r_model, r_model_sig, current_gamma): ModelPack = pack.unwrap();
                 let is_packet_sent = self.check_and_send_packet(r_model, r_model_sig, full_scanned);
-                if self.learner.set_gamma(current_gamma, root_gamma) {
+                if self.learner.set_gamma(current_gamma) {
                     self.is_scanner_status_changed = true;
                 }
                 is_packet_sent

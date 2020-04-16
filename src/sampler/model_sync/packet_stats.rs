@@ -23,28 +23,19 @@ pub struct PacketStats {
     total_packets:           usize,
     empty_packets:           usize,
     accept_packets:          usize,
-    rejected_packets:        usize,
     small_ess_packets:       usize,
 
-    accept_root_packets:     usize,
-    accept_nonroot_packets:  usize,
-    empty_root_packets:      usize,
-    empty_nonroot_packets:   usize,
-    rejected_packets_model:  usize,
-    rejected_packets_sample: usize,
+    pub avg_accept_rate:  f32,
+    pub last_accept_rate: f32,
+    threshold:                    f32,
 
-    pub avg_accept_nonroot_rate:  f32,
-    pub last_accept_nonroot_rate: f32,
-    threshold:               f32,
+    last_condition:      UpdateSpeed,
+    pub curr_condition:  UpdateSpeed,
 
-    last_nonroot_condition:  UpdateSpeed,
-    pub curr_nonroot_condition:  UpdateSpeed,
-
-    num_packs:               Vec<usize>,
-    num_rej_packs:           Vec<usize>,
-    num_acc_nonroot_packs:   Vec<usize>,
-    num_empty_packs:         Vec<usize>,
-    pub num_machines:            usize,
+    num_packs:           Vec<usize>,
+    num_acc_packs:       Vec<usize>,
+    num_empty_packs:     Vec<usize>,
+    pub num_machines:    usize,
 }
 
 
@@ -54,28 +45,19 @@ impl PacketStats {
             total_packets:           0,
             empty_packets:           0,
             accept_packets:          0,
-            rejected_packets:          0,
-
-            accept_root_packets:     0,
-            accept_nonroot_packets:  0,
-            empty_root_packets:      0,
-            empty_nonroot_packets:   0,
             small_ess_packets:       0,
-            rejected_packets_model:  0,
-            rejected_packets_sample: 0,
 
-            avg_accept_nonroot_rate: 0.5,
-            last_accept_nonroot_rate: 0.5,
+            avg_accept_rate:         0.5,
+            last_accept_rate:        0.5,
             threshold:               THRESHOLD,
 
-            last_nonroot_condition:  UpdateSpeed::Okay,
-            curr_nonroot_condition:  UpdateSpeed::Okay,
+            last_condition:  UpdateSpeed::Okay,
+            curr_condition:  UpdateSpeed::Okay,
 
-            num_packs:               vec![0; num_machines],
-            num_rej_packs:           vec![0; num_machines],
-            num_acc_nonroot_packs:   vec![0; num_machines],
-            num_empty_packs:         vec![0; num_machines],
-            num_machines:            num_machines,
+            num_packs:       vec![0; num_machines],
+            num_acc_packs:   vec![0; num_machines],
+            num_empty_packs: vec![0; num_machines],
+            num_machines:    num_machines,
         }
     }
 
@@ -84,88 +66,55 @@ impl PacketStats {
         let machine_id = packet.source_machine_id;
         self.num_packs[machine_id] += 1;
         match packet_type {
-            PacketType::AcceptRoot => {
-                self.accept_packets          += 1;
-                self.accept_root_packets     += 1;
+            PacketType::Accept => {
+                self.accept_packets            += 1;
+                self.num_acc_packs[machine_id] += 1;
             },
-            PacketType::AcceptNonroot => {
-                self.accept_packets          += 1;
-                self.accept_nonroot_packets  += 1;
-                self.num_acc_nonroot_packs[machine_id] += 1;
-            },
-            PacketType::EmptyRoot => {
-                self.empty_packets           += 1;
-                self.empty_root_packets      += 1;
-                self.num_empty_packs[machine_id] += 1;
-            },
-            PacketType::EmptyNonroot => {
-                self.empty_packets           += 1;
-                self.empty_nonroot_packets   += 1;
+            PacketType::Empty => {
+                self.empty_packets               += 1;
                 self.num_empty_packs[machine_id] += 1;
             },
             PacketType::SmallEffSize => {
                 self.small_ess_packets       += 1;
-            },
-            PacketType::RejectSample => {
-                self.rejected_packets        += 1;
-                self.rejected_packets_sample += 1;
-                self.num_rej_packs[machine_id] += 1;
-            },
-            PacketType::RejectBaseModel => {
-                self.rejected_packets        += 1;
-                self.rejected_packets_model  += 1;
-                self.num_rej_packs[machine_id] += 1;
             },
         };
         self.update_condition();
     }
 
     fn update_condition(&mut self) {
-        self.last_nonroot_condition = self.curr_nonroot_condition.clone();
+        self.last_condition = self.curr_condition.clone();
         let (avg_rate, last_rate, cond) = get_condition_updates(
-            self.accept_nonroot_packets, self.empty_nonroot_packets, self.avg_accept_nonroot_rate,
-            self.threshold,
+            self.accept_packets, self.empty_packets, self.avg_accept_rate, self.threshold,
         );
-        self.avg_accept_nonroot_rate = avg_rate;
-        self.last_accept_nonroot_rate = last_rate;
-        self.curr_nonroot_condition = cond;
+        self.avg_accept_rate  = avg_rate;
+        self.last_accept_rate = last_rate;
+        self.curr_condition   = cond;
     }
 
     pub fn is_triggered(&self) -> bool {
-        let total = self.accept_nonroot_packets + self.empty_nonroot_packets;
-        total >= max(10, self.num_machines * 2)
+        self.total_packets >= max(10, self.num_machines * 2)
     }
 
-    pub fn is_nonroot_same_trend(&self) -> bool {
-        self.curr_nonroot_condition != UpdateSpeed::Okay &&
-            self.curr_nonroot_condition == self.last_nonroot_condition
+    pub fn is_same_trend(&self) -> bool {
+        self.curr_condition != UpdateSpeed::Okay &&
+            self.curr_condition == self.last_condition
     }
 
-    pub fn is_nonroot_opposite_trend(&self) -> bool {
-        self.curr_nonroot_condition != UpdateSpeed::Okay &&
-            self.last_nonroot_condition != UpdateSpeed::Okay &&
-            self.curr_nonroot_condition != self.last_nonroot_condition
+    pub fn is_opposite_trend(&self) -> bool {
+        self.curr_condition != UpdateSpeed::Okay &&
+            self.last_condition != UpdateSpeed::Okay &&
+            self.curr_condition != self.last_condition
     }
 
     pub fn reset(&mut self) {
         self.total_packets = 0;
         self.empty_packets = 0;
         self.accept_packets = 0;
-        self.rejected_packets = 0;
-
-        self.accept_root_packets = 0;
-        self.accept_nonroot_packets = 0;
-        self.empty_root_packets = 0;
-        self.empty_nonroot_packets = 0;
         self.small_ess_packets = 0;
-        self.rejected_packets_model = 0;
-        self.rejected_packets_sample = 0;
 
         self.num_packs.iter_mut()
             .for_each(|t| *t = 0);
-        self.num_rej_packs.iter_mut()
-            .for_each(|t| *t = 0);
-        self.num_acc_nonroot_packs.iter_mut()
+        self.num_acc_packs.iter_mut()
             .for_each(|t| *t = 0);
         self.num_empty_packs.iter_mut()
             .for_each(|t| *t = 0);
@@ -177,23 +126,14 @@ impl PacketStats {
                 self.total_packets.to_string(),
                 self.empty_packets.to_string(),
                 self.accept_packets.to_string(),
-                self.rejected_packets.to_string(),
-
-                self.accept_root_packets.to_string(),
-                self.accept_nonroot_packets.to_string(),
-                self.empty_root_packets.to_string(),
-                self.empty_nonroot_packets.to_string(),
                 self.small_ess_packets.to_string(),
-                self.rejected_packets_model.to_string(),
-                self.rejected_packets_sample.to_string(),
 
-                self.avg_accept_nonroot_rate.to_string(),
-                self.last_accept_nonroot_rate.to_string(),
-                format!("{:?}", self.curr_nonroot_condition),
+                self.avg_accept_rate.to_string(),
+                self.last_accept_rate.to_string(),
+                format!("{:?}", self.curr_condition),
 
                 vec_to_string(&self.num_packs),
-                vec_to_string(&self.num_rej_packs),
-                vec_to_string(&self.num_acc_nonroot_packs),
+                vec_to_string(&self.num_acc_packs),
                 vec_to_string(&self.num_empty_packs),
             ]).join(", ")
         );

@@ -96,7 +96,7 @@ impl Gatherer {
 fn gather<F>(
     new_sample_capacity: usize,
     gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
-    handler: F,
+    broadcast_handler: F,
     version: usize,
     model_with_sig: Arc<RwLock<(Model, String)>>,
     exp_name: &str,
@@ -152,8 +152,8 @@ where F: Fn(Vec<ExampleWithScore>, Model, String, usize, &str) {
     write_all(&filename, &serialize(&(version, new_sample.clone(), &model)).unwrap())
         .expect("Failed to write the sample set to file for snapshot");
     rename(filename, "latest_sample.bin".to_string()).unwrap();
-    // Send the sample to the handler
-    handler(new_sample, model, model_sig, version, exp_name);
+    // Send the sample to the broadcast handler
+    broadcast_handler(new_sample, model, model_sig, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
     counts

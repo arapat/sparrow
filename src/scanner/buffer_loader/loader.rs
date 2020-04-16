@@ -4,10 +4,9 @@ use std::thread::sleep;
 use std::time::Duration;
 
 use SampleMode;
+use commons::persistent_io::load_sample;
 use commons::persistent_io::load_sample_local;
 use commons::persistent_io::load_sample_s3;
-use commons::performance_monitor::PerformanceMonitor;
-use commons::persistent_io::VersionedSampleModel;
 
 use super::LockedBuffer;
 
@@ -46,7 +45,7 @@ impl Loader {
             loop {
                 last_version = match mode {
                     SampleMode::LOCAL => {
-                        loader(
+                        load_sample(
                             buffer.clone(),
                             load_sample_local,
                             last_version,
@@ -54,7 +53,7 @@ impl Loader {
                         )
                     },
                     SampleMode::S3 => {
-                        loader(
+                        load_sample(
                             buffer.clone(),
                             load_sample_s3,
                             last_version,
@@ -65,28 +64,5 @@ impl Loader {
                 sleep(Duration::from_secs(sleep_duration));
             }
         });
-    }
-}
-
-
-fn loader<F>(
-    new_buffer: LockedBuffer,
-    handler: F,
-    last_version: usize,
-    exp_name: &str,
-) -> usize
-where F: Fn(usize, &str) -> Option<VersionedSampleModel> {
-    let mut pm = PerformanceMonitor::new();
-    pm.start();
-    let ret = handler(last_version, exp_name);
-    if ret.is_none() {
-        debug!("scanner, failed to receive a new sample");
-        last_version
-    } else {
-        let (version, new_sample, new_model, model_sig) = ret.unwrap();
-        let new_buffer = new_buffer.write();
-        *(new_buffer.unwrap()) = Some((version, new_sample, new_model, model_sig));
-        debug!("scanner, received a new sample, {}, {}", version, pm.get_duration());
-        version
     }
 }

@@ -19,7 +19,6 @@ use commons::INIT_MODEL_PREFIX;
 use config::Config;
 use config::SampleMode;
 
-use self::model_sync::ModelStats;
 use self::model_sync::ModelSync;
 use self::model_sync::gamma::Gamma;
 use self::stratified_storage::StratifiedStorage;
@@ -33,6 +32,7 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
     let gen_sample_version = Arc::new(RwLock::new(0));
     debug!("Starting the stratified structure.");
     let init_model_name = INIT_MODEL_PREFIX.to_string();
+    // start the sampling process in the stratified storage
     let stratified_structure = StratifiedStorage::new(
         init_tree.clone(),
         init_model_name.clone(),
@@ -65,10 +65,9 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
     );
 
     debug!("Starting the model sync.");
-    let model_stats = ModelStats::new(init_tree.clone(), config.num_trees);
     let gamma = Gamma::new(config.default_gamma, config.min_gamma);
     let mut model_sync = ModelSync::new(
-        model_stats,
+        init_tree,
         config.num_trees,
         &config.exp_name,
         config.min_ess,
@@ -79,11 +78,12 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
         stratified_structure.node_counts.clone(),
     );
     model_sync.start_network(config.local_name.clone(), config.network.clone(), config.port);
+    let bins = bins.clone();
     spawn(move || {
-        model_sync.run_with_network();
+        model_sync.run_with_network(bins);
     });
 
-    // Monitor running state
+    // Monitor running state, exit if state is false
     let mut state = true;
     while state {
         // Check if termination is manually requested

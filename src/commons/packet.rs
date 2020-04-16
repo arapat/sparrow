@@ -1,12 +1,10 @@
-use std::sync::Arc;
-use std::sync::RwLock;
-
 use commons::tree::UpdateList;
 
 
 #[derive(Debug)]
 pub enum PacketType {
     Accept,
+    Empty,
     SmallEffSize,
 }
 
@@ -55,19 +53,21 @@ impl Packet {
         }
     }
 
-    pub fn get_packet_type(
-        &self, sampler_sample_version: &Arc<RwLock<usize>>, sampler_model_version: &String,
-        min_ess: f32,
-    ) -> PacketType {
+    pub fn get_packet_type(&self, min_ess: f32) -> PacketType {
         // Ignore any claims made on a very small effective sample
         if self.ess < min_ess {
             debug!("model_manager, packet, empty small ess, {}, {}, {}",
                     self.source_machine_id, self.node_id, self.ess);
             PacketType::SmallEffSize
+        } else if self.updates.size == 0 {
+            // Empty packets
+            debug!("model_manager, packet, empty, {}, {}, {}",
+                    self.source_machine_id, self.node_id, self.ess);
+            PacketType::Empty
         } else {
             debug!("model_manager, packet, accept, {}, {}, {}",
                     self.source_machine_id, self.node_id, self.ess);
-            PacketType::AcceptNonroot
+            PacketType::Accept
         }
     }
 }

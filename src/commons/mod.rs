@@ -13,7 +13,7 @@ pub mod tree;
 use rayon::prelude::*;
 use std::f32::INFINITY;
 
-use commons::tree::Tree;
+use commons::tree::ADTree as Tree;
 
 use super::Example;
 
@@ -66,6 +66,17 @@ pub fn get_bound(sum_c: f32, sum_c_squared: f32) -> f32 {
     }
 }
 
+/// Set initial weights to the samples
+#[inline]
+pub fn set_init_weight(examples: Vec<ExampleWithScore>) -> Vec<ExampleInSampleSet> {
+    examples.into_iter()
+            .map(|t| {
+                let (example, (_score, model_size)) = t;
+                // sampling weights are ignored
+                let w = get_weight(&example, 0.0);
+                (example.clone(), (w, 0.0, model_size, model_size))
+            }).collect()
+}
 
 // Computational functions
 

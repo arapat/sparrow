@@ -9,16 +9,14 @@ use std::time::Duration;
 
 use SampleMode;
 use commons::get_weight;
+use commons::set_init_weight;
 use commons::persistent_io::VersionedSampleModel;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::ExampleWithScore;
+use commons::persistent_io::LockedBuffer;
 use commons::ExampleInSampleSet;
 use commons::Model;
 use self::loader::Loader;
 
-
-// LockedBuffer is set to None once it is read by the receiver
-pub type LockedBuffer = Arc<RwLock<Option<VersionedSampleModel>>>;
 
 
 /// Double-buffered sample set. It consists of two buffers stores in memory. One of the
@@ -230,20 +228,6 @@ fn reset_scores(data: &mut [ExampleInSampleSet], base_model: &Model) {
         (*example).1 = (get_weight(&example.0, 0.0), 0.0, base_version, base_version);
     });
 }
-
-
-
-/// Set initial weights to the samples
-fn set_init_weight(examples: Vec<ExampleWithScore>) -> Vec<ExampleInSampleSet> {
-    examples.into_iter()
-            .map(|t| {
-                let (example, (_score, model_size)) = t;
-                // sampling weights are ignored
-                let w = get_weight(&example, 0.0);
-                (example.clone(), (w, 0.0, model_size, model_size))
-            }).collect()
-}
-
 
 
 #[cfg(test)]
