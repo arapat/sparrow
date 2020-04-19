@@ -99,7 +99,6 @@ pub struct Learner {
     num_candid: usize,
 
     pub rho_gamma:        f32,
-    pub root_gamma:       f32,
     pub expand_node:      usize,
     // global trackers
     pub total_count:  usize,
@@ -137,7 +136,6 @@ impl Learner {
             num_candid: 1,
 
             rho_gamma:        default_gamma.clone(),
-            root_gamma:       default_gamma.clone(),
             expand_node:      0,
             total_count:      0,
             total_weight:     0.0,
@@ -229,14 +227,6 @@ impl Learner {
         self.num_candid         = tree.tree_size;
 
         let expand_node = self.expand_node;
-        // TODO: is root_gamma still necessary?
-        // let rho_gamma = {
-        //     if expand_node == 0 {
-        //         self.root_gamma
-        //     } else {
-        //         self.rho_gamma
-        //     }
-        // };
         let rho_gamma = self.rho_gamma;
 
         // preprocess examples - Complexity: O(Examples * NumRules)

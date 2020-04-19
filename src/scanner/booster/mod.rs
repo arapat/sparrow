@@ -171,7 +171,7 @@ impl Boosting {
     pub fn enable_network(&mut self, name: String, port: u16) {
         let (local_s, local_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) =
             mpsc::channel();
-        start_network_only_send(name.as_ref(), port, local_r);
+        start_network_only_send(name.as_ref(), port, local_r).unwrap();
         // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
         // start_network_only_send(name.as_ref(), port + 1, hb_r);
         self.network_sender = Some(local_s);
@@ -347,12 +347,7 @@ impl Boosting {
         self.packet_counter += 1;
         let tree_slice = self.model.model_updates.create_slice(
             self.base_model_size..self.model.size());
-        let gamma =
-            if self.learner.expand_node == 0 {
-                self.learner.root_gamma
-            } else {
-                self.learner.rho_gamma
-            };
+        let gamma = self.learner.rho_gamma;
         let packet = Packet::new(
             &self.local_name,
             self.local_id,
@@ -406,7 +401,6 @@ impl Boosting {
                     self.last_sent_model_length.to_string(),
                     total_data_size_without_fire.to_string(),
                     self.learner.rho_gamma.to_string(),
-                    self.learner.root_gamma.to_string(),
                     self.is_scanner_status_changed.to_string(),
                     self.is_sample_version_changed.to_string(),
                 ].join(", ")

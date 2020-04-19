@@ -2,6 +2,8 @@ use Example;
 use TFeature;
 
 pub type Grid = Vec<(usize, TFeature, bool)>;
+pub type Grids = Vec<Grid>;
+
 
 pub struct KdTree {
     // node
@@ -36,7 +38,7 @@ impl KdTree {
         }
     }
 
-    pub fn get_leaves(&mut self) -> Grid {
+    pub fn get_leaves(&mut self) -> Grids {
         if self.left.is_none() {
             vec![]
         } else {
@@ -44,8 +46,12 @@ impl KdTree {
             let split_value = self.split_value;
             let mut left_leaf  = self.left.take().unwrap().get_leaves();
             let mut right_leaf = self.right.take().unwrap().get_leaves();
-            left_leaf.push((split_dimension, split_value, true));
-            right_leaf.push((split_dimension, split_value, true));
+            for leaf in &mut left_leaf {
+                leaf.push((split_dimension, split_value, true));
+            }
+            for leaf in &mut right_leaf {
+                leaf.push((split_dimension, split_value, false));
+            }
             left_leaf.append(&mut right_leaf);
             left_leaf
         }

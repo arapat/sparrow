@@ -212,6 +212,7 @@ impl ADTree {
         self.model_updates.get_prediction_ul(data, version)
     }
 
+    #[allow(dead_code)]
     pub fn is_visited(&self, data: &Example, target: usize) -> bool {
         if self.tree_size <= 0 {
             return false;

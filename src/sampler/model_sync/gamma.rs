@@ -52,10 +52,4 @@ impl Gamma {
         debug!("model_manager, gamma update, forced non-root, {}, {}, {}, {}",
                 self.gamma_version, self.gamma, self.shrink_factor, model_size);
     }
-
-    pub fn decrease_root_gamma(&mut self, model_size: usize) {
-        self.gamma_version += 1;
-        debug!("model_manager, gamma update, root, {}, {}, {}, {}",
-                self.gamma_version, self.gamma, self.shrink_factor, model_size);
-    }
 }

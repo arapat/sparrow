@@ -71,6 +71,7 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
         config.num_trees,
         &config.exp_name,
         config.min_ess,
+        config.min_grid_size,
         gamma,
         sampler_state.clone(),
         next_model_s,

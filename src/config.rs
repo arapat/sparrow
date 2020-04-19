@@ -29,6 +29,9 @@ pub struct Config {
     /// Minimum effective sample size for triggering resample
     pub min_ess: f32,
 
+    /// minimum number of examples in a kd-tree node (grid)
+    pub min_grid_size: usize,
+
     // Number of boosting iterations
     // pub num_iterations: usize,
     /// Number of decision trees (i.e. second-layer tree nodes)

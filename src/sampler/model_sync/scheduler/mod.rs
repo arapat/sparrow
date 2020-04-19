@@ -1,9 +1,5 @@
 pub mod kdtree;
 
-use std::thread::sleep;
-use std::time::Duration;
-use std::sync::Arc;
-use std::sync::RwLock;
 use rand::Rng;
 use rand::thread_rng;
 
@@ -16,16 +12,20 @@ use Example;
 use super::Gamma;
 use super::ModelWithVersion;
 use self::kdtree::Grid;
+use self::kdtree::Grids;
 use self::kdtree::KdTree;
 
 pub struct Scheduler {
-    scanner_task: Vec<Option<(usize, usize)>>,  // (key, node_id)
     exp_name: String,
-    pub grids_version: usize,
-    curr_grids: Vec<Grid>,
+    num_machines: usize,
+
+    scanner_task: Vec<Option<(usize, usize)>>,  // (key, node_id)
     availability: Vec<Option<usize>>,
     next_available: usize,
-    next_grids: Arc<RwLock<Option<Vec<Grid>>>>,
+
+    pub grids_version: usize,
+    curr_grids: Grids,
+    next_grids: Option<Grids>,
 }
 
 
@@ -34,13 +34,14 @@ impl Scheduler {
         num_machines: usize, exp_name: &String, _bins: &Vec<Bins>, model: &mut ModelWithVersion,
     ) -> Scheduler {
         let mut scheduler = Scheduler {
-            scanner_task: vec![None; num_machines],
             exp_name: exp_name.clone(),
+            num_machines: num_machines.clone(),
+            scanner_task: vec![None; num_machines],
             grids_version: 0,
             curr_grids: vec![],
             availability: vec![],
             next_available: 0,
-            next_grids: Arc::new(RwLock::new(None)),
+            next_grids: None,
         };
         scheduler.update(model);
         scheduler
@@ -78,6 +79,14 @@ impl Scheduler {
         self.handle_packet(packet, "empty")
     }
 
+    pub fn refresh_grid(&mut self, min_size: usize) {
+        let new_grid = get_new_grids(min_size, self.exp_name.as_ref());
+        if new_grid.is_some() {
+            self.next_grids = new_grid;
+        }
+        self.reset_assign();
+    }
+
     fn handle_packet(&mut self, packet: &Packet, msg: &str) -> bool {
         let node_id = self.get_node_id(packet, "success");
         if node_id.is_none() {
@@ -90,20 +99,14 @@ impl Scheduler {
         true
     }
 
-    pub fn try_reset_assign(&mut self) -> bool {
-        let grid = self.next_grids.try_write();
-        if grid.is_ok() {
-            let mut result = grid.unwrap();
-            let new_grid = result.take();
-            if new_grid.is_some() {
-                self.curr_grids = new_grid.unwrap();
-                self.availability = vec![None; self.curr_grids.len()];
-                self.next_available = 0;
-                self.grids_version += 1;
-                true
-            } else {
-                false
-            }
+    fn reset_assign(&mut self) -> bool {
+        if self.next_grids.is_some() {
+            self.curr_grids = self.next_grids.take().unwrap();
+            self.availability = vec![None; self.curr_grids.len()];
+            self.scanner_task = vec![None; self.num_machines];
+            self.next_available = 0;
+            self.grids_version += 1;
+            true
         } else {
             false
         }
@@ -167,28 +170,18 @@ impl Scheduler {
 }
 
 // TODO: support loading from the local disk
-pub fn generate_grid(next_grids: Arc<RwLock<Option<Grid>>>, min_size: usize, exp_name: &str) {
-    let mut current_version = 0;
-    loop {
-        let ret = load_sample_s3(current_version, exp_name);
-        if ret.is_none() {
-            sleep(Duration::from_millis(5000));
-            continue;
-        }
-
-        let (new_version, new_examples, _, _): VersionedSampleModel = ret.unwrap();
-        let old_version = current_version;
-        current_version = new_version;
-        let examples: Vec<Example> = new_examples.into_iter().map(|(e, _)| e).collect();
-        debug!("model_sync, received new sample, {}, {}, {}",
-                old_version, current_version, examples.len());
-
-        let mut kd_tree = KdTree::new(examples, min_size);
-        let mut grids = kd_tree.get_leaves();
-        thread_rng().shuffle(&mut grids);
-        {
-            let mut new_grids = next_grids.write().unwrap();
-            *new_grids = Some(grids);
-        }
+fn get_new_grids(min_size: usize, exp_name: &str) -> Option<Grids> {
+    let ret = load_sample_s3(0, exp_name);
+    if ret.is_none() {
+        return None;
     }
+
+    let (version, new_examples, _, _): VersionedSampleModel = ret.unwrap();
+    let examples: Vec<Example> = new_examples.into_iter().map(|(e, _)| e).collect();
+    debug!("scheduler, received new sample, {}, {}", version, examples.len());
+
+    let mut kd_tree = KdTree::new(examples, min_size);
+    let mut grids = kd_tree.get_leaves();
+    thread_rng().shuffle(&mut grids);
+    Some(grids)
 }

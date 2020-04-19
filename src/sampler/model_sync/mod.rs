@@ -93,11 +93,12 @@ pub struct ModelSync {
     num_trees: usize,
     exp_name: String,
     min_ess: f32,
+    min_grid_size: usize,
 
     gamma: Gamma,
     sampler_state: Arc<RwLock<bool>>,
     next_model_sender: Sender<(Model, String)>,
-    current_sample_version: Arc<RwLock<usize>>,
+    _current_sample_version: Arc<RwLock<usize>>,
     node_counts: Arc<RwLock<Vec<u32>>>,
 
     packet_stats: Option<PacketStats>,
@@ -111,6 +112,7 @@ impl ModelSync {
         num_trees: usize,
         exp_name: &String,
         min_ess: f32,
+        min_grid_size: usize,
         gamma: Gamma,
         sampler_state: Arc<RwLock<bool>>,
         next_model_sender: Sender<(Model, String)>,
@@ -125,6 +127,7 @@ impl ModelSync {
             num_trees: num_trees,
             exp_name: exp_name.clone(),
             min_ess: min_ess,
+            min_grid_size: min_grid_size,
 
             // cluster status
             gamma: gamma,
@@ -132,7 +135,7 @@ impl ModelSync {
             // Shared variables
             sampler_state: sampler_state,
             next_model_sender: next_model_sender,
-            current_sample_version: current_sample_version,
+            _current_sample_version: current_sample_version,
             node_counts: node_counts,
 
             packet_receiver: None,
@@ -149,7 +152,7 @@ impl ModelSync {
         self.broadcast_model(0.0, true);
         let (packet_s, packet_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) =
             mpsc::channel();
-        start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s);
+        start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s).unwrap();
         self.packet_receiver = Some(packet_r);
         self.packet_stats = Some(PacketStats::new(remote_ips.len()));
     }
@@ -209,6 +212,7 @@ impl ModelSync {
                     // Ignore updates generated on a small-ess sample
                 },
                 PacketType::Empty => {
+                    self.gamma.decrease_gamma(self.model.model.size());
                     scheduler.handle_empty(&packet);
                 },
                 PacketType::Accept => {
@@ -217,6 +221,11 @@ impl ModelSync {
                     scheduler.handle_accept(&packet);
                 },
             }
+        }
+
+        // refresh kdtree when gamma is too small
+        if !self.gamma.is_valid() {
+            scheduler.refresh_grid(self.min_grid_size);
         }
 
         info!("Model sync quits, {}, Model length, {}, Is gamma significant, {}",
