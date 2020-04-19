@@ -5,14 +5,12 @@ mod gatherer;
 pub mod serial_storage;
 
 use std::cmp::max;
-use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
 use rand;
-use bincode::serialize;
 
 use SampleMode;
 use TFeature;
@@ -21,7 +19,6 @@ use commons::channel;
 use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_sign;
-use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::Model;
 use commons::labeled_data::LabeledData;
@@ -117,7 +114,6 @@ impl StratifiedStorage {
         positive: String,
         num_examples_per_block: usize,
         disk_buffer_filename: &str,
-        gen_sample_version: Arc<RwLock<usize>>,
         sample_mode: SampleMode,
         num_assigners: usize,
         num_samplers: usize,
@@ -128,7 +124,7 @@ impl StratifiedStorage {
         resume_training: bool,
         exp_name: String,
     ) -> StratifiedStorage {
-        let snapshot_filename = "stratified.serde".to_string();
+        // let snapshot_filename = "stratified.serde".to_string();
         if resume_training {
             debug!("prepare to resume an earlier stratified structure");
         }
@@ -213,7 +209,6 @@ impl StratifiedStorage {
         let gatherer = Gatherer::new(
             sampled_examples_r,
             sample_capacity,
-            gen_sample_version,
             model.clone(),
             exp_name,
         );
@@ -237,8 +232,8 @@ impl StratifiedStorage {
         assigners.run();
         samplers.run();
 
-        run_snapshot_thread(
-            snapshot_filename, strata, counts_table_r, weights_table_r, sampler_state);
+        // run_snapshot_thread(
+        //     snapshot_filename, strata, counts_table_r, weights_table_r, sampler_state);
 
         StratifiedStorage {
             updated_examples_s: assigners.updated_examples_s.clone(),
@@ -354,43 +349,44 @@ fn start_update_weights_table(
 }
 
 
-fn run_snapshot_thread(
-    filename: String,
-    strata: Arc<RwLock<Strata>>,
-    counts_table_r: CountTableRead,
-    weights_table_r: WeightTableRead,
-    sampler_state: Arc<RwLock<bool>>,
-) {
-    spawn(move || {
-        let mut state = true;
-        while state {
-            state = {
-                *(sampler_state.read().unwrap())
-            };
-            if !state {
-                info!("Sampler has stopped. Prepare to take a snapshot of the stratified storage.");
-                let ser_strata = {
-                    let strata = strata.read().unwrap();
-                    strata.serialize()
-                };
-                info!("Snapshot of the strata has been taken");
-                let tables = {
-                    let counts_table: HashMap<i8, i32> =
-                        counts_table_r.map_into(|&k, vs| (k, vs[0]));
-                    let weights_table: HashMap<i8, f64> =
-                        weights_table_r.map_into(|&k, vs| (k, vs[0].val));
-                    (counts_table, weights_table)
-                };
-                let data = serialize(&(ser_strata, tables)).unwrap();
-                write_all(&filename, &data)
-                    .expect("Failed to write the serialized stratified storage");
-                info!("Snapshot of the stratified storage has been taken.");
-            } else {
-                sleep(Duration::from_secs(60));
-            }
-        }
-    });
-}
+// // backup the stratified storage
+// fn run_snapshot_thread(
+//     filename: String,
+//     strata: Arc<RwLock<Strata>>,
+//     counts_table_r: CountTableRead,
+//     weights_table_r: WeightTableRead,
+//     sampler_state: Arc<RwLock<bool>>,
+// ) {
+//     spawn(move || {
+//         let mut state = true;
+//         while state {
+//             state = {
+//                 *(sampler_state.read().unwrap())
+//             };
+//             if !state {
+//                 info!("Sampler has stopped. Prepare to take a snapshot of the stratified storage.");
+//                 let ser_strata = {
+//                     let strata = strata.read().unwrap();
+//                     strata.serialize()
+//                 };
+//                 info!("Snapshot of the strata has been taken");
+//                 let tables = {
+//                     let counts_table: HashMap<i8, i32> =
+//                         counts_table_r.map_into(|&k, vs| (k, vs[0]));
+//                     let weights_table: HashMap<i8, f64> =
+//                         weights_table_r.map_into(|&k, vs| (k, vs[0].val));
+//                     (counts_table, weights_table)
+//                 };
+//                 let data = serialize(&(ser_strata, tables)).unwrap();
+//                 write_all(&filename, &data)
+//                     .expect("Failed to write the serialized stratified storage");
+//                 info!("Snapshot of the stratified storage has been taken.");
+//             } else {
+//                 sleep(Duration::from_secs(60));
+//             }
+//         }
+//     });
+// }
 
 
 fn sample_weights_table(weights_table_r: &WeightTableRead) -> Option<i8> {

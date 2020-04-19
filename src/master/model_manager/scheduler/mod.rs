@@ -9,8 +9,8 @@ use commons::persistent_io::VersionedSampleModel;
 use commons::persistent_io::load_sample_s3;
 use commons::persistent_io::upload_assignments;
 use Example;
-use super::Gamma;
-use super::ModelWithVersion;
+use super::gamma::Gamma;
+use super::model_with_version::ModelWithVersion;
 use self::kdtree::Grid;
 use self::kdtree::Grids;
 use self::kdtree::KdTree;
@@ -183,5 +183,6 @@ fn get_new_grids(min_size: usize, exp_name: &str) -> Option<Grids> {
     let mut kd_tree = KdTree::new(examples, min_size);
     let mut grids = kd_tree.get_leaves();
     thread_rng().shuffle(&mut grids);
+
     Some(grids)
 }

@@ -1,5 +1,5 @@
-use super::packet_stats::PacketStats;
-use super::packet_stats::UpdateSpeed;
+use super::model_sync::packet_stats::PacketStats;
+use super::model_sync::packet_stats::UpdateSpeed;
 
 pub struct Gamma {
     pub gamma: f32,

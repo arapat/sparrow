@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use Example;
 use TFeature;
 use commons::is_zero;
-use sampler::model_sync::scheduler::kdtree::Grid;
+use master::model_manager::scheduler::kdtree::Grid;
 
 
 // split_feature, threshold, evaluation
@@ -189,6 +189,7 @@ impl ADTree {
         prediction
     }
 
+    #[allow(dead_code)]
     pub fn visit_tree(&self, data: &Example, counter: &mut Vec<u32>) {
         if self.tree_size <= 0 {
             return;

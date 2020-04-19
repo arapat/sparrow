@@ -20,7 +20,6 @@ use commons::persistent_io::write_sample_s3;
 pub struct Gatherer {
     gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
     new_sample_capacity:    usize,
-    gen_sample_version:     Arc<RwLock<usize>>,
     model:                  Arc<RwLock<(Model, String)>>,
     pub counter:            Arc<RwLock<Vec<u32>>>,
     exp_name:               String,
@@ -32,14 +31,12 @@ impl Gatherer {
     pub fn new(
         gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
         new_sample_capacity:    usize,
-        gen_sample_version:     Arc<RwLock<usize>>,
         model:                  Arc<RwLock<(Model, String)>>,
         exp_name:               String,
     ) -> Gatherer {
         Gatherer {
             gather_new_sample:   gather_new_sample,
             new_sample_capacity: new_sample_capacity,
-            gen_sample_version: gen_sample_version,
             model:               model,
             counter:             Arc::new(RwLock::new(vec![])),
             exp_name:            exp_name,
@@ -52,8 +49,6 @@ impl Gatherer {
     pub fn run(&self, mode: SampleMode) {
         let new_sample_capacity = self.new_sample_capacity;
         let gather_new_sample = self.gather_new_sample.clone();
-        let gen_sample_version = self.gen_sample_version.clone();
-        let shared_counter = self.counter.clone();
         let model = self.model.clone();
         let exp_name = self.exp_name.clone();
         info!("Starting non-blocking gatherer");
@@ -61,7 +56,7 @@ impl Gatherer {
             let mut version = 0;
             loop {
                 version += 1;
-                let counter = match mode {
+                match mode {
                     SampleMode::LOCAL => {
                         gather(
                             new_sample_capacity,
@@ -83,10 +78,6 @@ impl Gatherer {
                         )
                     },
                 };
-                {
-                    *(gen_sample_version.write().unwrap()) = version;
-                    *(shared_counter.write().unwrap()) = counter;
-                }
             }
         });
     }
@@ -100,8 +91,7 @@ fn gather<F>(
     version: usize,
     model_with_sig: Arc<RwLock<(Model, String)>>,
     exp_name: &str,
-) -> Vec<u32>
-where F: Fn(Vec<ExampleWithScore>, Model, String, usize, &str) {
+) where F: Fn(Vec<ExampleWithScore>, Model, String, usize, &str) {
     debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
     pm.start();
@@ -140,13 +130,6 @@ where F: Fn(Vec<ExampleWithScore>, Model, String, usize, &str) {
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}, {}",
            total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive,
            model.size());
-    let counts = {
-        let mut c = vec![0; model.tree_size];
-        new_sample.iter().for_each(|(example, _)| model.visit_tree(example, &mut c));
-        c
-    };
-    let counts_str: Vec<String> = counts.iter().map(|t| t.to_string()).collect();
-    debug!("sampler, travel finished, {}, {}", new_sample.len(), counts_str.join(", "));
     // Create a snapshot for continous training
     let filename = "latest_sample.bin".to_string() + "_WRITING";
     write_all(&filename, &serialize(&(version, new_sample.clone(), &model)).unwrap())
@@ -156,7 +139,6 @@ where F: Fn(Vec<ExampleWithScore>, Model, String, usize, &str) {
     broadcast_handler(new_sample, model, model_sig, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
-    counts
 }
 
 

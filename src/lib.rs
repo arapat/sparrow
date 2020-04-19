@@ -32,7 +32,7 @@ mod commons;
 mod config;
 /// Validating models
 mod testing;
-mod sampler;
+mod master;
 mod scanner;
 
 use config::Config;
@@ -42,7 +42,7 @@ use commons::bins::Bins;
 use commons::tree::ADTree as Tree;
 
 use scanner::start as start_scanner;
-use sampler::start as start_sampler;
+use master::start_master;
 use testing::validate;
 
 use commons::bins::load_bins;
@@ -97,7 +97,7 @@ pub fn training(config_filepath: &String) {
     if config.sampler_scanner == "scanner" {
         start_scanner(&config, &sample_mode, &bins, &init_tree);
     } else { // if config.sampler_scanner == "sampler"
-        start_sampler(&config, &sample_mode, &bins, &init_tree);
+        start_master(&config, &sample_mode, &bins, &init_tree);
     }
 }
 

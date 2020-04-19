@@ -249,6 +249,7 @@ fn sampler(
             pm_total.start();
         }
 
+        // terminate if sampler is stopping
         {
             let sampler_state = sampler_state.read().unwrap();
             if *sampler_state == false {

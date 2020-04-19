@@ -84,6 +84,7 @@ impl DiskBuffer {
         block_buffer
     }
 
+    #[allow(dead_code)]
     pub fn serialize(&self) -> Vec<u8> {
         serialize(self).unwrap()
     }

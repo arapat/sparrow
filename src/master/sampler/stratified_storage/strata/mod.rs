@@ -147,6 +147,7 @@ impl Strata {
         }
     }
 
+    #[allow(dead_code)]
     pub fn serialize(&self) -> Vec<u8> {
         let ser_disk_buffer = {
             let disk_buffer = self.disk_buffer.read().unwrap();
