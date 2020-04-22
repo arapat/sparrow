@@ -24,6 +24,7 @@ use self::packet_stats::PacketStats;
 
 pub struct ModelSync {
     model: ModelWithVersion,
+    model_ts: f32,
     num_trees: usize,
     exp_name: String,
     min_ess: f32,
@@ -31,9 +32,10 @@ pub struct ModelSync {
 
     gamma: Gamma,
     next_model_sender: Sender<(Model, String)>,
+    scheduler: Scheduler,
 
-    packet_stats: Option<PacketStats>,
-    packet_receiver: Option<mpsc::Receiver<Packet>>,
+    _performance_mon: PerformanceMonitor,
+    _last_logging_ts: f32,
 }
 
 
@@ -46,10 +48,14 @@ impl ModelSync {
         min_grid_size: usize,
         gamma: Gamma,
         next_model_sender: Sender<(Model, String)>,
+        bins: &Vec<Bins>,
+        num_scanners: usize,
     ) -> ModelSync {
-        let model = ModelWithVersion::new(init_tree.clone(), num_trees);
+        let mut model = ModelWithVersion::new(init_tree.clone(), num_trees);
+        let scheduler = Scheduler::new(num_scanners, exp_name, bins, &mut model);
         ModelSync {
             model: model,
+            model_ts: 0.0,
 
             // Configurations
             num_trees: num_trees,
@@ -63,94 +69,43 @@ impl ModelSync {
             // Shared variables
             next_model_sender: next_model_sender,
 
-            packet_receiver: None,
-            packet_stats: None,
+            scheduler: scheduler,
+
+            _performance_mon: PerformanceMonitor::new(),
+            _last_logging_ts: 0.0,
         }
     }
 
-
-    pub fn start_network(&mut self, machine_name: String, remote_ips: Vec<String>, port: u16) {
-        self.broadcast_model(0.0, true);
-        let (packet_s, packet_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) =
-            mpsc::channel();
-        start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s).unwrap();
-        self.packet_receiver = Some(packet_r);
-        self.packet_stats = Some(PacketStats::new(remote_ips.len()));
-    }
-
-
-    pub fn run_with_network(&mut self, bins: Vec<Bins>) {
-        let global_timer = PerformanceMonitor::new();
-        let mut _last_cluster_update = global_timer.get_duration();
-        let mut packet_stats = self.packet_stats.take().unwrap();
-        let mut scheduler = Scheduler::new(
-            packet_stats.num_machines, &self.exp_name, &bins, &mut self.model);
-        let packet_receiver = self.packet_receiver.take().unwrap();
+    pub fn run_with_network(&mut self, machine_name: String, remote_ips: Vec<String>, port: u16) {
+        // start the network
+        let (mut packet_stats, packet_receiver) = start_network(machine_name, remote_ips, port);
+        // First, broadcast the initial model
+        self.broadcast_model(true);
 
         // start listening to network
-        let mut global_timer = PerformanceMonitor::new();
-        global_timer.start();
+        self._performance_mon.start();
         let mut num_consecutive_err = 0;
-        let mut last_model_timestamp = global_timer.get_duration();
-        let mut last_logging_timestamp = global_timer.get_duration();
         while self.continue_training() {
-            if global_timer.get_duration() - last_logging_timestamp >= 10.0 {
-                scheduler.print_log(num_consecutive_err, &self.gamma);
-                packet_stats.print_log();
-                self.model.print_log();
-                last_logging_timestamp = global_timer.get_duration();
-            }
-
-            // adjust gamma
-            if packet_stats.is_triggered() {
-                if self.gamma.adjust(&packet_stats, self.model.model.size()) {
-                    self.model.update_gamma(self.gamma.gamma_version);
-                    self.broadcast_model(last_model_timestamp, false);
-                    // TODO: should we allow re-assessing all tree nodes if we have increased gamma,
-                    // by setting `last_failed_gamma` in `node_status` to 1.0
-                }
-                packet_stats.reset();
-            }
-
-            // Update assignments
-            let _num_updates = scheduler.update(&mut self.model);
-
+            self.print_log(&packet_stats, num_consecutive_err);
+            self.adjust_gamma(&mut packet_stats);
+            self.scheduler.update(&mut self.model);
             // Handle packets
             let packet = packet_receiver.try_recv();
             if packet.is_err() {
-                // debug!("model_manager, packet error, {:?}", packet);
                 num_consecutive_err += 1;
-                continue;
+            } else {
+                self.handle_packet(&mut packet.unwrap(), &mut packet_stats);
+                num_consecutive_err = 0;
             }
-            num_consecutive_err = 0;
-            let mut packet: Packet = packet.unwrap();
-            packet.source_machine_id = packet.source_machine_id % packet_stats.num_machines;
-            let packet_type = packet.get_packet_type(self.min_ess);
-            packet_stats.handle_new_packet(&packet, &packet_type);
-            match packet_type {
-                PacketType::SmallEffSize => {
-                    // Ignore updates generated on a small-ess sample
-                },
-                PacketType::Empty => {
-                    self.gamma.decrease_gamma(self.model.model.size());
-                    scheduler.handle_empty(&packet);
-                },
-                PacketType::Accept => {
-                    last_model_timestamp = global_timer.get_duration();
-                    self.update_model(&packet, last_model_timestamp);
-                    scheduler.handle_accept(&packet);
-                },
-            }
-
             // refresh kdtree when gamma is too small
             if !self.gamma.is_valid() {
-                scheduler.refresh_grid(self.min_grid_size);
+                self.scheduler.refresh_grid(self.min_grid_size);
             }
         }
 
         info!("Model sync quits, {}, Model length, {}, Is gamma significant, {}",
                 self.continue_training(), self.model.model.size(), self.gamma.is_valid());
-        let final_model = write_model(&self.model.model, last_model_timestamp, false);
+        let final_model = write_model(&self.model.model, self.model_ts, false);
         debug!("model_manager, final model, {}", final_model);
 
         // send quit signal to the sampler which runs on the same machine
@@ -161,26 +116,56 @@ impl ModelSync {
     }
 
 
-    fn broadcast_model(&mut self, last_timestamp: f32, is_model_updated: bool) {
+    fn handle_packet(&mut self, packet: &mut Packet, packet_stats: &mut PacketStats) {
+        packet.source_machine_id = packet.source_machine_id % packet_stats.num_machines;
+        let packet_type = packet.get_packet_type(self.min_ess);
+        packet_stats.handle_new_packet(packet, &packet_type);
+        match packet_type {
+            PacketType::SmallEffSize => {
+                // Ignore updates generated on a small-ess sample
+            },
+            PacketType::Empty => {
+                self.gamma.decrease_gamma(self.model.model.size());
+                self.scheduler.handle_empty(packet);
+            },
+            PacketType::Accept => {
+                self.model_ts = self._performance_mon.get_duration();
+                self.update_model(packet);
+                self.scheduler.handle_accept(packet);
+            },
+        }
+    }
+
+
+    fn adjust_gamma(&mut self, packet_stats: &mut PacketStats) {
+        if packet_stats.is_triggered() {
+            if self.gamma.adjust(&packet_stats, self.model.model.size()) {
+                self.model.update_gamma(self.gamma.gamma_version);
+                self.broadcast_model(false);
+            }
+            packet_stats.reset();
+        }
+    }
+
+
+    fn broadcast_model(&mut self, is_model_updated: bool) {
         let is_upload_success = upload_model(
             &self.model.model, &self.model.model_sig, self.gamma.gamma, &self.exp_name);
         if is_model_updated {
             self.next_model_sender.send(
                 (self.model.model.clone(), self.model.model_sig.clone()));
-            write_model(&self.model.model, last_timestamp, true);
+            write_model(&self.model.model, self.model_ts, true);
         }
         debug!("model_manager, upload model, {}, {}",
                 is_upload_success, self.model.model_sig);
     }
 
 
-    fn update_model(
-        &mut self, packet: &Packet, last_timestamp: f32,
-    ) -> Vec<usize> {
+    fn update_model(&mut self, packet: &Packet) -> Vec<usize> {
         assert!(packet.updates.size > 0);
         let (new_node_indices, count_new, count_updates) = self.model.update(
             &packet.updates, &packet.this_model_signature, self.gamma.gamma);
-        self.broadcast_model(last_timestamp, true);
+        self.broadcast_model(true);
         debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
                 self.model.model.tree_size, self.model.model.size(),
                 packet.packet_signature, packet.source_machine_id, packet.node_id,
@@ -194,4 +179,30 @@ impl ModelSync {
         self.gamma.is_valid() && (
             self.num_trees <= 0 || self.model.model.tree_size < self.num_trees)
     }
+
+
+    fn print_log(&mut self, packet_stats: &PacketStats, num_consecutive_err: u32) {
+        if self._performance_mon.get_duration() - self._last_logging_ts >= 10.0 {
+            self.scheduler.print_log(num_consecutive_err, &self.gamma);
+            packet_stats.print_log();
+            self.model.print_log();
+            self._last_logging_ts = self._performance_mon.get_duration();
+        }
+    }
+}
+
+
+// start a network _receiver_ on the master node, which receives packages from the scanners
+fn start_network(
+    machine_name: String, remote_ips: Vec<String>, port: u16,
+) -> (PacketStats, mpsc::Receiver<Packet>) {
+    let (packet_s, packet_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) = mpsc::channel();
+    start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s).unwrap();
+    (PacketStats::new(remote_ips.len()), packet_r)
+}
+
+
+#[cfg(test)]
+mod tests {
+
 }

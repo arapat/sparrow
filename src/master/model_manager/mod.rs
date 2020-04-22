@@ -29,10 +29,12 @@ pub fn start_model_manager(
         config.min_grid_size,
         gamma,
         next_model_sender,
+        bins,
+        config.network.len(),
     );
-    model_sync.start_network(config.local_name.clone(), config.network.clone(), config.port);
-    let bins = bins.clone();
+    let (local_name, network, port) =
+        (config.local_name.clone(), config.network.clone(), config.port);
     spawn(move || {
-        model_sync.run_with_network(bins);
+        model_sync.run_with_network(local_name, network, port);
     });
 }
