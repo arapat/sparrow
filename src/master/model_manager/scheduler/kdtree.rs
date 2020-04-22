@@ -40,7 +40,7 @@ impl KdTree {
 
     pub fn get_leaves(&mut self) -> Grids {
         if self.left.is_none() {
-            vec![]
+            vec![vec![]]
         } else {
             let split_dimension = self.split_dimension;
             let split_value = self.split_value;
@@ -99,8 +99,52 @@ fn get_median(numbers: &mut Vec<TFeature>) -> TFeature {
     let mid = numbers.len() / 2;
     numbers.sort();
     if numbers.len() % 2 == 0 {
-        ((numbers[mid - 1] + numbers[mid]) as f32 / 2.0) as TFeature
+        (numbers[mid - 1] as f32 / 2.0 + numbers[mid] as f32 / 2.0) as TFeature
     } else {
         numbers[mid]
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use Example;
+    use commons::test_helper::get_n_random_examples;
+    use master::model_manager::scheduler::kdtree::KdTree;
+
+    #[test]
+    fn test_kdtree() {
+        let examples: Vec<Example> = get_n_random_examples(1000, 10).into_iter()
+                                                                    .map(|(example, _)| { example })
+                                                                    .collect();
+        let min_size = 10;
+        let mut kdtree = KdTree::new(examples.clone(), min_size);
+
+        let grids = kdtree.get_leaves();
+        let mut counts: Vec<usize> = vec![0; grids.len()];
+
+        for example in examples {
+            let mut match_index = None;
+            for i in 0..grids.len() {
+                let grid = &grids[i];
+                let mut valid = true;
+                for (index, thr, cond) in grid {
+                    if (example.feature[*index as usize] <= *thr) != *cond {
+                        valid = false;
+                        break;
+                    }
+                }
+                if valid {
+                    assert!(match_index.is_none());
+                    match_index = Some(i);
+                }
+            }
+            assert!(match_index.is_some());
+            counts[match_index.unwrap()] += 1;
+        }
+
+        for count in counts {
+            assert!(min_size <= count && count <= min_size * 2);
+        }
     }
 }

@@ -91,7 +91,7 @@ impl PacketStats {
         self.curr_condition   = cond;
     }
 
-    pub fn is_triggered(&self) -> bool {
+    pub fn got_sufficient_packages(&self) -> bool {
         self.total_packets >= max(10, self.num_machines * 2)
     }
 

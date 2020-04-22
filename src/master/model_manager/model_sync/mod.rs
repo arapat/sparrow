@@ -138,7 +138,7 @@ impl ModelSync {
 
 
     fn adjust_gamma(&mut self, packet_stats: &mut PacketStats) {
-        if packet_stats.is_triggered() {
+        if packet_stats.got_sufficient_packages() {
             if self.gamma.adjust(&packet_stats, self.model.model.size()) {
                 self.model.update_gamma(self.gamma.gamma_version);
                 self.broadcast_model(false);

@@ -112,113 +112,113 @@ impl Drop for DiskBuffer {
 }
 
 
-#[cfg(test)]
-mod tests {
-    use bincode::serialize;
-    use bincode::deserialize;
-
-    use labeled_data::LabeledData;
-    use commons::ExampleWithScore;
-    use super::super::get_disk_buffer;
-    use TFeature;
-
-
-    #[test]
-    fn test_disk_buffer_normal_write() {
-        let filename = "unittest-diskbuffer1.bin";
-        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![1, 2, 3]);
-        let data = serialize(&vec![example; 10]).unwrap();
-        for _ in 0..5 {
-            disk_buffer.write(&data);
-        }
-    }
-
-    #[test]
-    fn test_disk_buffer_rw_once() {
-        let filename = "unittest-diskbuffer2.bin";
-        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![4, 5, 6]);
-        let examples = vec![example; 10];
-        let data = serialize(&examples).unwrap();
-        let index = disk_buffer.write(&data);
-        let retrieve = disk_buffer.read(index);
-        assert_eq!(data, retrieve);
-        let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
-        assert_eq!(examples, examples_des);
-    }
-
-    #[test]
-    fn test_disk_buffer_rw_one_by_one() {
-        let filename = "unittest-diskbuffer3.bin";
-        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        for i in 0..5 {
-            let example = get_example(vec![1, 2, i as TFeature]);
-            let examples = vec![example; 10];
-            let data = serialize(&examples).unwrap();
-            let index = disk_buffer.write(&data);
-            assert_eq!(index, 0);
-            let retrieve = disk_buffer.read(index);
-            assert_eq!(data, retrieve);
-            let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
-            assert_eq!(examples, examples_des);
-        }
-    }
-
-    #[test]
-    fn test_disk_buffer_rw_seq() {
-        let filename = "unittest-diskbuffer4.bin";
-        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let mut inputs = vec![];
-        for i in 0..5 {
-            let example = get_example(vec![1, 2, i as TFeature]);
-            let examples = vec![example; 10];
-            let data = serialize(&examples).unwrap();
-            let index = disk_buffer.write(&data);
-            inputs.push((data, examples));
-            assert_eq!(index, i as usize);
-        }
-        for i in 0..5 {
-            let retrieve = disk_buffer.read(i);
-            assert_eq!(inputs[i].0, retrieve);
-            let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
-            assert_eq!(inputs[i].1, examples_des);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_disk_buffer_read_panic() {
-        let filename = "unittest-diskbuffer5.bin";
-        let mut disk_buffer = get_disk_buffer(filename, 3, 10, 10);
-        disk_buffer.read(0);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_disk_buffer_write_disk_full_panic() {
-        let filename = "unittest-diskbuffer6.bin";
-        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![1, 2, 3]);
-        let data = serialize(&vec![example; 10]).unwrap();
-        for _ in 0..6 {
-            disk_buffer.write(&data);
-        }
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_disk_buffer_write_feature_size_mismatch_panic() {
-        let filename = "unittest-diskbuffer7.bin";
-        let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
-        let example = get_example(vec![1, 2, 3, 4]);
-        let data = serialize(&vec![example; 10]).unwrap();
-        disk_buffer.write(&data);
-    }
-
-    fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
-        let label: i8 = -1;
-        let example = LabeledData::new(features, label);
-        (example, (1.0, 0))
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use bincode::serialize;
+//     use bincode::deserialize;
+// 
+//     use labeled_data::LabeledData;
+//     use commons::ExampleWithScore;
+//     use super::super::get_disk_buffer;
+//     use TFeature;
+// 
+// 
+//     #[test]
+//     fn test_disk_buffer_normal_write() {
+//         let filename = "unittest-diskbuffer1.bin";
+//         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
+//         let example = get_example(vec![1, 2, 3]);
+//         let data = serialize(&vec![example; 10]).unwrap();
+//         for _ in 0..5 {
+//             disk_buffer.write(&data);
+//         }
+//     }
+// 
+//     #[test]
+//     fn test_disk_buffer_rw_once() {
+//         let filename = "unittest-diskbuffer2.bin";
+//         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
+//         let example = get_example(vec![4, 5, 6]);
+//         let examples = vec![example; 10];
+//         let data = serialize(&examples).unwrap();
+//         let index = disk_buffer.write(&data);
+//         let retrieve = disk_buffer.read(index);
+//         assert_eq!(data, retrieve);
+//         let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
+//         assert_eq!(examples, examples_des);
+//     }
+// 
+//     #[test]
+//     fn test_disk_buffer_rw_one_by_one() {
+//         let filename = "unittest-diskbuffer3.bin";
+//         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
+//         for i in 0..5 {
+//             let example = get_example(vec![1, 2, i as TFeature]);
+//             let examples = vec![example; 10];
+//             let data = serialize(&examples).unwrap();
+//             let index = disk_buffer.write(&data);
+//             assert_eq!(index, 0);
+//             let retrieve = disk_buffer.read(index);
+//             assert_eq!(data, retrieve);
+//             let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
+//             assert_eq!(examples, examples_des);
+//         }
+//     }
+// 
+//     #[test]
+//     fn test_disk_buffer_rw_seq() {
+//         let filename = "unittest-diskbuffer4.bin";
+//         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
+//         let mut inputs = vec![];
+//         for i in 0..5 {
+//             let example = get_example(vec![1, 2, i as TFeature]);
+//             let examples = vec![example; 10];
+//             let data = serialize(&examples).unwrap();
+//             let index = disk_buffer.write(&data);
+//             inputs.push((data, examples));
+//             assert_eq!(index, i as usize);
+//         }
+//         for i in 0..5 {
+//             let retrieve = disk_buffer.read(i);
+//             assert_eq!(inputs[i].0, retrieve);
+//             let examples_des: Vec<ExampleWithScore> = deserialize(&retrieve).unwrap();
+//             assert_eq!(inputs[i].1, examples_des);
+//         }
+//     }
+// 
+//     #[test]
+//     #[should_panic]
+//     fn test_disk_buffer_read_panic() {
+//         let filename = "unittest-diskbuffer5.bin";
+//         let mut disk_buffer = get_disk_buffer(filename, 3, 10, 10);
+//         disk_buffer.read(0);
+//     }
+// 
+//     #[test]
+//     #[should_panic]
+//     fn test_disk_buffer_write_disk_full_panic() {
+//         let filename = "unittest-diskbuffer6.bin";
+//         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
+//         let example = get_example(vec![1, 2, 3]);
+//         let data = serialize(&vec![example; 10]).unwrap();
+//         for _ in 0..6 {
+//             disk_buffer.write(&data);
+//         }
+//     }
+// 
+//     #[test]
+//     #[should_panic]
+//     fn test_disk_buffer_write_feature_size_mismatch_panic() {
+//         let filename = "unittest-diskbuffer7.bin";
+//         let mut disk_buffer = get_disk_buffer(filename, 3, 50, 10);
+//         let example = get_example(vec![1, 2, 3, 4]);
+//         let data = serialize(&vec![example; 10]).unwrap();
+//         disk_buffer.write(&data);
+//     }
+// 
+//     fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
+//         let label: i8 = -1;
+//         let example = LabeledData::new(features, label);
+//         (example, (1.0, 0))
+//     }
+// }

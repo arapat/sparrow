@@ -230,74 +230,74 @@ fn reset_scores(data: &mut [ExampleInSampleSet], base_model: &Model) {
 }
 
 
-#[cfg(test)]
-mod tests {
-    use std::thread::sleep;
-    use commons::channel;
-    use commons::io::delete_s3;
-
-    use std::time::Duration;
-    use labeled_data::LabeledData;
-    use commons::ExampleWithScore;
-    use commons::Signal;
-    use super::BufferLoader;
-    use TFeature;
-
-    use super::io::REGION;
-    use super::io::BUCKET;
-    use super::io::S3_PATH;
-    use super::io::FILENAME;
-
-    #[test]
-    fn test_buffer_loader_memory() {
-        test_buffer_loader("memory");
-    }
-
-    #[test]
-    fn test_buffer_loader_local() {
-        test_buffer_loader("local");
-    }
-
-    #[test]
-    fn test_buffer_loader_s3() {
-        delete_s3(REGION, BUCKET, S3_PATH, FILENAME);
-        test_buffer_loader("s3");
-    }
-
-    fn test_buffer_loader(mode: &str) {
-        let (sender, receiver) = channel::bounded(10, "gather-samples");
-        let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
-        let mut buffer_loader = BufferLoader::new(
-            100, 10, mode.to_string(), receiver, signal_s, 1, false, None, "both".to_string());
-        assert_eq!(signal_r.recv().unwrap(), Signal::START);
-        sender.send(((get_example(vec![0, 1, 2], -1, 1.0), 100), 100));
-        while !buffer_loader.try_switch() {
-            sleep(Duration::from_millis(1000));
-        }
-        for _ in 0..20 {
-            let batch = buffer_loader.get_next_batch(true);
-            assert_eq!(batch.len(), 10);
-            assert_eq!((batch[0].1).0, 1.0);
-            assert_eq!((batch[0].0).label, -1);
-            assert_eq!((batch[9].1).0, 1.0);
-            assert_eq!((batch[9].0).label, -1);
-        }
-        sender.send(((get_example(vec![0, 1, 2], 1, 2.0), 100), 100));
-        while !buffer_loader.try_switch() {
-            sleep(Duration::from_millis(1000));
-        }
-        for _ in 0..10 {
-            let batch = buffer_loader.get_next_batch(true);
-            assert_eq!(batch.len(), 10);
-            assert_eq!((batch[0].1).0, 1.0);
-            assert_eq!((batch[0].0).label, 1);
-            assert_eq!((batch[9].1).0, 1.0);
-            assert_eq!((batch[9].0).label, 1);
-        }
-    }
-
-    fn get_example(features: Vec<TFeature>, label: i8, score: f32) -> ExampleWithScore {
-        let example = LabeledData::new(features, label);
-        (example, (score, 0))
-    }
-}
+// #[cfg(test)]
+// mod tests {
+//     use std::thread::sleep;
+//     use commons::channel;
+//     use commons::io::delete_s3;
+// 
+//     use std::time::Duration;
+//     use labeled_data::LabeledData;
+//     use commons::ExampleWithScore;
+//     use commons::Signal;
+//     use super::BufferLoader;
+//     use TFeature;
+// 
+//     use super::io::REGION;
+//     use super::io::BUCKET;
+//     use super::io::S3_PATH;
+//     use super::io::FILENAME;
+// 
+//     #[test]
+//     fn test_buffer_loader_memory() {
+//         test_buffer_loader("memory");
+//     }
+// 
+//     #[test]
+//     fn test_buffer_loader_local() {
+//         test_buffer_loader("local");
+//     }
+// 
+//     #[test]
+//     fn test_buffer_loader_s3() {
+//         delete_s3(REGION, BUCKET, S3_PATH, FILENAME);
+//         test_buffer_loader("s3");
+//     }
+// 
+//     fn test_buffer_loader(mode: &str) {
+//         let (sender, receiver) = channel::bounded(10, "gather-samples");
+//         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
+//         let mut buffer_loader = BufferLoader::new(
+//             100, 10, mode.to_string(), receiver, signal_s, 1, false, None, "both".to_string());
+//         assert_eq!(signal_r.recv().unwrap(), Signal::START);
+//         sender.send(((get_example(vec![0, 1, 2], -1, 1.0), 100), 100));
+//         while !buffer_loader.try_switch() {
+//             sleep(Duration::from_millis(1000));
+//         }
+//         for _ in 0..20 {
+//             let batch = buffer_loader.get_next_batch(true);
+//             assert_eq!(batch.len(), 10);
+//             assert_eq!((batch[0].1).0, 1.0);
+//             assert_eq!((batch[0].0).label, -1);
+//             assert_eq!((batch[9].1).0, 1.0);
+//             assert_eq!((batch[9].0).label, -1);
+//         }
+//         sender.send(((get_example(vec![0, 1, 2], 1, 2.0), 100), 100));
+//         while !buffer_loader.try_switch() {
+//             sleep(Duration::from_millis(1000));
+//         }
+//         for _ in 0..10 {
+//             let batch = buffer_loader.get_next_batch(true);
+//             assert_eq!(batch.len(), 10);
+//             assert_eq!((batch[0].1).0, 1.0);
+//             assert_eq!((batch[0].0).label, 1);
+//             assert_eq!((batch[9].1).0, 1.0);
+//             assert_eq!((batch[9].0).label, 1);
+//         }
+//     }
+// 
+//     fn get_example(features: Vec<TFeature>, label: i8, score: f32) -> ExampleWithScore {
+//         let example = LabeledData::new(features, label);
+//         (example, (score, 0))
+//     }
+// }
