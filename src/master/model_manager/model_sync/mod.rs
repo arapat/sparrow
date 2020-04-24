@@ -2,7 +2,8 @@ pub mod packet_stats;
 
 use std::sync::mpsc;
 
-use tmsn::network::start_network_only_recv;
+#[cfg(not(test))] use tmsn::network::start_network_only_recv;
+#[cfg(test)] use commons::test_helper::start_network_only_recv;
 
 use commons::Model;
 use commons::bins::Bins;
@@ -33,6 +34,8 @@ pub struct ModelSync {
     gamma: Gamma,
     next_model_sender: Sender<(Model, String)>,
     scheduler: Scheduler,
+    packet_receiver: Option<mpsc::Receiver<Packet>>,
+    packet_stats: Option<PacketStats>,
 
     _performance_mon: PerformanceMonitor,
     _last_logging_ts: f32,
@@ -70,6 +73,8 @@ impl ModelSync {
             next_model_sender: next_model_sender,
 
             scheduler: scheduler,
+            packet_stats: None,
+            packet_receiver: None,
 
             _performance_mon: PerformanceMonitor::new(),
             _last_logging_ts: 0.0,
@@ -77,30 +82,11 @@ impl ModelSync {
     }
 
     pub fn run_with_network(&mut self, machine_name: String, remote_ips: Vec<String>, port: u16) {
-        // start the network
-        let (mut packet_stats, packet_receiver) = start_network(machine_name, remote_ips, port);
-        // First, broadcast the initial model
-        self.broadcast_model(true);
-
-        // start listening to network
-        self._performance_mon.start();
+        self.start_network(machine_name, remote_ips, port);
         let mut num_consecutive_err = 0;
         while self.continue_training() {
-            self.print_log(&packet_stats, num_consecutive_err);
-            self.adjust_gamma(&mut packet_stats);
-            self.scheduler.set_assignments(&mut self.model, self.gamma.value());
-            // Handle packets
-            let packet = packet_receiver.try_recv();
-            if packet.is_err() {
-                num_consecutive_err += 1;
-            } else {
-                self.handle_packet(&mut packet.unwrap(), &mut packet_stats);
-                num_consecutive_err = 0;
-            }
-            // refresh kdtree when gamma is too small
-            if !self.gamma.is_valid() {
-                self.scheduler.refresh_grid(self.min_grid_size);
-            }
+            self.sync_once(&mut num_consecutive_err);
+            self.print_log(num_consecutive_err);
         }
 
         info!("Model sync quits, {}, Model length, {}, Is gamma significant, {}",
@@ -115,9 +101,46 @@ impl ModelSync {
         }
     }
 
+    fn start_network(
+        &mut self, machine_name: String, remote_ips: Vec<String>, port: u16,
+    ) -> mpsc::Sender<Packet> {
+        let (packet_stats, packet_sender, packet_receiver) =
+            start_network(machine_name, remote_ips, port);
+        self.packet_stats = Some(packet_stats);
+        self.packet_receiver = Some(packet_receiver);
+        self._performance_mon.start();
+        self.broadcast_model(true);
+        packet_sender
+    }
 
-    fn handle_packet(&mut self, packet: &mut Packet, packet_stats: &mut PacketStats) {
-        packet.source_machine_id = packet.source_machine_id % packet_stats.num_machines;
+    fn sync_once(&mut self, num_consecutive_err: &mut usize) {
+        // Handle packets
+        let packet = self.packet_receiver.as_mut().unwrap().try_recv();
+        if packet.is_err() {
+            *num_consecutive_err += 1;
+        } else {
+            self.handle_packet(&mut packet.unwrap());
+            *num_consecutive_err = 0;
+        }
+        // refresh kdtree when gamma is too small
+        self.adjust_gamma();
+        self.scheduler.set_assignments(&mut self.model, self.gamma.value());
+        if !self.gamma.is_valid() {
+            self.scheduler.refresh_grid(self.min_grid_size);
+        }
+    }
+
+
+    fn continue_training(&self) -> bool {
+        self.gamma.is_valid() && (
+            self.num_trees <= 0 || self.model.model.tree_size < self.num_trees)
+    }
+
+
+    fn handle_packet(&mut self, packet: &mut Packet) {
+        let mut packet_stats = self.packet_stats.take().unwrap();
+        packet.source_machine_id =
+            packet.source_machine_id % packet_stats.num_machines;
         let packet_type = packet.get_packet_type(self.min_ess);
         packet_stats.handle_new_packet(packet, &packet_type);
         match packet_type {
@@ -125,7 +148,6 @@ impl ModelSync {
                 // Ignore updates generated on a small-ess sample
             },
             PacketType::Empty => {
-                self.gamma.decrease_gamma(self.model.model.size());
                 self.scheduler.handle_empty(packet);
             },
             PacketType::Accept => {
@@ -134,10 +156,12 @@ impl ModelSync {
                 self.scheduler.handle_accept(packet);
             },
         }
+        self.packet_stats = Some(packet_stats);
     }
 
 
-    fn adjust_gamma(&mut self, packet_stats: &mut PacketStats) {
+    fn adjust_gamma(&mut self) {
+        let mut packet_stats = self.packet_stats.take().unwrap();
         if packet_stats.got_sufficient_packages() {
             if self.gamma.adjust(&packet_stats, self.model.model.size()) {
                 self.model.update_gamma(self.gamma.gamma_version);
@@ -145,6 +169,7 @@ impl ModelSync {
             }
             packet_stats.reset();
         }
+        self.packet_stats = Some(packet_stats);
     }
 
 
@@ -175,16 +200,10 @@ impl ModelSync {
     }
 
 
-    fn continue_training(&self) -> bool {
-        self.gamma.is_valid() && (
-            self.num_trees <= 0 || self.model.model.tree_size < self.num_trees)
-    }
-
-
-    fn print_log(&mut self, packet_stats: &PacketStats, num_consecutive_err: u32) {
+    fn print_log(&mut self, num_consecutive_err: usize) {
         if self._performance_mon.get_duration() - self._last_logging_ts >= 10.0 {
             self.scheduler.print_log(num_consecutive_err, &self.gamma);
-            packet_stats.print_log();
+            self.packet_stats.as_ref().unwrap().print_log();
             self.model.print_log();
             self._last_logging_ts = self._performance_mon.get_duration();
         }
@@ -195,14 +214,84 @@ impl ModelSync {
 // start a network _receiver_ on the master node, which receives packages from the scanners
 fn start_network(
     machine_name: String, remote_ips: Vec<String>, port: u16,
-) -> (PacketStats, mpsc::Receiver<Packet>) {
+) -> (PacketStats, mpsc::Sender<Packet>, mpsc::Receiver<Packet>) {
     let (packet_s, packet_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) = mpsc::channel();
-    start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s).unwrap();
-    (PacketStats::new(remote_ips.len()), packet_r)
+    start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s.clone()).unwrap();
+    (PacketStats::new(remote_ips.len()), packet_s, packet_r)
 }
 
 
 #[cfg(test)]
 mod tests {
+    use std::thread::sleep;
+    use std::time::Duration;
 
+    use super::ModelSync;
+    use commons::Model;
+    use commons::channel::Receiver;
+    use master::model_manager::gamma::Gamma;
+
+    use commons::channel;
+    use commons::test_helper::get_mock_packet;
+
+
+    #[test]
+    fn test_model_sync() {
+        let mut model = Model::new(1);
+        model.add_root(0.0, 0.0);
+        let gamma = Gamma::new(0.5, 0.05);
+        let (next_model_s, mut next_model_r) = channel::bounded(10, "updated-models");
+        let mut model_sync = ModelSync::new(
+            &model,
+            100,
+            &"test".to_string(),
+            0.1,
+            10,
+            gamma,
+            next_model_s,
+            &vec![],
+            5,
+        );
+        let packet_sender = model_sync.start_network(
+            "tester".to_string(), vec!["s1".to_string(), "s2".to_string()], 8000);
+        assert!(try_recv(&mut next_model_r).is_some());
+
+        let mut num_consecutive_err = 0;
+        // no packet sent
+        model_sync.sync_once(&mut num_consecutive_err);
+        model_sync.sync_once(&mut num_consecutive_err);
+        assert_eq!(num_consecutive_err, 2);
+
+        // send a good packet
+        let packet = get_mock_packet(0, 0, 0.5, 1);
+        assert!(try_recv(&mut next_model_r).is_none());
+        packet_sender.send(packet).unwrap();
+        model_sync.sync_once(&mut num_consecutive_err);
+        assert_eq!(num_consecutive_err, 0);
+        assert!(try_recv(&mut next_model_r).is_some());
+
+        // send many empty packets
+        assert!(try_recv(&mut next_model_r).is_none());
+        let curr_acc_rate = model_sync.packet_stats.as_ref().unwrap().avg_accept_rate;
+        for _ in 0..10 {
+            let packet = get_mock_packet(0, 0, 0.5, 0);
+            packet_sender.send(packet).unwrap();
+            model_sync.sync_once(&mut num_consecutive_err);
+        }
+        let new_acc_rate = model_sync.packet_stats.as_ref().unwrap().avg_accept_rate;
+        assert_eq!(num_consecutive_err, 0);
+        assert!(try_recv(&mut next_model_r).is_none());
+        assert!(new_acc_rate < curr_acc_rate);
+    }
+
+    fn try_recv<T>(receiver: &mut Receiver<T>) -> Option<T> {
+        for _ in 0..3 {
+            let item = receiver.try_recv();
+            if item.is_some() {
+                return item;
+            }
+            sleep(Duration::from_millis(500));
+        }
+        None
+    }
 }

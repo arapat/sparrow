@@ -50,7 +50,8 @@ impl Gamma {
         }
     }
 
-    pub fn decrease_gamma(&mut self, model_size: usize) {
+    #[allow(dead_code)]
+    fn decrease_gamma(&mut self, model_size: usize) {
         self.gamma *= self.shrink_factor;
         self.gamma_version += 1;
         debug!("model_manager, gamma update, forced non-root, {}, {}, {}, {}",

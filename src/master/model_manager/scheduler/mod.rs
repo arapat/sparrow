@@ -177,7 +177,7 @@ impl Scheduler {
         Some((grid_index, node_id))
     }
 
-    pub fn print_log(&self, num_consecutive_err: u32, gamma: &Gamma) {
+    pub fn print_log(&self, num_consecutive_err: usize, gamma: &Gamma) {
         let num_working_scanners = self.scanner_task.iter().filter(|t| t.is_some()).count();
         debug!("model_manager, scheduler, status, {}, {}, {}, {}",
                 num_consecutive_err, gamma.gamma,
@@ -230,7 +230,7 @@ mod tests {
             assert_eq!(assignment[i], None);
         }
 
-        let packet = get_mock_packet(test_machine_id, 0, 0.5);
+        let packet = get_mock_packet(test_machine_id, 0, 0.5, 0);
         scheduler.handle_accept(&packet);
         assert_eq!(scheduler.get_assignment()[test_machine_id], Some(0));
         scheduler.handle_empty(&packet);
@@ -256,7 +256,7 @@ mod tests {
             assert!(assigns[i] != assigns[i - 1])
         }
 
-        let packet = get_mock_packet(test_machine_id, assign0, 0.5);
+        let packet = get_mock_packet(test_machine_id, assign0, 0.5, 0);
         scheduler.handle_accept(&packet);
         assert_eq!(scheduler.get_assignment()[test_machine_id], Some(assign0));
         scheduler.handle_empty(&packet);

@@ -140,7 +140,9 @@ impl ADTree {
                 self.depth.push(depth);
                 let index = self.tree_size;
                 self.children[parent].push(index);
-                self.tree_size += 1;
+                if depth == 1 {
+                    self.tree_size += 1;
+                }
                 (index, true)
             }
         };
