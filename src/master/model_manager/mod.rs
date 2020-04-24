@@ -13,7 +13,7 @@ use self::gamma::Gamma;
 use self::model_sync::ModelSync;
 
 
-pub fn start_model_manager(
+pub fn start_model_manager_async(
     config: &Config,
     init_tree: &Model,
     bins: &Vec<Bins>,

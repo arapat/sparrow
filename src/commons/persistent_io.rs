@@ -20,6 +20,7 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::Model;
 
 
+// (sample_version, new_sample, model, model_sig);
 pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model, String);
 pub type ModelPack = (Model, String, f32);
 // LockedBuffer is set to None once it is read by the receiver
@@ -112,6 +113,7 @@ pub fn load_sample_local(last_version: usize, _exp_name: &str) -> Option<Version
 }
 
 
+#[cfg(not(test))]
 pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSampleModel> {
     // debug!("scanner, start, download sample from s3");
     let s3_path = format!("{}/{}", exp_name, S3_PATH_SAMPLE);
@@ -132,6 +134,16 @@ pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSa
     }
     None
 }
+
+
+#[cfg(test)]
+pub fn load_sample_s3(_last_version: usize, _exp_name: &str) -> Option<VersionedSampleModel> {
+    use commons::test_helper::get_n_random_examples;
+    let model = Model::new(1);
+    let examples = get_n_random_examples(1000, 20);
+    Some((0, examples, model, "mock sample".to_string()))
+}
+
 
 // read/write model
 
@@ -188,10 +200,17 @@ pub fn download_model(exp_name: &String) -> Option<ModelPack> {
 
 // Read/write assignments
 
+#[cfg(not(test))]
 pub fn upload_assignments(worker_assign: &Vec<Option<usize>>, exp_name: &String) -> bool {
     let data = worker_assign;
     let s3_path = format!("{}/{}", exp_name, S3_PATH_ASSIGNS);
     io_write_s3(REGION, BUCKET, s3_path.as_str(), ASSIGN_FILENAME, &serialize(&data).unwrap())
+}
+
+
+#[cfg(test)]
+pub fn upload_assignments(_worker_assign: &Vec<Option<usize>>, _exp_name: &String) -> bool {
+    true
 }
 
 

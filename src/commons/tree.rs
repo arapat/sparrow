@@ -159,7 +159,7 @@ impl ADTree {
         let mut ret = None;
         self.children[parent].iter().for_each(|index| {
             if self.split_feature[*index] == feature &&
-                is_zero((self.threshold[*index] - threshold).into()) &&
+                is_zero((self.threshold[*index] as f32 - threshold as f32).into()) &&
                 self.evaluation[*index] == evaluation {
                     ret = Some(*index);
             }

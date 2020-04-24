@@ -2,14 +2,10 @@
 pub mod stratified_storage;
 
 
-use std::path::Path;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::thread::sleep;
-use std::time::Duration;
 
 use commons::channel::Receiver;
-use commons::io::raw_read_all;
 use commons::Model;
 use commons::bins::Bins;
 use commons::INIT_MODEL_PREFIX;
@@ -19,13 +15,13 @@ use config::SampleMode;
 use self::stratified_storage::StratifiedStorage;
 
 
-pub fn start_sampler(
+pub fn start_sampler_async(
     config: &Config,
     sample_mode: &SampleMode,
     bins: &Vec<Bins>,
     init_tree: &Model,
     next_model_recv: Receiver<(Model, String)>,
-) {
+) -> Arc<RwLock<bool>> {
     debug!("Starting Sampler");
     let sampler_state = Arc::new(RwLock::new(true));
     debug!("Starting the stratified structure.");
@@ -61,20 +57,5 @@ pub fn start_sampler(
         init_tree.clone(),
     );
 
-    // Monitor running state, exit if state is false
-    loop {
-        // Check if termination is manually requested
-        let filename = "status.txt".to_string();
-        if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
-            debug!("sampler state, false, change in the status.txt has been detected");
-            *(sampler_state.write().unwrap()) = false;
-            break;
-        }
-        sleep(Duration::from_secs(20));
-    }
-    debug!("State has been set to false. Main process to exit in 120 seconds.");
-    sleep(Duration::from_secs(120));
-    if std::fs::remove_file("status.txt").is_ok() {
-        debug!("removed `status.txt`");
-    }
+    sampler_state
 }

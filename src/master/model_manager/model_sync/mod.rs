@@ -51,7 +51,7 @@ impl ModelSync {
         bins: &Vec<Bins>,
         num_scanners: usize,
     ) -> ModelSync {
-        let mut model = ModelWithVersion::new(init_tree.clone(), num_trees);
+        let mut model = ModelWithVersion::new(init_tree.clone());
         let scheduler = Scheduler::new(num_scanners, exp_name, bins, &mut model);
         ModelSync {
             model: model,
@@ -88,7 +88,7 @@ impl ModelSync {
         while self.continue_training() {
             self.print_log(&packet_stats, num_consecutive_err);
             self.adjust_gamma(&mut packet_stats);
-            self.scheduler.update(&mut self.model);
+            self.scheduler.set_assignments(&mut self.model, self.gamma.value());
             // Handle packets
             let packet = packet_receiver.try_recv();
             if packet.is_err() {

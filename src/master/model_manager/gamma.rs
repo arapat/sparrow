@@ -23,6 +23,10 @@ impl Gamma {
         self.gamma >= self.min_gamma
     }
 
+    pub fn value(&self) -> f32 {
+        self.gamma
+    }
+
     pub fn adjust(&mut self, packet_stats: &PacketStats, model_size: usize) -> bool {
         if packet_stats.is_same_trend() {
             self.shrink_factor = (0.8 + self.shrink_factor) / 2.0;
