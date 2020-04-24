@@ -217,59 +217,59 @@ where
 }
 
 
-// #[cfg(test)]
-// mod tests {
-//     use super::*;
-// 
-//     #[test]
-//     fn test_parse_libsvm_one_line() {
-//         let raw_string = String::from("0 1:2 3:5 4:10");
-//         let label = -1;
-//         let feature = vec![0, 2, 0, 5, 10, 0];
-//         let labeled_data = LabeledData::new(feature, label);
-//         assert_eq!(parse_libsvm_one_line(&raw_string, 0, 6, &"1".to_string()), labeled_data);
-//     }
-// 
-//     #[test]
-//     fn test_parse_libsvm() {
-//         let raw_strings = vec![
-//             String::from("0 1:2 3:5 4:10"),
-//             String::from("1.2 1:3.0 2:10.0 4:10.0    5:20.0")
-//         ];
-//         let labeled_data = get_libsvm_answer();
-//         assert_eq!(parse_libsvm(&raw_strings, 0.0, 6, &"1.2".to_string()), labeled_data);
-//     }
-// 
-//     #[test]
-//     fn test_read_file() {
-//         let raw_strings = vec![
-//             String::from("0 1:2 3:5 4:10\n"),
-//             String::from("1.2 1:3.0 2:10.0 4:10.0    5:20.0\n")
-//         ];
-//         let mut f = create_bufreader(&get_libsvm_file_path());
-//         let from_file = read_k_lines(&mut f, 2);
-//         assert_eq!(from_file, raw_strings);
-//     }
-// 
-//     #[test]
-//     fn test_read_libsvm() {
-//         let mut f = create_bufreader(&get_libsvm_file_path());
-//         let labeled_data = get_libsvm_answer();
-//         assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6, &"1.2".to_string()), labeled_data);
-//     }
-// 
-//     fn get_libsvm_file_path() -> String {
-//         String::from("tests/data/sample_libsvm.txt")
-//     }
-// 
-//     fn get_libsvm_answer() -> Vec<LabeledData<f32, f32>> {
-//         let label1 = -1.0;
-//         let feature1 = vec![0.0, 2.0, 0.0, 5.0, 10.0, 0.0];
-//         let label2 = 1.0;  // 1.2;
-//         let feature2 = vec![0.0, 3.0, 10.0, 0.0, 10.0, 20.0];
-//         vec![
-//             LabeledData::new(feature1, label1),
-//             LabeledData::new(feature2, label2)
-//         ]
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_parse_libsvm_one_line() {
+        let raw_string = String::from("0 1:2 3:5 4:10");
+        let label = -1;
+        let feature = vec![0, 2, 0, 5, 10, 0];
+        let labeled_data = LabeledData::new(feature, label);
+        assert_eq!(parse_libsvm_one_line(&raw_string, 0, 6, &"1".to_string()), labeled_data);
+    }
+
+    #[test]
+    fn test_parse_libsvm() {
+        let raw_strings = vec![
+            String::from("0 1:2 3:5 4:10"),
+            String::from("1.2 1:3.0 2:10.0 4:10.0    5:20.0")
+        ];
+        let labeled_data = get_libsvm_answer();
+        assert_eq!(parse_libsvm(&raw_strings, 0.0, 6, &"1.2".to_string()), labeled_data);
+    }
+
+    #[test]
+    fn test_read_file() {
+        let raw_strings = vec![
+            String::from("0 1:2 3:5 4:10\n"),
+            String::from("1.2 1:3.0 2:10.0 4:10.0    5:20.0\n")
+        ];
+        let mut f = create_bufreader(&get_libsvm_file_path());
+        let from_file = read_k_lines(&mut f, 2);
+        assert_eq!(from_file, raw_strings);
+    }
+
+    #[test]
+    fn test_read_libsvm() {
+        let mut f = create_bufreader(&get_libsvm_file_path());
+        let labeled_data = get_libsvm_answer();
+        assert_eq!(read_k_labeled_data(&mut f, 2, 0.0, 6, &"1.2".to_string()), labeled_data);
+    }
+
+    fn get_libsvm_file_path() -> String {
+        String::from("tests/data/sample_libsvm.txt")
+    }
+
+    fn get_libsvm_answer() -> Vec<LabeledData<f32, f32>> {
+        let label1 = -1.0;
+        let feature1 = vec![0.0, 2.0, 0.0, 5.0, 10.0, 0.0];
+        let label2 = 1.0;  // 1.2;
+        let feature2 = vec![0.0, 3.0, 10.0, 0.0, 10.0, 20.0];
+        vec![
+            LabeledData::new(feature1, label1),
+            LabeledData::new(feature2, label2)
+        ]
+    }
+}
