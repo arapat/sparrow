@@ -91,7 +91,7 @@ impl Assigners {
 //     use self::channel::Receiver;
 //     use self::channel::Sender;
 // 
-//     use labeled_data::LabeledData;
+//     use commons::labeled_data::LabeledData;
 //     use commons::ExampleWithScore;
 //     use super::super::Strata;
 //     use super::Assigners;
@@ -145,13 +145,22 @@ impl Assigners {
 //         filename: &str,
 //         num_threads: usize,
 //     ) -> (Receiver<(i8, (i32, f64))>, Sender<ExampleWithScore>, Assigners) {
-//         let strata = Arc::new(RwLock::new(Strata::new(100, 3, 10, filename)));
-//         let (updated_examples_send, updated_examples_recv) = channel::bounded(10, "updated-examples");
 //         let (stats_update_s, stats_update_r) = channel::bounded(100, "stats");
+//         let strata = Arc::new(RwLock::new(Strata::new(
+//             100,
+//             3,
+//             10,
+//             filename,
+//             Arc::new(RwLock::new(true)),
+//             None,
+//             stats_update_s.clone(),
+//         )));
+//         let (updated_examples_send, _updated_examples_recv) =
+//             channel::bounded(10, "updated-examples");
 //         (
 //             stats_update_r,
 //             updated_examples_send,
-//             Assigners::new(updated_examples_recv, strata, stats_update_s, num_threads)
+//             Assigners::new(strata, stats_update_s, num_threads, 10),
 //         )
 //     }
 // 
