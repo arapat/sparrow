@@ -207,15 +207,6 @@ impl Boosting {
                 last_logging_ts = global_timer.get_duration();
             }
 
-            // Get the new sample
-            // self.training_loader.check_ess_blocking();
-            // Check assignment
-            // if self.is_assignment_none {
-            //     self.update_assignment();
-            //     sleep(Duration::from_secs(1));
-            //     continue;
-            // }
-
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
@@ -232,6 +223,16 @@ impl Boosting {
             total_data_size_without_fire += batch_size;
             global_timer.update(batch_size);
 
+            // if exhausted all examples, return the emprically best one
+            let is_full_scan = total_data_size_without_fire >= self.training_loader.size;
+            let new_rule = {
+                if new_rule.is_none() && is_full_scan {
+                    Some(self.learner.get_max_empirical_ratio_tree_node())
+                } else {
+                    new_rule
+                }
+            };
+
             // Try to find new rule
             if switched {
                 self.is_sample_version_changed = true;
@@ -241,10 +242,9 @@ impl Boosting {
                     "loader",
                 );
             }
-            let is_new_rule_added = self.process_new_rule(
-                new_rule, total_data_size_without_fire, prep_time + global_timer.get_duration());
-
-            if is_new_rule_added {
+            if new_rule.is_some() {
+                let ts = prep_time + global_timer.get_duration();
+                self.process_new_rule(new_rule.unwrap(), total_data_size_without_fire, ts);
                 total_data_size_without_fire = 0;
             }
 
@@ -265,12 +265,8 @@ impl Boosting {
     }
 
     fn process_new_rule(
-        &mut self, new_rule: Option<TreeNode>, total_data_size: usize, ts: f32,
-    ) -> bool {
-        if new_rule.is_none() {
-            return false;
-        }
-        let rule = new_rule.unwrap();
+        &mut self, rule: TreeNode, total_data_size: usize, ts: f32,
+    ) {
         rule.write_log();
         let (left_index, right_index) = self.model.add_nodes(
             rule.prt_index,
@@ -287,7 +283,6 @@ impl Boosting {
             self.handle_persistent(ts);
         }
         self.is_scanner_status_changed = true;
-        true
     }
 
     // return true if a packet is sent out

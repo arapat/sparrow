@@ -132,6 +132,7 @@ impl ModelSync {
 
 
     fn continue_training(&self) -> bool {
+        // TODO: model.tree_size should not consider the tree nodes added by kd-tree
         self.gamma.is_valid() && (
             self.num_trees <= 0 || self.model.model.tree_size < self.num_trees)
     }

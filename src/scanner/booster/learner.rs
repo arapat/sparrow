@@ -187,7 +187,7 @@ impl Learner {
         self.total_weight_sq = 0.0;
     }
 
-    fn get_max_empirical_ratio(&self) -> (f32, (usize, usize, usize, usize)) {
+    pub fn get_max_empirical_ratio_tree_node(&self) -> TreeNode {
         let mut max_ratio = 0.0;
         let mut actual_ratio = 0.0;
         let mut rule_id = (0, 0, 0, 0);
@@ -206,7 +206,9 @@ impl Learner {
                 }
             }
         }
-        (actual_ratio, rule_id)
+
+        let (t, i, j, k) = rule_id;
+        learner_helpers::gen_tree_node(t, i, j, k, actual_ratio)
     }
 
     pub fn is_gamma_significant(&self) -> bool {
@@ -265,7 +267,8 @@ impl Learner {
                 .map(|(i, zipped_values)| {
                     let (((bin, weak_rules_score), sum_c_squared), debug_info) = zipped_values;
                     learner_helpers::find_tree_node(
-                        &data, i, rho_gamma, count, total_weight, total_weight_sq, expand_node,
+                        &data, i, rho_gamma, count, total_weight, total_weight_sq,
+                        index, // TODO: debug this expand_node
                         bin, weak_rules_score, sum_c_squared, debug_info)
                 })
                 .find_any(|t| t.is_some())

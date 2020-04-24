@@ -154,6 +154,39 @@ pub fn find_tree_node<'a>(
 }
 
 
+pub fn gen_tree_node(
+    expand_node_index: usize, feature_index: usize, bin_index: usize, rule_index: usize, ratio: f32,
+) -> TreeNode {
+    let rho_gamma = ratio / 2.0;
+    let base_pred = 0.5 * (
+        (0.5 + rho_gamma) / (0.5 - rho_gamma)
+    ).ln();
+    let real_pred =
+        (base_pred * PREDS[rule_index].0, base_pred * PREDS[rule_index].1);
+    TreeNode {
+        prt_index:      expand_node_index,
+        feature:        feature_index,
+        threshold:      bin_index as TFeature,
+        predict:        real_pred,
+        gamma:          rho_gamma,
+
+        fallback:        true,
+
+        // other attributes are for debugging purpose only
+        raw_martingale: 0.0,
+        sum_c:          0.0,
+        sum_c_squared:  0.0,
+        bound:          0.0,
+        num_scanned:    0,
+
+        positive:        0,
+        negative:        0,
+        positive_weight: 0.0,
+        negative_weight: 0.0,
+    }
+}
+
+
 pub fn get_base_node(max_sample_size: usize, data_loader: &mut BufferLoader) -> (f32, f32, f32) {
     let mut sample_size = max_sample_size;
     let mut n_pos = 0;
