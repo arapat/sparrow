@@ -16,6 +16,7 @@ default_gamma: 0.25
 min_ess: 0.3
 num_iterations: 10
 num_trees: 20
+num_splits: 1
 max_depth: 2
 max_trials_before_shrink: 1000000
 channel_size: 8
