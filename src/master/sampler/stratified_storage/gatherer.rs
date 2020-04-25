@@ -56,28 +56,22 @@ impl Gatherer {
             let mut version = 0;
             loop {
                 version += 1;
-                match mode {
+                let write_sample_func = match mode {
                     SampleMode::LOCAL => {
-                        gather(
-                            new_sample_capacity,
-                            gather_new_sample.clone(),
-                            write_sample_local,
-                            version,
-                            model.clone(),
-                            exp_name.as_str(),
-                        )
+                        write_sample_local
                     },
                     SampleMode::S3 => {
-                        gather(
-                            new_sample_capacity,
-                            gather_new_sample.clone(),
-                            write_sample_s3,
-                            version,
-                            model.clone(),
-                            exp_name.as_str(),
-                        )
+                        write_sample_s3
                     },
                 };
+                gather(
+                    new_sample_capacity,
+                    gather_new_sample.clone(),
+                    write_sample_func,
+                    version,
+                    model.clone(),
+                    exp_name.as_str(),
+                );
             }
         });
     }
@@ -142,45 +136,48 @@ fn gather<F>(
 }
 
 
-// #[cfg(test)]
-// mod tests {
-//     use std::thread::sleep;
-// 
-//     use std::sync::Arc;
-//     use std::sync::RwLock;
-//     use std::time::Duration;
-// 
-//     use commons::channel;
-//     use commons::ExampleWithScore;
-//     use labeled_data::LabeledData;
-//     use super::Gatherer;
-//     use super::super::SampleMode;
-//     use TFeature;
-// 
-//     #[test]
-//     fn test_sampler_nonblocking() {
-//         let (gather_sender, gather_receiver) = channel::bounded(10, "gather-samples");
-//         let mem_buffer = Arc::new(RwLock::new(None));
-//         let gatherer = Gatherer::new(gather_receiver, 100, mem_buffer.clone());
-//         gatherer.run(SampleMode::MEMORY);
-// 
-//         let mut examples: Vec<ExampleWithScore> = vec![];
-//         for i in 0..100 {
-//             let t = get_example(vec![i as TFeature, 1, 2], 0.0);
-//             gather_sender.send(((t.clone(), 1), 1));
-//             examples.push(t);
-//         }
-//         sleep(Duration::from_millis(1000));  // wait for the gatherer releasing the new sample
-//         let mut all_sampled: Vec<_> = mem_buffer.write().unwrap().take().unwrap();
-//         all_sampled.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
-//         for (input, output) in examples.iter().zip(all_sampled.iter()) {
-//             assert_eq!(*input, *output);
-//         }
-//     }
-// 
-//     fn get_example(features: Vec<TFeature>, score: f32) -> ExampleWithScore {
-//         let label: i8 = -1;
-//         let example = LabeledData::new(features, label);
-//         (example, (score, 0))
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use std::thread::sleep;
+
+    use std::sync::Arc;
+    use std::sync::RwLock;
+    use std::time::Duration;
+
+    use commons::channel;
+    use commons::ExampleWithScore;
+    use commons::Model;
+    use commons::labeled_data::LabeledData;
+    use commons::persistent_io::load_sample_local;
+    use super::Gatherer;
+    use super::super::SampleMode;
+    use TFeature;
+
+    #[test]
+    fn test_sampler_nonblocking() {
+        let (gather_sender, gather_receiver) = channel::bounded(10, "gather-samples");
+        let model = Arc::new(RwLock::new((Model::new(1), "test-model".to_string())));
+        let gatherer = Gatherer::new(gather_receiver, 100, model.clone(), "test".to_string());
+        gatherer.run(SampleMode::LOCAL);
+
+        let mut examples: Vec<ExampleWithScore> = vec![];
+        for i in 0..100 {
+            let t = get_example(vec![i as TFeature, 1, 2], 0.0);
+            gather_sender.send(((t.clone(), 1), 1));
+            examples.push(t);
+        }
+        sleep(Duration::from_millis(1000));  // wait for the gatherer releasing the new sample
+        let sample_model = load_sample_local(0, "test");
+        let mut sample = sample_model.unwrap().1;
+        sample.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
+        for (input, output) in examples.iter().zip(sample.iter()) {
+            assert_eq!(*input, *output);
+        }
+    }
+
+    fn get_example(features: Vec<TFeature>, score: f32) -> ExampleWithScore {
+        let label: i8 = -1;
+        let example = LabeledData::new(features, label);
+        (example, (score, 0))
+    }
+}

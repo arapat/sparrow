@@ -224,9 +224,6 @@ fn start_network(
 
 #[cfg(test)]
 mod tests {
-    use std::thread::sleep;
-    use std::time::Duration;
-
     use super::ModelSync;
     use commons::Model;
     use commons::channel::Receiver;
@@ -241,7 +238,7 @@ mod tests {
         let mut model = Model::new(1);
         model.add_root(0.0, 0.0);
         let gamma = Gamma::new(0.5, 0.05);
-        let (next_model_s, mut next_model_r) = channel::bounded(10, "updated-models");
+        let (next_model_s, mut next_model_r) = channel::bounded(100, "updated-models");
         let mut model_sync = ModelSync::new(
             &model,
             100,
@@ -291,7 +288,6 @@ mod tests {
             if item.is_some() {
                 return item;
             }
-            sleep(Duration::from_millis(500));
         }
         None
     }
