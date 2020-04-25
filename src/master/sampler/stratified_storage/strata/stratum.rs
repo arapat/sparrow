@@ -115,6 +115,10 @@ impl Stratum {
                             example = in_queue_r.recv();
                         }
                     }
+                    if example.is_none() {
+                        error!("Stratum failed to read example.");
+                        continue;
+                    }
                     let example = example.unwrap();
                     out_queue_s.send(example.clone());
                     pm.update(1);

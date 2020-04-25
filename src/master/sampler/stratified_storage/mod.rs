@@ -222,7 +222,7 @@ impl StratifiedStorage {
             model,
             strata.clone(),
             sampled_examples_s,
-            assigners.updated_examples_s.clone(),
+            assigners.get_sender(),
             stats_update_s.clone(),
             weights_table_r.clone(),
             num_samplers,
@@ -236,7 +236,7 @@ impl StratifiedStorage {
         //     snapshot_filename, strata, counts_table_r, weights_table_r, sampler_state);
 
         StratifiedStorage {
-            updated_examples_s: assigners.updated_examples_s.clone(),
+            updated_examples_s: assigners.get_sender(),
             positive: positive,
             node_counts: gatherer.counter.clone(),
             // core objects (that are not saved as the fields):
