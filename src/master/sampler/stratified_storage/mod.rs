@@ -407,75 +407,117 @@ fn sample_weights_table(weights_table_r: &WeightTableRead) -> Option<i8> {
 }
 
 
-// #[cfg(test)]
-// mod tests {
-//     extern crate env_logger;
-// 
-//     use std::fs::remove_file;
-//     use commons::channel;
-// 
-//     use std::thread::spawn;
-//     use labeled_data::LabeledData;
-//     use commons::ExampleWithScore;
-//     use commons::Signal;
-//     use commons::performance_monitor::PerformanceMonitor;
-//     use super::StratifiedStorage;
-//     use TFeature;
-// 
-//     #[test]
-//     fn test_mean() {
-//         let _ = env_logger::try_init();
-//         let filename = "unittest-stratified3.bin";
-//         let batch = 100000;
-//         let num_read = 1000000;
-//         let (sampled_examples_send, sampled_examples_recv) = channel::bounded(1000, "sampled-examples");
-//         let (_, models_recv) = channel::bounded(10, "updated-models");
-//         let (signal_s, signal_r) = channel::bounded(10, "sampling-signal");
-//         signal_s.send(Signal::START);
-//         let stratified_storage = StratifiedStorage::new(
-//             batch * 10, 1, "1".to_string(), 10000, filename, 4, 4,
-//             sampled_examples_send, signal_r, models_recv, 10, false,
-//         );
-//         let updated_examples_send = stratified_storage.updated_examples_s.clone();
-//         let mut pm_load = PerformanceMonitor::new();
-//         pm_load.start();
-//         let loading = spawn(move || {
-//             for _ in 0..batch {
-//                 for i in 1..11 {
-//                     let t = get_example(vec![i as TFeature], i as f32);
-//                     updated_examples_send.send(t.clone());
-//                 }
-//             }
-//             println!("Loading speed: {}", (batch * 10) as f32 / pm_load.get_duration());
-//         });
-// 
-//         let mut pm_sample = PerformanceMonitor::new();
-//         pm_sample.start();
-//         let mut average = 0.0;
-//         for _ in 0..num_read {
-//             let recv = sampled_examples_recv.recv().unwrap().0;  // .1 is # of scanned examples
-//             average += (((recv.0).0).feature[0] as f32) * (recv.1 as f32) / (num_read as f32);
-//             pm_sample.update(recv.1 as usize);
-//         }
-//         spawn(move || {
-//             println!("Sampling speed: {}", num_read as f32 / pm_sample.get_duration());
-//         });
-//         let answer =
-//             (1..11).map(|a| a as f32).map(|a| a * a).sum::<f32>() / ((1..11).sum::<i32>() as f32);
-//         loading.join().unwrap();
-//         if (average - answer).abs() > 0.05 {
-//             spawn(move || {
-//                 println!("Average: {}. Expect: {}.", average, answer);
-//             }).join().unwrap();
-//             assert!(false);
-//         }
-//         remove_file(filename).unwrap();
-//     }
-// 
-//     fn get_example(feature: Vec<TFeature>, weight: f32) -> ExampleWithScore {
-//         let label: i8 = 1;
-//         let example = LabeledData::new(feature, label);
-//         let score = -weight.ln();
-//         (example, (score, 0))
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    extern crate env_logger;
+
+    use std::fs::remove_file;
+    use std::sync::Arc;
+    use std::sync::RwLock;
+    use commons::channel;
+
+    use std::thread::spawn;
+    use commons::labeled_data::LabeledData;
+    use commons::ExampleWithScore;
+    use commons::Model;
+    use commons::performance_monitor::PerformanceMonitor;
+    use commons::persistent_io::load_sample_local;
+    use super::StratifiedStorage;
+    use TFeature;
+    use SampleMode;
+
+    #[test]
+    fn test_mean() {
+        let _ = env_logger::try_init();
+        let filename = "unittest-stratified3.bin";
+        let batch = 10000;
+        let (_, models_recv) = channel::bounded(10, "updated-models");
+        let sampler_state = Arc::new(RwLock::new(true));
+        let stratified_storage = StratifiedStorage::new(
+            Model::new(1),  // init_model: Model,
+            "testing".to_string(),  // init_model_sig: String,
+            batch * 10,  // num_examples: usize,
+
+            batch,  // sample_capacity: usize,
+            1,  // feature_size: usize,
+            "1".to_string(),  // positive: String,
+            1024,  // num_examples_per_block: usize,
+            filename,  // disk_buffer_filename: &str,
+            SampleMode::LOCAL,  // sample_mode: SampleMode,
+            4,  // num_assigners: usize,
+            4,  // num_samplers: usize,
+            models_recv,  // models: Receiver<(Model, String)>,
+            10,  // channel_size: usize,
+            sampler_state,  // sampler_state: Arc<RwLock<bool>>,
+            false,  // debug_mode: bool,
+            false,  // resume_training: bool,
+            "testing".to_string(),  // exp_name: String,
+        );
+        let updated_examples_send = stratified_storage.updated_examples_s.clone();
+
+        let mut pm_load = PerformanceMonitor::new();
+        pm_load.start();
+        const NUM_CLASSES: usize = 5;
+        let loading = spawn(move || {
+            for i in 0..(batch * 2) {
+                let k = (i % NUM_CLASSES) + 1;
+                let t = get_example(vec![k as TFeature], k as f32);
+                updated_examples_send.send(t.clone());
+            }
+            println!("Loading speed: {}", (batch * 10) as f32 / pm_load.get_duration());
+        });
+
+        let mut pm_sample = PerformanceMonitor::new();
+        pm_sample.start();
+        let sample = {
+            let mut sample_model = load_sample_local(0, "test");
+            while sample_model.is_none() {
+                sample_model = load_sample_local(0, "test");
+            }
+            sample_model.unwrap().1
+        };
+        let sample_length = sample.len() as f32;
+        let mut counts = [0; NUM_CLASSES];
+        for recv in sample {
+            let (example, _) = recv;
+            counts[example.feature[0] as usize - 1] += 1;
+        }
+        spawn(move || {
+            println!("Sampling size: {}", sample_length);
+            println!("Sampling speed: {}", sample_length / pm_sample.get_duration());
+        });
+        let total_w = (1..(NUM_CLASSES + 1)).sum::<usize>() as f32;
+        let expected_counts: Vec<f32> =
+            (1..(NUM_CLASSES + 1)).map(|t| sample_length * (t as f32) / total_w).collect();
+        loading.join().unwrap();
+        remove_file(filename).unwrap();
+
+        let mut max_diff: f32 = 0.0;
+        for (sample, expect) in counts.iter().zip(expected_counts.iter()) {
+            let sample = *sample as f32;
+            let diff = {
+                if sample > *expect {
+                    sample / *expect - 1.0
+                } else {
+                    *expect / sample - 1.0
+                }
+            };
+            max_diff = max_diff.max(diff);
+        }
+        if max_diff >= 0.1 {
+            spawn(move || {
+                for (sample, expect) in counts.iter().zip(expected_counts) {
+                    println!("Counts: {}. Expect: {}.", sample, expect);
+                }
+            }).join().unwrap();
+            assert!(false);
+        }
+    }
+
+    fn get_example(feature: Vec<TFeature>, weight: f32) -> ExampleWithScore {
+        let label: i8 = 1;
+        let example = LabeledData::new(feature, label);
+        let score = -weight.ln();
+        (example, (score, 0))
+    }
+}

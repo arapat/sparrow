@@ -116,7 +116,7 @@ impl Stratum {
                         }
                     }
                     if example.is_none() {
-                        error!("Stratum failed to read example.");
+                        // error!("Stratum failed to read example.");
                         continue;
                     }
                     let example = example.unwrap();

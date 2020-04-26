@@ -154,6 +154,7 @@ pub fn load_s3(
 }
 
 
+#[cfg(not(test))]
 pub fn write_s3(
     region: &str, bucket: &str, s3_path: &str, filename: &str, data: &[u8],
 ) -> bool {
@@ -184,6 +185,14 @@ pub fn write_s3(
     }
     code == 200
 }
+
+#[cfg(test)]
+pub fn write_s3(
+    _region: &str, _bucket: &str, _s3_path: &str, _filename: &str, _data: &[u8],
+) -> bool {
+    true
+}
+
 
 pub fn clear_s3_bucket(region: &str, bucket: &str, exp_name: &str) {
     let region = region.parse().unwrap();
