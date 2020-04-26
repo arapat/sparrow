@@ -1,5 +1,6 @@
 pub mod learner;
 pub mod learner_helpers;
+pub mod tree_node;
 
 use std::sync::mpsc;
 use std::thread::sleep;
@@ -19,7 +20,7 @@ use commons::packet::Packet;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::ModelPack;
 use self::learner::Learner;
-use self::learner::TreeNode;
+use self::tree_node::TreeNode;
 
 
 pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";

@@ -3,13 +3,13 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 
 use Example;
-use TFeature;
 use commons::ExampleInSampleSet;
 use commons::Model;
 use commons::bins::Bins;
 
 use commons::is_zero;
 use super::learner_helpers;
+use super::tree_node::TreeNode;
 
 // TODO: The tree generation and score updates are for AdaBoost only,
 // extend it to other potential functions
@@ -34,56 +34,6 @@ type ScoreBoard = Vec<Vec<[f32; NUM_RULES]>>;
 type ScoreBoard1 = Vec<Vec<f32>>;
 // (f32, f32) -> Stats if falls under left, and if falls under right
 pub type RuleStats = [[(f32, f32); 2]; NUM_PREDS];
-
-
-/// A weak rule with an edge larger or equal to the targetting value of `gamma`
-pub struct TreeNode {
-    pub prt_index: usize,
-    pub feature: usize,
-    pub threshold: TFeature,
-    pub predict: (f32, f32),
-
-    pub gamma: f32,
-    pub raw_martingale: f32,
-    pub sum_c: f32,
-    pub sum_c_squared: f32,
-    pub bound: f32,
-    pub num_scanned: usize,
-    pub fallback: bool,
-
-    pub positive: usize,
-    pub negative: usize,
-    pub positive_weight: f32,
-    pub negative_weight: f32,
-}
-
-impl TreeNode {
-    pub fn write_log(&self) {
-        info!(
-            "tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
-            self.prt_index,
-            self.feature,
-            self.threshold,
-            self.predict.0,
-            self.predict.1,
-
-            self.num_scanned,
-            self.gamma,
-            self.raw_martingale,
-            self.sum_c,
-            self.sum_c_squared,
-            self.bound,
-            self.sum_c_squared / self.num_scanned as f32,
-
-            self.positive,
-            self.negative,
-            self.positive_weight,
-            self.negative_weight,
-
-            self.fallback,
-        );
-    }
-}
 
 
 /// Statisitics of all weak rules that are being evaluated.

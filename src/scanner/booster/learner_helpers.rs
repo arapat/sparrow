@@ -12,7 +12,7 @@ use commons::get_bound;
 use super::learner::NUM_PREDS;
 use super::learner::PREDS;
 use super::learner::RuleStats;
-use super::learner::TreeNode;
+use super::tree_node::TreeNode;
 
 
 pub fn preprocess_data<'a>(
