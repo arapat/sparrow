@@ -139,7 +139,6 @@ fn gather<F>(
 #[cfg(test)]
 mod tests {
     use std::thread::sleep;
-    use std::fs::remove_file;
 
     use std::sync::Arc;
     use std::sync::RwLock;

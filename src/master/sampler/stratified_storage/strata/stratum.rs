@@ -150,65 +150,66 @@ pub fn reset_block_scores(block_data: &[u8]) -> Vec<u8> {
 }
 
 
-// #[cfg(test)]
-// mod tests {
-//     use std::fs::remove_file;
-//     use std::sync::Arc;
-//     use std::sync::RwLock;
-// 
-//     use labeled_data::LabeledData;
-//     use commons::ExampleWithScore;
-//     use super::Stratum;
-//     use super::QueueSender;
-//     use super::QueueReceiver;
-//     use super::super::get_disk_buffer;
-//     use TFeature;
-// 
-//     #[test]
-//     fn test_stratum_one_by_one() {
-//         let filename = "unittest-stratum1.bin";
-//         let (in_queue, out_queue) = get_in_out_queues(filename, 100);
-// 
-//         for i in 0..2 {
-//             let t = get_example(vec![i as TFeature, 2, 3]);
-//             in_queue.send(t.clone());
-//             let retrieve = out_queue.recv().unwrap();
-//             assert_eq!(retrieve, t);
-//         }
-//         remove_file(filename).unwrap();
-//     }
-// 
-//     #[test]
-//     fn test_stratum_seq() {
-//         let filename = "unittest-stratum2.bin";
-//         let (in_queue, out_queue) = get_in_out_queues(filename, 100);
-//         let mut examples = vec![];
-//         for i in 0..100 {
-//             let t = get_example(vec![i as TFeature, 2, 3]);
-//             in_queue.send(t.clone());
-//             examples.push(t);
-//         }
-//         let mut output = vec![];
-//         for _ in 0..100 {
-//             let retrieve = out_queue.recv().unwrap();
-//             output.push(retrieve);
-//         }
-//         output.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
-//         for i in 0..100 {
-//             assert_eq!(output[i], examples[i]);
-//         }
-//         remove_file(filename).unwrap();
-//     }
-// 
-//     fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
-//         let label: i8 = -1;
-//         let example = LabeledData::new(features, label);
-//         (example, (1.0, 0))
-//     }
-// 
-//     fn get_in_out_queues(filename: &str, size: usize) -> (QueueSender, QueueReceiver) {
-//         let disk_buffer = get_disk_buffer(filename, 3, size, 10);
-//         let stratum = Stratum::new(0, 10, Arc::new(RwLock::new(disk_buffer)));
-//         (stratum.in_queue_s.clone(), stratum.out_queue_r.clone())
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use std::fs::remove_file;
+    use std::sync::Arc;
+    use std::sync::RwLock;
+
+    use commons::labeled_data::LabeledData;
+    use commons::ExampleWithScore;
+    use super::Stratum;
+    use super::QueueSender;
+    use super::QueueReceiver;
+    use super::super::get_disk_buffer;
+    use TFeature;
+
+    #[test]
+    fn test_stratum_one_by_one() {
+        let filename = "unittest-stratum1.bin";
+        let (in_queue, out_queue) = get_in_out_queues(filename, 100);
+
+        for i in 0..2 {
+            let t = get_example(vec![i as TFeature, 2, 3]);
+            in_queue.send(t.clone());
+            let retrieve = out_queue.recv().unwrap();
+            assert_eq!(retrieve, t);
+        }
+        remove_file(filename).unwrap();
+    }
+
+    #[test]
+    fn test_stratum_seq() {
+        let filename = "unittest-stratum2.bin";
+        let (in_queue, out_queue) = get_in_out_queues(filename, 100);
+        let mut examples = vec![];
+        for i in 0..100 {
+            let t = get_example(vec![i as TFeature, 2, 3]);
+            in_queue.send(t.clone());
+            examples.push(t);
+        }
+        let mut output = vec![];
+        for _ in 0..100 {
+            let retrieve = out_queue.recv().unwrap();
+            output.push(retrieve);
+        }
+        output.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
+        for i in 0..100 {
+            assert_eq!(output[i], examples[i]);
+        }
+        remove_file(filename).unwrap();
+    }
+
+    fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
+        let label: i8 = -1;
+        let example = LabeledData::new(features, label);
+        (example, (1.0, 0))
+    }
+
+    fn get_in_out_queues(filename: &str, size: usize) -> (QueueSender, QueueReceiver) {
+        let disk_buffer = get_disk_buffer(filename, 3, size, 10);
+        let stratum = Stratum::new(
+            0, 10, Arc::new(RwLock::new(disk_buffer)), Arc::new(RwLock::new(true)));
+        (stratum.in_queue_s.clone(), stratum.out_queue_r.clone())
+    }
+}
