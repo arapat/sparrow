@@ -218,45 +218,57 @@ fn get_block_size(feature_size: usize, num_examples_per_block: usize) -> usize {
 }
 
 
-// #[cfg(test)]
-// mod tests {
-//     use std::fs::remove_file;
-// 
-//     use labeled_data::LabeledData;
-//     use commons::ExampleWithScore;
-//     use super::Strata;
-//     use TFeature;
-// 
-//     #[test]
-//     fn test_strata() {
-//         let filename = "unittest-strata.bin";
-//         let mut strata = Strata::new(1000, 3, 10, filename);
-//         for i in 0..100 {
-//             for k in 0..10 {
-//                 let t = get_example(vec![0 as TFeature, i as TFeature, k as TFeature]);
-//                 let mut sender = {
-//                     if let Some(t) = strata.get_in_queue(k as i8) {
-//                         t
-//                     } else {
-//                         let (sender, _, _) = strata.create(k as i8);
-//                         sender
-//                     }
-//                 };
-//                 sender.send(t.clone());
-//             }
-//         }
-//         for _ in 0..100 {
-//             for k in 0..10 {
-//                 let retrieve = strata.get_out_queue(k as i8).unwrap().recv().unwrap();
-//                 assert_eq!(k as TFeature, retrieve.0.feature[2]);
-//             }
-//         }
-//         remove_file(filename).unwrap();
-//     }
-// 
-//     fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
-//         let label: i8 = -1;
-//         let example = LabeledData::new(features, label);
-//         (example, (1.0, 0))
-//     }
-// }
+#[cfg(test)]
+mod tests {
+    use std::fs::remove_file;
+    use std::sync::Arc;
+    use std::sync::RwLock;
+
+    use commons::channel;
+    use commons::labeled_data::LabeledData;
+    use commons::ExampleWithScore;
+    use super::Strata;
+    use TFeature;
+
+    #[test]
+    fn test_strata() {
+        let filename = "unittest-strata.bin";
+        let (stats_update_s, _stats_update_r) = channel::bounded(100, "stats");
+        let mut strata = Strata::new(
+            1000,  // num_examples: usize,
+            3,  // feature_size: usize,
+            10,  // num_examples_per_block: usize,
+            filename,  // disk_buffer_name: &str,
+            Arc::new(RwLock::new(true)),  // sampler_state: Arc<RwLock<bool>>,
+            None,  // serialized_data: Option<Vec<u8>>,
+            stats_update_s,
+        );
+        for i in 0..100 {
+            for k in 0..10 {
+                let t = get_example(vec![0 as TFeature, i as TFeature, k as TFeature]);
+                let sender = {
+                    if let Some(t) = strata.get_in_queue(k as i8) {
+                        t
+                    } else {
+                        let (sender, _, _) = strata.create(k as i8);
+                        sender
+                    }
+                };
+                sender.send(t.clone());
+            }
+        }
+        for _ in 0..100 {
+            for k in 0..10 {
+                let retrieve = strata.get_out_queue(k as i8).unwrap().recv().unwrap();
+                assert_eq!(k as TFeature, retrieve.0.feature[2]);
+            }
+        }
+        remove_file(filename).unwrap();
+    }
+
+    fn get_example(features: Vec<TFeature>) -> ExampleWithScore {
+        let label: i8 = -1;
+        let example = LabeledData::new(features, label);
+        (example, (1.0, 0))
+    }
+}

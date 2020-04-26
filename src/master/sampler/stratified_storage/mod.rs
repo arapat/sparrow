@@ -429,6 +429,7 @@ mod tests {
     #[test]
     fn test_mean() {
         let _ = env_logger::try_init();
+        let exp_name = "test_stratified";
         let filename = "unittest-stratified3.bin";
         let batch = 10000;
         let (_, models_recv) = channel::bounded(10, "updated-models");
@@ -451,7 +452,7 @@ mod tests {
             sampler_state,  // sampler_state: Arc<RwLock<bool>>,
             false,  // debug_mode: bool,
             false,  // resume_training: bool,
-            "testing".to_string(),  // exp_name: String,
+            exp_name.to_string(),  // exp_name: String,
         );
         let updated_examples_send = stratified_storage.updated_examples_s.clone();
 
@@ -470,9 +471,9 @@ mod tests {
         let mut pm_sample = PerformanceMonitor::new();
         pm_sample.start();
         let sample = {
-            let mut sample_model = load_sample_local(0, "test");
+            let mut sample_model = load_sample_local(0, exp_name);
             while sample_model.is_none() {
-                sample_model = load_sample_local(0, "test");
+                sample_model = load_sample_local(0, exp_name);
             }
             sample_model.unwrap().1
         };

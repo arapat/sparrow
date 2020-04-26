@@ -39,18 +39,24 @@ const BINS_FILENAME:   &str = "bins.json";
 
 // For gatherer
 
+fn get_sample_local_filename(exp_name: &str) -> String {
+    exp_name.to_string() + SAMPLE_FILENAME
+}
+
+
 pub fn write_sample_local(
     new_sample: Vec<ExampleWithScore>,
     model: Model,
     model_sig: String,
     version: usize,
-    _exp_name: &str,
+    exp_name: &str,
 ) {
-    let filename = SAMPLE_FILENAME.to_string() + "_WRITING";
+    let base_filename = get_sample_local_filename(exp_name);
+    let temp_filename = base_filename.clone() + "_WRITING";
     let data: VersionedSampleModel = (version, new_sample, model, model_sig);
-    write_all(&filename, &serialize(&data).unwrap())
+    write_all(&temp_filename, &serialize(&data).unwrap())
         .expect("Failed to write the sample set to file");
-    rename(filename, SAMPLE_FILENAME.to_string()).unwrap();
+    rename(temp_filename, base_filename.to_string()).unwrap();
 }
 
 
@@ -98,14 +104,14 @@ where F: Fn(usize, &str) -> Option<VersionedSampleModel> {
 }
 
 
-pub fn load_sample_local(last_version: usize, _exp_name: &str) -> Option<VersionedSampleModel> {
-    let ori_filename = SAMPLE_FILENAME.to_string();
-    let filename = ori_filename.clone() + "_READING";
-    if rename(ori_filename, filename.clone()).is_ok() {
+pub fn load_sample_local(last_version: usize, exp_name: &str) -> Option<VersionedSampleModel> {
+    let base_filename = get_sample_local_filename(exp_name);
+    let temp_filename = base_filename.clone() + "_READING";
+    if rename(base_filename, temp_filename.clone()).is_ok() {
         let (version, sample, model, model_sig): VersionedSampleModel =
-            deserialize(read_all(&filename).as_ref()).unwrap();
+            deserialize(read_all(&temp_filename).as_ref()).unwrap();
         if version > last_version {
-            remove_file(filename).unwrap();
+            remove_file(temp_filename).unwrap();
             return Some((version, sample, model, model_sig));
         }
     }

@@ -139,6 +139,7 @@ fn gather<F>(
 #[cfg(test)]
 mod tests {
     use std::thread::sleep;
+    use std::fs::remove_file;
 
     use std::sync::Arc;
     use std::sync::RwLock;
@@ -155,9 +156,10 @@ mod tests {
 
     #[test]
     fn test_sampler_nonblocking() {
+        let exp_name = "test_sampler_nonblocking";
         let (gather_sender, gather_receiver) = channel::bounded(10, "gather-samples");
         let model = Arc::new(RwLock::new((Model::new(1), "test-model".to_string())));
-        let gatherer = Gatherer::new(gather_receiver, 100, model.clone(), "test".to_string());
+        let gatherer = Gatherer::new(gather_receiver, 100, model.clone(), exp_name.to_string());
         gatherer.run(SampleMode::LOCAL);
 
         let mut examples: Vec<ExampleWithScore> = vec![];
@@ -167,7 +169,7 @@ mod tests {
             examples.push(t);
         }
         sleep(Duration::from_millis(1000));  // wait for the gatherer releasing the new sample
-        let sample_model = load_sample_local(0, "test");
+        let sample_model = load_sample_local(0, exp_name);
         let mut sample = sample_model.unwrap().1;
         sample.sort_by(|t1, t2| (t1.0).feature[0].partial_cmp(&(t2.0).feature[0]).unwrap());
         for (input, output) in examples.iter().zip(sample.iter()) {
