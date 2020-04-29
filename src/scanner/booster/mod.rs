@@ -1,5 +1,6 @@
 pub mod learner;
 pub mod learner_helpers;
+pub mod learner_stats;
 pub mod tree_node;
 
 use std::sync::mpsc;

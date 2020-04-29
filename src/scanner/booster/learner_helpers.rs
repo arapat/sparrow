@@ -11,9 +11,9 @@ use commons::get_bound;
 
 use super::learner::NUM_RULES;
 use super::learner::PREDS;
-use super::learner::RuleStats;
-use super::learner::EarlyStoppingIntermediate;
-use super::learner::EarlyStoppingStatsAtThreshold;
+use super::learner_stats::RuleStats;
+use super::learner_stats::EarlyStoppingIntermediate;
+use super::learner_stats::EarlyStoppingStatsAtThreshold;
 use super::tree_node::TreeNode;
 
 
