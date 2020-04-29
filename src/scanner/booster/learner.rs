@@ -20,26 +20,119 @@ TODO: re-use ScoreBoard space of the generated rules to reduce the memory footpr
       (just adding a mapping from the index here to the index in the tree should do the job)
 
 ScoreBoard structure:
-Feature index -> split value index -> candidate splitting node index (removed) -> prediction types
+Split trree node -> Feature index -> split value index -> prediction/rule types
 
 Each split corresponds to 2 types of predictions,
     1. Left +1, Right -1;
     2. Left -1, Right +1;
 */
-pub const NUM_PREDS: usize = 2;
-const NUM_RULES: usize = NUM_PREDS;
-pub const PREDS: [(f32, f32); NUM_PREDS] = [(-1.0, 1.0), (1.0, -1.0)];
-// (pred1, false), (pred1, true), (pred2, false), (pred2, true)
-type ScoreBoard = Vec<Vec<[f32; NUM_RULES]>>;
-type ScoreBoard1 = Vec<Vec<f32>>;
-// (f32, f32) -> Stats if falls under left, and if falls under right
-pub type RuleStats = [[(f32, f32); 2]; NUM_PREDS];
-
+pub const NUM_RULES: usize = 2;
+pub const PREDS: [(f32, f32); NUM_RULES] = [(-1.0, 1.0), (1.0, -1.0)];
 
 /// Statisitics of all weak rules that are being evaluated.
 /// The objective of `Learner` is to find a weak rule that satisfies the condition of
 /// the stopping rule.
 // [i][k][j][rule_id] => bin i slot j candidate-node k
+// Stats from the feature level, i.e. split value index -> prediction/rule types
+#[derive(Serialize, Deserialize)]
+pub struct EarlyStoppingStatsAtThreshold {
+    // trackers for each candidate
+    pub weak_rules_score: [f32; NUM_RULES],
+    pub sum_c:            [f32; NUM_RULES],
+    pub sum_c_squared:    [f32; NUM_RULES],
+    // these trackers are same for all candidates, so they are redundant but this way we avoid
+    // having to create another aggregator
+    pub num_positive:     usize,
+    pub num_negative:     usize,
+    pub weight_positive:  f32,
+    pub weight_negative:  f32,
+    pub weight_squared:    f32,
+}
+impl EarlyStoppingStatsAtThreshold {
+    pub fn new() -> EarlyStoppingStatsAtThreshold {
+        EarlyStoppingStatsAtThreshold {
+            weak_rules_score: [0.0; NUM_RULES],
+            sum_c:            [0.0; NUM_RULES],
+            sum_c_squared:    [0.0; NUM_RULES],
+
+            num_positive:     0,
+            num_negative:     0,
+            weight_positive:  0.0,
+            weight_negative:  0.0,
+            weight_squared:   0.0,
+        }
+    }
+}
+// feature index -> split value index
+type CandidateNodeStats = Vec<Vec<EarlyStoppingStatsAtThreshold>>;
+
+#[derive(Serialize, Deserialize)]
+pub struct EarlyStoppingIntermediate {
+    pub left_score:      f32,
+    pub right_score:     f32,
+    // c = w * y * y_hat - 2 * \gamma * w
+    pub left_c:          f32,
+    pub right_c:         f32,
+    // c_squared = c^2
+    pub left_c_squared:  f32,
+    pub right_c_squared: f32,
+}
+impl EarlyStoppingIntermediate {
+    pub fn new(
+        pred: &(f32, f32), example: &Example, weight: &f32, gamma: f32,
+    ) -> EarlyStoppingIntermediate {
+        let left_score  = pred.0 * weight * (example.label as f32);
+        let right_score = pred.1 * weight * (example.label as f32);
+        let null_hypothesis_score = 2.0 * gamma * weight;
+        let left_c = left_score - null_hypothesis_score;
+        let right_c = right_score - null_hypothesis_score;
+        EarlyStoppingIntermediate {
+            left_score:      left_score,
+            right_score:     right_score,
+            left_c:          left_c.clone(),
+            right_c:         right_c.clone(),
+            left_c_squared:  left_c * left_c,
+            right_c_squared: right_c * right_c,
+        }
+    }
+
+    pub fn zero() -> EarlyStoppingIntermediate {
+        EarlyStoppingIntermediate {
+            left_score:      0.0,
+            right_score:     0.0,
+            left_c:          0.0,
+            right_c:         0.0,
+            left_c_squared:  0.0,
+            right_c_squared: 0.0,
+        }
+    }
+
+    pub fn add(&mut self, other: &EarlyStoppingIntermediate) {
+        self.left_score      += other.left_score;
+        self.right_score     += other.right_score;
+        self.left_c          += other.left_c;
+        self.right_c         += other.right_c;
+        self.left_c_squared  += other.left_c_squared;
+        self.right_c_squared += other.right_c_squared;
+    }
+
+    pub fn add_right(&mut self, other: &EarlyStoppingIntermediate) {
+        self.right_score     += other.right_score;
+        self.right_c         += other.right_c;
+        self.right_c_squared += other.right_c_squared;
+    }
+
+    pub fn move_to_left(&mut self, other: &EarlyStoppingIntermediate) {
+        self.left_score      += other.left_score;
+        self.left_c          += other.left_c;
+        self.left_c_squared  += other.left_c_squared;
+        self.right_score     -= other.right_score;
+        self.right_c         -= other.right_c;
+        self.right_c_squared -= other.right_c_squared;
+    }
+}
+pub type RuleStats = Vec<EarlyStoppingIntermediate>;
+
 #[derive(Serialize, Deserialize)]
 pub struct Learner {
     bins: Vec<Bins>,
@@ -48,20 +141,14 @@ pub struct Learner {
     min_gamma: f32,
     num_candid: usize,
 
-    pub rho_gamma:        f32,
-    pub expand_node:      usize,
+    pub rho_gamma:    f32,
+    pub expand_node:  usize,
     // global trackers
     pub total_count:  usize,
     total_weight:     f32,
     total_weight_sq:  f32,
-    // trackers for each candidate
-    weak_rules_score: Vec<ScoreBoard>,
-    sum_c_squared:    Vec<ScoreBoard>,
-    // trackers for debugging
-    num_positive:     Vec<ScoreBoard1>,
-    num_negative:     Vec<ScoreBoard1>,
-    weight_positive:  Vec<ScoreBoard1>,
-    weight_negative:  Vec<ScoreBoard1>,
+
+    stats:            Vec<CandidateNodeStats>,
     // track the number of examples exposed to each splitting candidates
     // count:            usize,
     // sum_weight:       f32,
@@ -76,7 +163,6 @@ impl Learner {
         default_gamma: f32,
         num_features: usize,
         bins: Vec<Bins>,
-        num_splits: usize,
     ) -> Learner {
         let mut learner = Learner {
             bins: bins,
@@ -90,25 +176,10 @@ impl Learner {
             total_count:      0,
             total_weight:     0.0,
             total_weight_sq:  0.0,
-            weak_rules_score: vec![],
-            sum_c_squared:    vec![],
 
-            num_positive:     vec![],
-            num_negative:     vec![],
-            weight_positive:  vec![],
-            weight_negative:  vec![],
+            stats:            vec![],
         };
-        let new_scoreboard = |size| vec![vec![[0.0; NUM_RULES]; size]; num_splits];
-        let new_scoreboard1 = |size| vec![vec![0.0; size]; num_splits];
-        for i in 0..num_features {
-            let size = learner.bins[i].len();
-            learner.weak_rules_score.push(new_scoreboard(size));
-            learner.sum_c_squared.push(new_scoreboard(size));
-            learner.num_positive.push(new_scoreboard1(size));
-            learner.num_negative.push(new_scoreboard1(size));
-            learner.weight_positive.push(new_scoreboard1(size));
-            learner.weight_negative.push(new_scoreboard1(size));
-        }
+        learner.reset();
         learner
     }
 
@@ -116,49 +187,49 @@ impl Learner {
     /// (except gamma, because the advantage of the root node is not likely to increase)
     /// Trigger when the model or the gamma is changed
     pub fn reset(&mut self) {
-        for t in 0..self.num_candid {
-            for i in 0..self.num_features {
-                for j in 0..self.bins[i].len() {
-                    for k in 0..NUM_RULES {
-                        self.weak_rules_score[t][i][j][k] = 0.0;
-                        self.sum_c_squared[t][i][j][k]    = 0.0;
-                    }
-                    self.num_positive[t][i][j] = 0.0;
-                    self.num_negative[t][i][j] = 0.0;
-                    self.weight_positive[t][i][j] = 0.0;
-                    self.weight_negative[t][i][j] = 0.0;
-                }
-            }
-        }
-        debug!("learner, learner is reset, {}, {}, {}",
+        let get_candidate_node_stats = || {
+            self.bins.iter().map(|bin| {
+                (0..bin.len()).map(|_| {
+                    EarlyStoppingStatsAtThreshold::new()
+                }).collect()
+            }).collect()
+        };
+
+        debug!("learner, learner is being reset, {}, {}, {}",
                self.expand_node, self.total_count, self.total_weight);
+        self.stats = (0..self.num_candid).map(|_| get_candidate_node_stats())
+                                         .collect();
         self.total_count = 0;
         self.total_weight = 0.0;
         self.total_weight_sq = 0.0;
     }
 
-    pub fn get_max_empirical_ratio_tree_node(&self) -> TreeNode {
-        let mut max_ratio = 0.0;
-        let mut actual_ratio = 0.0;
-        let mut rule_id = (0, 0, 0, 0);
-        for t in 0..self.num_candid {
-            for i in 0..self.num_features {
-                for j in 0..self.bins[i].len() {
-                    for k in 0..NUM_RULES {
-                        // max ratio considers absent examples, actual ratio does not
-                        let ratio = self.weak_rules_score[t][i][j][k] / self.total_weight;
-                        if ratio >= max_ratio {
-                            max_ratio = ratio;
-                            actual_ratio = ratio;
-                            rule_id = (t, i, j, k);
-                        }
-                    }
-                }
-            }
+    pub fn get_max_empirical_ratio_tree_node(&self) -> Option<TreeNode> {
+        type U = Vec<((usize, usize, usize, usize), f32)>;
+        let total_weight = self.total_weight;
+        let optimal_rule = {
+            self.stats.iter().enumerate().flat_map(|(t, features)| {
+                features.iter().enumerate().flat_map(|(i, thresholds)| {
+                    thresholds.iter().enumerate().flat_map(|(j, stats)| {
+                        stats.weak_rules_score.iter().enumerate()
+                             .map(|(k, weak_rule_score)| {
+                                 let rule_id = (t, i, j, k);
+                                 let ratio = weak_rule_score / total_weight;
+                                 (rule_id, ratio)
+                             }).collect::<U>()
+                    }).collect::<U>()
+                }).collect::<U>()
+            }).max_by(|(_k1, a), (_k2, b)| {
+                a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
+            })
+        };
+        if optimal_rule.is_none() {
+            error!("Failed to find the best empirical rule.");
+            return None
         }
-
+        let (rule_id, ratio) = optimal_rule.unwrap();
         let (t, i, j, k) = rule_id;
-        learner_helpers::gen_tree_node(t, i, j, k, actual_ratio)
+        Some(learner_helpers::gen_tree_node(t, i, j, k, ratio))
     }
 
     pub fn is_gamma_significant(&self) -> bool {
@@ -181,14 +252,13 @@ impl Learner {
         let expand_node = self.expand_node;
         let rho_gamma = self.rho_gamma;
 
-        // preprocess examples - Complexity: O(Examples * NumRules)
-        let data: Vec<(usize, f32, (&Example, RuleStats))> = learner_helpers::preprocess_data(
-            data, tree, expand_node, rho_gamma);
-
         // Put examples into bins by where they fall on the tree - Complexity: O(Examples)
-        let mut data_by_node: HashMap<usize, Vec<(f32, (&Example, RuleStats))>> = HashMap::new();
-        data.into_iter().for_each(|(index, weight, stats)| {
-            data_by_node.entry(index).or_insert(Vec::new()).push((weight, stats));
+        let mut data_by_node: HashMap<usize, Vec<(&Example, f32, RuleStats)>> = HashMap::new();
+        // preprocess examples - Complexity: O(Examples * NumRules)
+        let data: Vec<(usize, &Example, f32, RuleStats)> = learner_helpers::preprocess_data(
+            data, tree, expand_node, rho_gamma);
+        data.into_iter().for_each(|(index, example, weight, stats)| {
+            data_by_node.entry(index).or_insert(Vec::new()).push((example, weight, stats));
         });
 
         // TODO: Calculate total sum of the weights and the number of examples
@@ -204,22 +274,14 @@ impl Learner {
             let data = &data_by_node[&index];
             let tree_node = {
                 // all bins read data in parallel
-                self.bins.par_iter().zip(
-                    self.weak_rules_score[index].par_iter_mut()
-                ).zip(
-                    self.sum_c_squared[index].par_iter_mut()
-                ).zip(
-                    self.num_positive[index].par_iter_mut()
-                        .zip(self.num_negative[index].par_iter_mut())
-                        .zip(self.weight_positive[index].par_iter_mut())
-                        .zip(self.weight_negative[index].par_iter_mut())
-                ).enumerate()
-                .map(|(i, zipped_values)| {
-                    let (((bin, weak_rules_score), sum_c_squared), debug_info) = zipped_values;
+                self.bins.par_iter()
+                    .zip(
+                        self.stats[index].par_iter_mut()
+                    ).enumerate()
+                    .map(|(feature_index, (feature_bins, mut stats))| {
                     learner_helpers::find_tree_node(
-                        &data, i, rho_gamma, count, total_weight, total_weight_sq,
-                        index, // TODO: debug this expand_node
-                        bin, weak_rules_score, sum_c_squared, debug_info)
+                        data, feature_index, rho_gamma, count, total_weight, total_weight_sq,
+                        index, feature_bins, &mut stats)
                 })
                 .find_any(|t| t.is_some())
                 .unwrap_or(None)

@@ -31,6 +31,7 @@ pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";
 pub struct Boosting {
     exp_name: String,
     num_trees: usize,
+    _num_splits: usize,
     training_loader: BufferLoader,
 
     learner: Learner,
@@ -85,10 +86,11 @@ impl Boosting {
     ) -> Boosting {
         // TODO: make num_cadid a paramter
         let learner = Learner::new(
-            min_gamma, default_gamma, num_features, bins, num_splits);
+            min_gamma, default_gamma, num_features, bins);
         Boosting {
             exp_name: exp_name,
             num_trees: num_trees,
+            _num_splits: num_splits,
             training_loader: training_loader,
 
             learner: learner,
@@ -228,7 +230,7 @@ impl Boosting {
             let is_full_scan = total_data_size_without_fire >= self.training_loader.size;
             let new_rule = {
                 if new_rule.is_none() && is_full_scan {
-                    Some(self.learner.get_max_empirical_ratio_tree_node())
+                    self.learner.get_max_empirical_ratio_tree_node()
                 } else {
                     new_rule
                 }
