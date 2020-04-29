@@ -37,6 +37,7 @@ pub struct Learner {
     num_candid: usize,
 
     pub rho_gamma:    f32,
+    // TODO: expand_node should be a vector so that we can grow a whole tree
     pub expand_node:  usize,
     // global trackers
     pub total_count:  usize,
@@ -139,7 +140,6 @@ impl Learner {
         self.total_count       += data.len();
         self.total_weight      += data.par_iter().map(|t| (t.1).0).sum::<f32>();
         self.total_weight_sq   += data.par_iter().map(|t| ((t.1).0) * ((t.1).0)).sum::<f32>();
-        self.num_candid         = tree.tree_size;
 
         let expand_node = self.expand_node;
         let rho_gamma = self.rho_gamma;
@@ -173,7 +173,7 @@ impl Learner {
                     .map(|(feature_index, (feature_bins, mut stats))| {
                     learner_helpers::find_tree_node(
                         data, feature_index, rho_gamma, count, total_weight, total_weight_sq,
-                        index, feature_bins, &mut stats)
+                        expand_node, feature_bins, &mut stats)
                 })
                 .find_any(|t| t.is_some())
                 .unwrap_or(None)

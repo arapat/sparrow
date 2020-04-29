@@ -25,6 +25,7 @@ use self::tree_node::TreeNode;
 
 
 pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";
+pub const VERBOSE: bool = false;
 
 
 /// The boosting algorithm. It contains two functions, one for starting
@@ -114,59 +115,8 @@ impl Boosting {
 
             max_sample_size: max_sample_size,
             save_process: save_process,
-            verbose: false,
+            verbose: VERBOSE,
         }
-    }
-
-    fn init(&mut self) {
-        let mut timer = PerformanceMonitor::new();
-        let mut last_reported_time = 0.0;
-        timer.start();
-        while self.training_loader.is_empty() {
-            if timer.get_duration() - last_reported_time > 60.0 {
-                last_reported_time = timer.get_duration();
-                debug!("scanner, init, waiting the first sample, {}",  last_reported_time);
-            }
-            self.training_loader.try_switch();
-            sleep(Duration::from_millis(2000));
-        }
-        debug!("booster, first sample is loaded");
-        last_reported_time = timer.get_duration();
-        while self.base_model_sig == MODEL_SIG_PLACEHOLDER {
-            if timer.get_duration() - last_reported_time > 60.0 {
-                last_reported_time = timer.get_duration();
-                debug!("scanner, init, waiting the initial model, {}", last_reported_time);
-            }
-            self.handle_network(false);
-            sleep(Duration::from_secs(2));
-        }
-        debug!("booster, remote initial model is downloaded");
-    }
-
-    fn set_root_tree(&mut self) {
-        let max_sample_size = self.max_sample_size;
-        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
-        self.model.add_root(base_pred, base_gamma);
-        info!("scanner, added new rule, {}, {}, {}, {}, {}",
-              self.model.size(), max_sample_size, max_sample_size, 0, 0);
-    }
-
-    fn update_model(&mut self, model: Model, model_sig: String, source: &str) {
-        let (old_size, old_base_size) = (self.model.size(), self.base_model_size);
-        self.model = model;
-        self.base_model_sig = model_sig;
-        self.base_model_size = self.model.size();
-        self.last_sent_model_length = self.model.size();
-        if self.model.tree_size == 0 {
-            self.set_root_tree();
-        }
-        if old_size > old_base_size {
-            // loader needs to get rid of the rules that just got overwritten
-            self.training_loader.reset_scores();
-        }
-        self.learner.reset();
-        debug!("model-replaced, {}, {}, {}, {}",
-                self.model.size(), old_size, self.base_model_sig, source);
     }
 
     /// Enable network communication. `name` is the name of this worker, which can be arbitrary
@@ -187,11 +137,9 @@ impl Boosting {
     }
 
     /// Start training the boosting algorithm.
-    pub fn training(
-        &mut self,
-        prep_time: f32,
-    ) {
+    pub fn training(&mut self, prep_time: f32) {
         debug!("Start training.");
+        debug!("Start booster initialization.");
         self.init();
         debug!("Finished initialization");
 
@@ -202,7 +150,6 @@ impl Boosting {
         let mut last_logging_ts = global_timer.get_duration();
 
         let mut total_data_size_without_fire = 0;
-        self.verbose = false;
         while self.learner.is_gamma_significant() &&
                 (self.num_trees <= 0 || self.model.tree_size < self.num_trees) {
             // Logging for the status check
@@ -253,8 +200,7 @@ impl Boosting {
             }
 
             // Communicate
-            let is_communicated = self.handle_network(
-                total_data_size_without_fire >= self.training_loader.size);
+            let is_communicated = self.handle_network(is_full_scan);
             if is_communicated {
                 total_data_size_without_fire = 0;
                 _last_communication_ts = global_timer.get_duration();
@@ -266,6 +212,66 @@ impl Boosting {
         self.handle_persistent(prep_time + global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
               self.model.size(), self.learner.is_gamma_significant());
+    }
+
+    fn init(&mut self) {
+        // get sample
+        let mut timer = PerformanceMonitor::new();
+        let mut last_reported_time = 0.0;
+        timer.start();
+        while self.training_loader.is_empty() {
+            if timer.get_duration() - last_reported_time > 60.0 {
+                last_reported_time = timer.get_duration();
+                debug!("scanner, init, waiting the first sample, {}",  last_reported_time);
+            }
+            self.training_loader.try_switch();
+            sleep(Duration::from_millis(2000));
+        }
+        debug!("booster, first sample is loaded");
+        // initialize a local model
+        self.update_model(
+            self.training_loader.base_model.clone(),
+            self.training_loader.base_model_sig.clone(),
+            "loader",
+        );
+        // sync model between remote and local
+        debug!("booster, model intialized");
+        last_reported_time = timer.get_duration();
+        while self.base_model_sig == MODEL_SIG_PLACEHOLDER {
+            if timer.get_duration() - last_reported_time > 60.0 {
+                last_reported_time = timer.get_duration();
+                debug!("scanner, init, waiting the initial model, {}", last_reported_time);
+            }
+            self.handle_network(false);
+            sleep(Duration::from_secs(2));
+        }
+        debug!("booster, remote initial model is downloaded");
+    }
+
+    fn set_root_tree(&mut self) {
+        let max_sample_size = self.max_sample_size;
+        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
+        self.model.add_root(base_pred, base_gamma);
+        info!("scanner, added new rule, {}, {}, {}, {}, {}",
+              self.model.size(), max_sample_size, max_sample_size, 0, 0);
+    }
+
+    fn update_model(&mut self, model: Model, model_sig: String, source: &str) {
+        let (old_size, old_base_size) = (self.model.size(), self.base_model_size);
+        self.model = model;
+        self.base_model_sig = model_sig;
+        self.base_model_size = self.model.size();
+        self.last_sent_model_length = self.model.size();
+        if self.model.tree_size == 0 {
+            self.set_root_tree();
+        }
+        if old_size > old_base_size {
+            // loader needs to get rid of the rules that just got overwritten
+            self.training_loader.reset_scores();
+        }
+        self.learner.reset();
+        debug!("model-replaced, {}, {}, {}, {}",
+                self.model.size(), old_size, self.base_model_sig, source);
     }
 
     fn process_new_rule(
