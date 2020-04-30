@@ -142,11 +142,15 @@ impl ModelSync {
         let mut packet_stats = self.packet_stats.take().unwrap();
         packet.source_machine_id =
             packet.source_machine_id % packet_stats.num_machines;
-        let packet_type = packet.get_packet_type(self.min_ess);
+        let worker_assignment = self.scheduler.get_worker_assignment(packet.source_machine_id);
+        let packet_type = packet.get_packet_type(worker_assignment, self.min_ess);
         packet_stats.handle_new_packet(packet, &packet_type);
         match packet_type {
             PacketType::SmallEffSize => {
                 // Ignore updates generated on a small-ess sample
+            },
+            PacketType::AssignMismatch => {
+                // Ignore updates because of mismatch
             },
             PacketType::Empty => {
                 self.scheduler.handle_empty(packet);

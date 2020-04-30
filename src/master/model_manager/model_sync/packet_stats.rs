@@ -24,6 +24,7 @@ pub struct PacketStats {
     empty_packets:           usize,
     accept_packets:          usize,
     small_ess_packets:       usize,
+    assign_mismatch_packets: usize,
 
     pub avg_accept_rate:  f32,
     pub last_accept_rate: f32,
@@ -46,6 +47,7 @@ impl PacketStats {
             empty_packets:           0,
             accept_packets:          0,
             small_ess_packets:       0,
+            assign_mismatch_packets: 0,
 
             avg_accept_rate:         0.5,
             last_accept_rate:        0.5,
@@ -77,6 +79,9 @@ impl PacketStats {
             PacketType::SmallEffSize => {
                 self.small_ess_packets       += 1;
             },
+            PacketType::AssignMismatch => {
+                self.assign_mismatch_packets += 1;
+            }
         };
         self.update_condition();
     }
@@ -111,6 +116,7 @@ impl PacketStats {
         self.empty_packets = 0;
         self.accept_packets = 0;
         self.small_ess_packets = 0;
+        self.assign_mismatch_packets = 0;
 
         self.num_packs.iter_mut()
             .for_each(|t| *t = 0);
@@ -127,6 +133,7 @@ impl PacketStats {
                 self.empty_packets.to_string(),
                 self.accept_packets.to_string(),
                 self.small_ess_packets.to_string(),
+                self.assign_mismatch_packets.to_string(),
 
                 self.avg_accept_rate.to_string(),
                 self.last_accept_rate.to_string(),

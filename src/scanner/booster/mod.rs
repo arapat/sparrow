@@ -356,8 +356,8 @@ impl Boosting {
         let packet = Packet::new(
             &self.local_name,
             self.local_id,
-            self.packet_counter,
             self.learner.expand_node,
+            self.packet_counter,
             self.model.size(),
             tree_slice,
             gamma,

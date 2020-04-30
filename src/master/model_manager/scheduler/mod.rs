@@ -91,6 +91,14 @@ impl Scheduler {
         self.reset_assign();
     }
 
+    pub fn get_worker_assignment(&self, worker_index: usize) -> Option<usize> {
+        if self.scanner_task[worker_index].is_none() {
+            None
+        } else {
+            Some(self.scanner_task[worker_index].as_ref().unwrap().1)
+        }
+    }
+
     fn reset_assign(&mut self) -> bool {
         if self.next_grids.is_some() {
             self.curr_grids = self.next_grids.take().unwrap();

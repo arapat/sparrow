@@ -6,6 +6,7 @@ pub enum PacketType {
     Accept,
     Empty,
     SmallEffSize,
+    AssignMismatch,
 }
 
 
@@ -28,8 +29,8 @@ impl Packet {
     pub fn new(
         machine_name: &String,
         machine_id: usize,
-        packet_counter: usize,
         node_id: usize,
+        packet_counter: usize,
         final_model_size: usize,
         updates: UpdateList,
         gamma: f32,
@@ -53,9 +54,20 @@ impl Packet {
         }
     }
 
-    pub fn get_packet_type(&self, min_ess: f32) -> PacketType {
+    pub fn get_packet_type(&self, assignment: Option<usize>, min_ess: f32) -> PacketType {
         // Ignore any claims made on a very small effective sample
-        if self.ess < min_ess {
+        let assignment: i32 = {
+            if assignment.is_none() {
+                -1
+            } else {
+                assignment.unwrap() as i32
+            }
+        };
+        if assignment != (self.node_id as i32) {
+            debug!("model_manager, packet, worker assignment mismatch, {}, {}, {}, {}",
+                    self.source_machine_id, assignment, self.node_id, self.ess);
+            PacketType::AssignMismatch
+        } else if self.ess < min_ess {
             debug!("model_manager, packet, empty small ess, {}, {}, {}",
                     self.source_machine_id, self.node_id, self.ess);
             PacketType::SmallEffSize
