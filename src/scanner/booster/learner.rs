@@ -98,21 +98,22 @@ impl Learner {
     }
 
     pub fn get_max_empirical_ratio_tree_node(&self) -> Option<TreeNode> {
-        type U = Vec<((usize, usize, usize, usize), f32)>;
+        type U = Vec<((usize, usize, usize, usize), f32, EarlyStoppingStatsAtThreshold)>;
         let total_weight = self.total_weight;
         let optimal_rule = {
             self.stats.iter().enumerate().flat_map(|(t, features)| {
                 features.iter().enumerate().flat_map(|(i, thresholds)| {
                     thresholds.iter().enumerate().flat_map(|(j, stats)| {
+                        let stats: EarlyStoppingStatsAtThreshold = (*stats).clone();
                         stats.weak_rules_score.iter().enumerate()
                              .map(|(k, weak_rule_score)| {
                                  let rule_id = (t, i, j, k);
                                  let ratio = weak_rule_score / total_weight;
-                                 (rule_id, ratio)
+                                 (rule_id, ratio, stats)
                              }).collect::<U>()
                     }).collect::<U>()
                 }).collect::<U>()
-            }).max_by(|(_k1, a), (_k2, b)| {
+            }).max_by(|(_k1, a, _s1), (_k2, b, _s2)| {
                 a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal)
             })
         };
@@ -120,9 +121,11 @@ impl Learner {
             error!("Failed to find the best empirical rule.");
             return None
         }
-        let (rule_id, ratio) = optimal_rule.unwrap();
+        let (rule_id, ratio, stats) = optimal_rule.unwrap();
         let (t, i, j, k) = rule_id;
-        Some(learner_helpers::gen_tree_node(t, i, j, k, ratio))
+        let tree_node = learner_helpers::gen_tree_node(
+            t, i, j, k, ratio, stats, self.total_count, self.total_weight, self.total_weight_sq);
+        Some(tree_node)
     }
 
     pub fn is_gamma_significant(&self) -> bool {

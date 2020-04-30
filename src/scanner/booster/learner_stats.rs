@@ -7,6 +7,7 @@ use super::learner::NUM_RULES;
 /// the stopping rule.
 // [i][k][j][rule_id] => bin i slot j candidate-node k
 // Stats from the feature level, i.e. split value index -> prediction/rule types
+#[derive(Clone, Copy)]
 pub struct EarlyStoppingStatsAtThreshold {
     // trackers for each candidate
     pub weak_rules_score: [f32; NUM_RULES],

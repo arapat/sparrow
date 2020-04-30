@@ -89,8 +89,8 @@ pub fn find_tree_node<'a>(
                      let node_weight_sum =
                          sum_martingale.weight_positive + sum_martingale.weight_negative;
                      // iterate over each threshold, now process each rule
-                     accum_stats.iter_mut().zip(thr_stats.iter()).zip(PREDS.iter())
-                         .for_each(|((batch_stats, stats_at_thr), preds)| {
+                     accum_stats.iter_mut().zip(thr_stats.iter()).zip(PREDS.iter()).enumerate()
+                         .for_each(|(pred_index, ((batch_stats, stats_at_thr), preds))| {
                              // iterate over each prediction rule
 
                              // move examples from the right to the left child
@@ -100,18 +100,18 @@ pub fn find_tree_node<'a>(
                              let batch_edge_squared =
                                  batch_stats.left_c_squared + batch_stats.right_c_squared;
                              {
-                                 sum_martingale.weak_rules_score[thr_index] += batch_score;
-                                 sum_martingale.sum_c[thr_index]            += batch_edge;
-                                 sum_martingale.sum_c_squared[thr_index]    += batch_edge_squared;
+                                 sum_martingale.weak_rules_score[pred_index] += batch_score;
+                                 sum_martingale.sum_c[pred_index]            += batch_edge;
+                                 sum_martingale.sum_c_squared[pred_index]    += batch_edge_squared;
 
                                  // Check stopping rule
                                  // let sum_c = *weak_rules_score - 2.0 * rho_gamma * total_weight;
                                  let abstained_weight = total_weight - node_weight_sum;
-                                 let sum_c = sum_martingale.sum_c[thr_index] -
+                                 let sum_c = sum_martingale.sum_c[pred_index] -
                                     2.0 * rho_gamma * abstained_weight;
                                  let abstained_weight_squared =
                                     total_weight_sq - sum_martingale.weight_squared;
-                                 let sum_c_squared = sum_martingale.sum_c_squared[thr_index]
+                                 let sum_c_squared = sum_martingale.sum_c_squared[pred_index]
                                     + 4.0 * rho_gamma * rho_gamma * abstained_weight_squared;
                                  let bound = get_bound(sum_c, sum_c_squared);
                                  if sum_c > bound {
@@ -126,9 +126,9 @@ pub fn find_tree_node<'a>(
                                              predict:        real_pred,
 
                                              gamma:          rho_gamma,
-                                             raw_martingale: sum_martingale.weak_rules_score[thr_index],
-                                             sum_c:          sum_martingale.sum_c[thr_index],
-                                             sum_c_squared:  sum_martingale.sum_c_squared[thr_index],
+                                             raw_martingale: sum_martingale.weak_rules_score[pred_index],
+                                             sum_c:          sum_martingale.sum_c[pred_index],
+                                             sum_c_squared:  sum_martingale.sum_c_squared[pred_index],
                                              bound:          bound,
                                              num_scanned:    count,
 
@@ -149,14 +149,23 @@ pub fn find_tree_node<'a>(
 
 
 pub fn gen_tree_node(
-    expand_node_index: usize, feature_index: usize, bin_index: usize, rule_index: usize, ratio: f32,
+    expand_node_index: usize, feature_index: usize, bin_index: usize, pred_index: usize,
+    ratio: f32, sum_martingale: EarlyStoppingStatsAtThreshold,
+    count: usize, total_weight: f32, total_weight_sq: f32,
 ) -> TreeNode {
     let rho_gamma = ratio / 2.0;
     let base_pred = 0.5 * (
         (0.5 + rho_gamma) / (0.5 - rho_gamma)
     ).ln();
-    let real_pred =
-        (base_pred * PREDS[rule_index].0, base_pred * PREDS[rule_index].1);
+    let real_pred = (base_pred * PREDS[pred_index].0, base_pred * PREDS[pred_index].1);
+    let node_weight_sum = sum_martingale.weight_positive + sum_martingale.weight_negative;
+    let abstained_weight = total_weight - node_weight_sum;
+    let sum_c = sum_martingale.sum_c[pred_index] - 2.0 * rho_gamma * abstained_weight;
+    let abstained_weight_squared =
+       total_weight_sq - sum_martingale.weight_squared;
+    let sum_c_squared = sum_martingale.sum_c_squared[pred_index]
+       + 4.0 * rho_gamma * rho_gamma * abstained_weight_squared;
+    let bound = get_bound(sum_c, sum_c_squared);
     TreeNode {
         prt_index:      expand_node_index,
         feature:        feature_index,
@@ -167,16 +176,16 @@ pub fn gen_tree_node(
         fallback:        true,
 
         // other attributes are for debugging purpose only
-        raw_martingale: 0.0,
-        sum_c:          0.0,
-        sum_c_squared:  0.0,
-        bound:          0.0,
-        num_scanned:    0,
+        raw_martingale: sum_martingale.weak_rules_score[pred_index],
+        sum_c:          sum_martingale.sum_c[pred_index],
+        sum_c_squared:  sum_martingale.sum_c_squared[pred_index],
+        bound:          bound,
+        num_scanned:    count,
 
-        positive:        0,
-        negative:        0,
-        positive_weight: 0.0,
-        negative_weight: 0.0,
+        positive:        sum_martingale.num_positive,
+        negative:        sum_martingale.num_negative,
+        positive_weight: sum_martingale.weight_positive,
+        negative_weight: sum_martingale.weight_negative,
     }
 }
 
