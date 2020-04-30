@@ -204,6 +204,7 @@ pub fn clear_s3_bucket(region: &str, bucket: &str, exp_name: &str) {
     for (list, _) in results {
         for obj in list.contents {
             bucket.delete_object(&obj.key).unwrap();
+            debug!("clear s3, deleted {}", obj.key);
         }
     }
 }

@@ -56,12 +56,10 @@ impl Scheduler {
                 .collect();
         let num_idle_scanners = idle_scanners.len();
         let num_updates = self.assign(idle_scanners, model, gamma);
-        if num_idle_scanners > 0 {
-            debug!("model-manager, assign updates, {}, {}", num_idle_scanners, num_updates);
-        }
         if num_updates > 0 {
             let assignment: Vec<Option<usize>> = self.get_assignment();
             upload_assignments(&assignment, &self.exp_name);
+            debug!("model-manager, assign updates, {}, {}", num_idle_scanners, num_updates);
         }
         num_updates
     }
