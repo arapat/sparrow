@@ -68,13 +68,13 @@ impl Scheduler {
         self.get_grid_node_ids(packet).is_some()
     }
 
-    pub fn handle_empty(&mut self, packet: &Packet) -> bool {
+    pub fn handle_fallback(&mut self, packet: &Packet) -> bool {
         let grid_node_ids = self.get_grid_node_ids(packet);
         if grid_node_ids.is_none() {
             return false;
         }
         let (grid_index, node_id) = grid_node_ids.unwrap();
-        debug!("model_manager, scheduler, handle empty, {}, {}, {}",
+        debug!("model_manager, scheduler, handle fallback, {}, {}, {}",
                 packet.source_machine_id, node_id, packet.gamma);
         self.release_grid(grid_index);
         self.last_gamma[grid_index] = packet.gamma;

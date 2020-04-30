@@ -4,7 +4,7 @@ use commons::tree::UpdateList;
 #[derive(Debug)]
 pub enum PacketType {
     Accept,
-    Empty,
+    Fallback,
     SmallEffSize,
     AssignMismatch,
 }
@@ -22,6 +22,7 @@ pub struct Packet {
     pub ess: f32,
     pub base_model_signature: String,
     pub this_model_signature: String,
+    pub fallback: bool,
 }
 
 
@@ -37,6 +38,7 @@ impl Packet {
         ess: f32,
         sample_version: usize,
         base_model_sig: String,
+        fallback: bool,
     ) -> Packet {
         let this_model_sig = machine_name.clone() + "_" + &final_model_size.to_string();
         let packet_sig = format!("pac_{}_{}", this_model_sig, packet_counter);
@@ -51,6 +53,7 @@ impl Packet {
             ess: ess,
             base_model_signature: base_model_sig,
             this_model_signature: this_model_sig,
+            fallback: fallback,
         }
     }
 
@@ -68,14 +71,14 @@ impl Packet {
                     self.source_machine_id, assignment, self.node_id, self.ess);
             PacketType::AssignMismatch
         } else if self.ess < min_ess {
-            debug!("model_manager, packet, empty small ess, {}, {}, {}",
+            debug!("model_manager, packet, small ess, {}, {}, {}",
                     self.source_machine_id, self.node_id, self.ess);
             PacketType::SmallEffSize
-        } else if self.updates.size == 0 {
+        } else if self.fallback {
             // Empty packets
-            debug!("model_manager, packet, empty, {}, {}, {}",
+            debug!("model_manager, packet, fallback, {}, {}, {}",
                     self.source_machine_id, self.node_id, self.ess);
-            PacketType::Empty
+            PacketType::Fallback
         } else {
             debug!("model_manager, packet, accept, {}, {}, {}",
                     self.source_machine_id, self.node_id, self.ess);

@@ -27,7 +27,7 @@ pub fn get_n_random_examples(n: usize, num_features: usize) -> Vec<ExampleWithSc
 
 
 pub fn get_mock_packet(
-    machine_id: usize, node_id: usize, gamma: f32, packet_size: usize,
+    machine_id: usize, node_id: usize, gamma: f32, packet_size: usize, fallback: bool,
 ) -> Packet {
     let ess = 0.5;
     let mut update_list = UpdateList::new();
@@ -45,6 +45,7 @@ pub fn get_mock_packet(
         ess,
         0,
         "base_model_sig".to_string(),
+        fallback,
     )
 }
 

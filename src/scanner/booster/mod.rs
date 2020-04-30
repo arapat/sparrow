@@ -46,6 +46,7 @@ pub struct Boosting {
     local_id: usize,
     packet_counter: usize,
 
+    fallback: bool,
     last_sent_model_length: usize,
     // for re-sending the non-empty packet if the sampler status changed
     // track: sample version
@@ -100,6 +101,7 @@ impl Boosting {
             base_model_sig: "".to_string(),
             base_model_size: 0,
 
+            fallback: false,
             is_sample_version_changed: true,
             is_scanner_status_changed: true,
             last_sent_model_length: 0,
@@ -194,8 +196,10 @@ impl Boosting {
                 );
             }
             if new_rule.is_some() {
+                let new_rule = new_rule.unwrap();
                 let ts = prep_time + global_timer.get_duration();
-                self.process_new_rule(new_rule.unwrap(), total_data_size_without_fire, ts);
+                self.fallback = self.fallback || new_rule.fallback;
+                self.process_new_rule(new_rule, total_data_size_without_fire, ts);
                 total_data_size_without_fire = 0;
             }
 
@@ -203,6 +207,7 @@ impl Boosting {
             let is_communicated = self.handle_network(is_full_scan);
             if is_communicated {
                 total_data_size_without_fire = 0;
+                self.fallback = false;
                 _last_communication_ts = global_timer.get_duration();
             }
 
@@ -364,6 +369,7 @@ impl Boosting {
             self.training_loader.ess,
             self.training_loader.current_version,
             self.base_model_sig.clone(),
+            self.fallback,
         );
         let send_result = self.network_sender.as_ref().unwrap()
                                 .send(packet);

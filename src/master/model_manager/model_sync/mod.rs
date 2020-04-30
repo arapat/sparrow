@@ -152,8 +152,8 @@ impl ModelSync {
             PacketType::AssignMismatch => {
                 // Ignore updates because of mismatch
             },
-            PacketType::Empty => {
-                self.scheduler.handle_empty(packet);
+            PacketType::Fallback => {
+                self.scheduler.handle_fallback(packet);
             },
             PacketType::Accept => {
                 self.model_ts = self._performance_mon.get_duration();

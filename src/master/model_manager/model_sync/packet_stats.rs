@@ -21,7 +21,7 @@ pub enum UpdateSpeed {
 
 pub struct PacketStats {
     total_packets:           usize,
-    empty_packets:           usize,
+    fallback_packets:        usize,
     accept_packets:          usize,
     small_ess_packets:       usize,
     assign_mismatch_packets: usize,
@@ -35,7 +35,7 @@ pub struct PacketStats {
 
     num_packs:           Vec<usize>,
     num_acc_packs:       Vec<usize>,
-    num_empty_packs:     Vec<usize>,
+    num_fallback_packs:  Vec<usize>,
     pub num_machines:    usize,
 }
 
@@ -44,7 +44,7 @@ impl PacketStats {
     pub fn new(num_machines: usize) -> PacketStats {
         PacketStats {
             total_packets:           0,
-            empty_packets:           0,
+            fallback_packets:           0,
             accept_packets:          0,
             small_ess_packets:       0,
             assign_mismatch_packets: 0,
@@ -56,10 +56,10 @@ impl PacketStats {
             last_condition:  UpdateSpeed::Okay,
             curr_condition:  UpdateSpeed::Okay,
 
-            num_packs:       vec![0; num_machines],
-            num_acc_packs:   vec![0; num_machines],
-            num_empty_packs: vec![0; num_machines],
-            num_machines:    num_machines,
+            num_packs:          vec![0; num_machines],
+            num_acc_packs:      vec![0; num_machines],
+            num_fallback_packs: vec![0; num_machines],
+            num_machines:       num_machines,
         }
     }
 
@@ -72,9 +72,9 @@ impl PacketStats {
                 self.accept_packets            += 1;
                 self.num_acc_packs[machine_id] += 1;
             },
-            PacketType::Empty => {
-                self.empty_packets               += 1;
-                self.num_empty_packs[machine_id] += 1;
+            PacketType::Fallback => {
+                self.fallback_packets               += 1;
+                self.num_fallback_packs[machine_id] += 1;
             },
             PacketType::SmallEffSize => {
                 self.small_ess_packets       += 1;
@@ -89,7 +89,7 @@ impl PacketStats {
     fn update_condition(&mut self) {
         self.last_condition = self.curr_condition.clone();
         let (avg_rate, last_rate, cond) = get_condition_updates(
-            self.accept_packets, self.empty_packets, self.avg_accept_rate, self.threshold,
+            self.accept_packets, self.fallback_packets, self.avg_accept_rate, self.threshold,
         );
         self.avg_accept_rate  = avg_rate;
         self.last_accept_rate = last_rate;
@@ -113,7 +113,7 @@ impl PacketStats {
 
     pub fn reset(&mut self) {
         self.total_packets = 0;
-        self.empty_packets = 0;
+        self.fallback_packets = 0;
         self.accept_packets = 0;
         self.small_ess_packets = 0;
         self.assign_mismatch_packets = 0;
@@ -122,7 +122,7 @@ impl PacketStats {
             .for_each(|t| *t = 0);
         self.num_acc_packs.iter_mut()
             .for_each(|t| *t = 0);
-        self.num_empty_packs.iter_mut()
+        self.num_fallback_packs.iter_mut()
             .for_each(|t| *t = 0);
     }
 
@@ -130,7 +130,7 @@ impl PacketStats {
         debug!("model_manager, packet stats, status, {}",
             (vec![
                 self.total_packets.to_string(),
-                self.empty_packets.to_string(),
+                self.fallback_packets.to_string(),
                 self.accept_packets.to_string(),
                 self.small_ess_packets.to_string(),
                 self.assign_mismatch_packets.to_string(),
@@ -141,7 +141,7 @@ impl PacketStats {
 
                 vec_to_string(&self.num_packs),
                 vec_to_string(&self.num_acc_packs),
-                vec_to_string(&self.num_empty_packs),
+                vec_to_string(&self.num_fallback_packs),
             ]).join(", ")
         );
     }
