@@ -234,11 +234,15 @@ impl Boosting {
         }
         debug!("booster, first sample is loaded");
         // initialize a local model
+        debug!("booster, initial model length, {}", self.model.size());
         self.update_model(
             self.training_loader.base_model.clone(),
             self.training_loader.base_model_sig.clone(),
             "loader",
         );
+        debug!("booster, initial updated model length, {}", self.model.size());
+        self.handle_network(false);
+        debug!("booster, initial updated model sent");
         // sync model between remote and local
         debug!("booster, model intialized");
         last_reported_time = timer.get_duration();
