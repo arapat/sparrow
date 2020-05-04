@@ -109,9 +109,15 @@ impl ADTree {
 
     pub fn add_grid(&mut self, grid: Grid) -> usize {
         let mut curr_node_id = 0;
+        if self.tree_size > 0 {
+            // the ad-tree root was initialized, now we add sub-trees
+            curr_node_id = self.add_node(
+                curr_node_id,  0, 0 as TFeature, false, 0.0, 0.0, true,
+            )
+        }
         for (dim, thr, condition) in grid {
-            curr_node_id = self.add_node(curr_node_id,
-                dim, thr, condition, 0.0, 0.0, false);
+            curr_node_id = self.add_node(
+                curr_node_id, dim, thr, condition, 0.0, 0.0, false);
         }
         curr_node_id
     }
@@ -180,8 +186,7 @@ impl ADTree {
             let node = queue.pop_front().unwrap();
             prediction += self.predicts[node];
             self.children[node].iter().filter(|child| {
-                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                    self.evaluation[**child]
+                self.is_visited_node(feature[self.split_feature[**child]], **child)
             }).for_each(|t| {
                 queue.push_back(*t);
             });
@@ -201,8 +206,7 @@ impl ADTree {
             let node = queue.pop_front().unwrap();
             counter[node] += 1;
             self.children[node].iter().filter(|child| {
-                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                    self.evaluation[**child]
+                self.is_visited_node(feature[self.split_feature[**child]], **child)
             }).for_each(|t| {
                 queue.push_back(*t);
             });
@@ -227,13 +231,17 @@ impl ADTree {
                 return true;
             }
             self.children[node].iter().filter(|child| {
-                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                    self.evaluation[**child]
+                self.is_visited_node(feature[self.split_feature[**child]], **child)
             }).for_each(|t| {
                 queue.push_back(*t);
             });
         }
         false
+    }
+
+    fn is_visited_node(&self, feature_val: TFeature, node_index: usize) -> bool {
+        self.depth[node_index] == 1 ||
+            (feature_val <= self.threshold[node_index]) == self.evaluation[node_index]
     }
 
     pub fn get_leaf_index_prediction(&self, starting_index: usize, data: &Example) -> usize {
