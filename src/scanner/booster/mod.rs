@@ -396,6 +396,10 @@ impl Boosting {
             self.is_assignment_none = expand_node.is_none();
             if expand_node.is_some() {
                 if self.learner.set_expand_node(expand_node.unwrap()) {
+                    // the assignment is updated, get the new model
+                    while self.model.tree_size <= self.learner.expand_node {
+                        self.handle_network(false);
+                    }
                     self.is_scanner_status_changed = true;
                     self.learner.reset();
                 }

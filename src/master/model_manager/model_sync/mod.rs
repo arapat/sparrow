@@ -124,7 +124,9 @@ impl ModelSync {
         }
         // refresh kdtree when gamma is too small
         self.adjust_gamma();
-        self.scheduler.set_assignments(&mut self.model, self.gamma.value());
+        if self.scheduler.set_assignments(&mut self.model, self.gamma.value()) > 0 {
+            self.broadcast_model(true);
+        }
         if !self.gamma.is_valid() {
             self.scheduler.refresh_grid(self.min_grid_size);
         }

@@ -26,7 +26,10 @@ impl ModelWithVersion {
     }
 
     pub fn add_grid(&mut self, grid: Grid) -> usize {
-        self.model.add_grid(grid)
+        let grid_index = self.model.add_grid(grid);
+        self.model_prefix = format!("master_{}", self.model.tree_size);
+        self.model_sig = get_model_sig(&self.model_prefix, self.gamma_version);
+        grid_index
     }
 
     pub fn update(
