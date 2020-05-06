@@ -14,6 +14,7 @@ use commons::persistent_io::download_model;
 use commons::persistent_io::write_model;
 use self::learner_helpers::get_base_node;
 
+use Config;
 use commons::Model;
 use scanner::buffer_loader::BufferLoader;
 use commons::bins::Bins;
@@ -32,21 +33,28 @@ pub const VERBOSE: bool = false;
 /// the network communication, the other for starting the training procedure.
 pub struct Boosting {
     exp_name: String,
+    // to stop when the master is stopped
     num_trees: usize,
+    // to grow tree instead of the decision stump later
     _num_splits: usize,
-    training_loader: BufferLoader,
 
+    // main boosting process
     learner: Learner,
+
+    // sample and model
+    training_loader: BufferLoader,
     model: Model,
     base_model_sig: String,
     base_model_size: usize,
 
+    // network
     network_sender: Option<mpsc::Sender<Packet>>,
     local_name: String,
     local_id: usize,
     packet_counter: usize,
 
-    fallback: bool,
+    // state variable
+    fallback: bool,  // does current tree contain any fallback nodes
     last_sent_model_length: usize,
     // for re-sending the non-empty packet if the sampler status changed
     // track: sample version
@@ -54,16 +62,17 @@ pub struct Boosting {
     // for re-sending the empty packet if the scanner status changed
     // track: expanding node, gamma value
     is_scanner_status_changed: bool,
-    // assignment is none if this scanner didn't receive any task from the sampler
-    is_assignment_none: bool,
 
+    // for saving the model to disk
     persist_id: u32,
     save_interval: usize,
 
+    // other meta info
     max_sample_size: usize,
     save_process: bool,
     verbose: bool,
 }
+
 
 impl Boosting {
     /// Create a boosting training class.
@@ -74,26 +83,18 @@ impl Boosting {
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
-        exp_name: String,
+        config: &Config,
         init_model: Model,
-        num_trees: usize,
-        num_splits: usize,
-        num_features: usize,
-        min_gamma: f32,
-        training_loader: BufferLoader,
         bins: Vec<Bins>,
-        max_sample_size: usize,
-        default_gamma: f32,
-        save_process: bool,
-        save_interval: usize,
+        training_loader: BufferLoader,
     ) -> Boosting {
         // TODO: make num_cadid a paramter
         let learner = Learner::new(
-            min_gamma, default_gamma, num_features, bins);
-        Boosting {
-            exp_name: exp_name,
-            num_trees: num_trees,
-            _num_splits: num_splits,
+            config.min_gamma, config.default_gamma, config.num_features, bins);
+        let mut bst = Boosting {
+            exp_name: config.exp_name.clone(),
+            num_trees: config.num_trees,
+            _num_splits: config.num_splits,
             training_loader: training_loader,
 
             learner: learner,
@@ -105,7 +106,6 @@ impl Boosting {
             is_sample_version_changed: true,
             is_scanner_status_changed: true,
             last_sent_model_length: 0,
-            is_assignment_none: true,
 
             network_sender: None,
             local_name: "".to_string(),
@@ -113,29 +113,14 @@ impl Boosting {
             packet_counter: 0,
 
             persist_id: 0,
-            save_interval: save_interval,
+            save_interval: config.save_interval,
 
-            max_sample_size: max_sample_size,
-            save_process: save_process,
+            max_sample_size: config.max_sample_size,
+            save_process: config.save_process,
             verbose: VERBOSE,
-        }
-    }
-
-    /// Enable network communication. `name` is the name of this worker, which can be arbitrary
-    /// and is only used for debugging purpose.
-    /// `port` is the port number that used for network communication.
-    pub fn enable_network(&mut self, name: String, port: u16) {
-        let (local_s, local_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) =
-            mpsc::channel();
-        start_network_only_send(name.as_ref(), port, local_r).unwrap();
-        // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
-        // start_network_only_send(name.as_ref(), port + 1, hb_r);
-        self.network_sender = Some(local_s);
-        self.local_name = name.clone();
-        self.local_id = {
-            let t: Vec<&str> = self.local_name.rsplitn(2, '_').collect();
-            t[0].parse().unwrap()
         };
+        bst.enable_network(config.local_name.clone(), config.port);
+        bst
     }
 
     /// Start training the boosting algorithm.
@@ -163,14 +148,14 @@ impl Boosting {
             let (new_rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
-                if switched {
-                    // TODO: it seems we don't we have to reset the learner for the new sample
-                    self.learner.reset();
+                {
+                    learner_timer.resume();
                 }
-                learner_timer.resume();
                 let new_rule = self.learner.update(&self.model, &data);
-                learner_timer.update(data.len());
-                learner_timer.pause();
+                {
+                    learner_timer.update(data.len());
+                    learner_timer.pause();
+                }
                 (new_rule, data.len(), switched)
             };
             total_data_size_without_fire += batch_size;
@@ -217,6 +202,20 @@ impl Boosting {
         self.handle_persistent(prep_time + global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
               self.model.size(), self.learner.is_gamma_significant());
+    }
+
+    /// Enable network communication. `name` is the name of this worker, which can be arbitrary
+    /// and is only used for debugging purpose.
+    /// `port` is the port number that used for network communication.
+    fn enable_network(&mut self, name: String, port: u16) {
+        let (local_s, local_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) = mpsc::channel();
+        start_network_only_send(name.as_ref(), port, local_r).unwrap();
+        self.network_sender = Some(local_s);
+        self.local_name = name.clone();
+        self.local_id = {
+            let t: Vec<&str> = self.local_name.rsplitn(2, '_').collect();
+            t[0].parse().unwrap()
+        };
     }
 
     fn init(&mut self) {
@@ -266,6 +265,9 @@ impl Boosting {
     }
 
     fn update_model(&mut self, model: Model, model_sig: String, source: &str) {
+        if self.base_model_sig == model_sig {
+            return;
+        }
         let (old_size, old_base_size) = (self.model.size(), self.base_model_size);
         self.model = model;
         self.base_model_sig = model_sig;
@@ -393,7 +395,6 @@ impl Boosting {
         if assigns.is_some() {
             let assignments = assigns.unwrap();
             let expand_node = assignments[self.local_id % assignments.len()];
-            self.is_assignment_none = expand_node.is_none();
             if expand_node.is_some() {
                 if self.learner.set_expand_node(expand_node.unwrap()) {
                     // the assignment is updated, get the new model

@@ -31,19 +31,10 @@ pub fn start(config: &Config, sample_mode: &SampleMode, bins: &Vec<Bins>, init_t
     );
     debug!("Starting the booster.");
     let mut booster = Boosting::new(
-        config.exp_name.clone(),
+        config,
         init_tree.clone(),
-        config.num_trees,
-        config.num_splits,
-        config.num_features,
-        config.min_gamma,
-        buffer_loader,
         bins.clone(),
-        config.max_sample_size,
-        config.default_gamma,
-        config.save_process,
-        config.save_interval,
+        buffer_loader,
     );
-    booster.enable_network(config.local_name.clone(), config.port);
     booster.training(training_perf_mon.get_duration());
 }
