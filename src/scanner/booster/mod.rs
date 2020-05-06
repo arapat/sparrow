@@ -174,11 +174,11 @@ impl Boosting {
             // Try to find new rule
             if switched {
                 self.is_sample_version_changed = true;
-                self.update_model(
-                    self.training_loader.base_model.clone(),
-                    self.training_loader.base_model_sig.clone(),
-                    "loader",
-                );
+                // self.update_model(
+                //     self.training_loader.base_model.clone(),
+                //     self.training_loader.base_model_sig.clone(),
+                //     "loader",
+                // );
             }
             if new_rule.is_some() {
                 let new_rule = new_rule.unwrap();
@@ -280,7 +280,7 @@ impl Boosting {
             // loader needs to get rid of the rules that just got overwritten
             self.training_loader.reset_scores();
         }
-        self.learner.reset();
+        self.learner.reset(self.model.tree_size);
         debug!("model-replaced, {}, {}, {}, {}",
                 self.model.size(), old_size, self.base_model_sig, source);
     }
@@ -299,7 +299,7 @@ impl Boosting {
         info!("scanner, added new rule, {}, {}, {}, {}, {}",
                 self.model.size(), rule.num_scanned, total_data_size, left_index, right_index);
         // post updates
-        self.learner.reset();
+        self.learner.reset(self.model.tree_size);
         if self.model.size() % self.save_interval == 0 {
             self.handle_persistent(ts);
         }
@@ -402,7 +402,7 @@ impl Boosting {
                         self.handle_network(false);
                     }
                     self.is_scanner_status_changed = true;
-                    self.learner.reset();
+                    self.learner.reset(self.model.tree_size);
                 }
             }
         }

@@ -34,7 +34,6 @@ pub struct Learner {
     _num_features:   usize,
     _default_gamma: f32,
     min_gamma: f32,
-    num_candid: usize,
 
     pub rho_gamma:    f32,
     // TODO: expand_node should be a vector so that we can grow a whole tree
@@ -62,7 +61,6 @@ impl Learner {
             _num_features: num_features.clone(),
             _default_gamma: default_gamma.clone(),
             min_gamma: min_gamma,
-            num_candid: 1,
 
             rho_gamma:        default_gamma.clone(),
             expand_node:      0,
@@ -72,14 +70,14 @@ impl Learner {
 
             stats:            vec![],
         };
-        learner.reset();
+        learner.reset(1);
         learner
     }
 
     /// Reset the statistics of all candidate weak rules
     /// (except gamma, because the advantage of the root node is not likely to increase)
     /// Trigger when the model or the gamma is changed
-    pub fn reset(&mut self) {
+    pub fn reset(&mut self, num_tree_nodes: usize) {
         let get_candidate_node_stats = || {
             self.bins.iter().map(|bin| {
                 (0..bin.len()).map(|_| {
@@ -90,7 +88,7 @@ impl Learner {
 
         debug!("learner, learner is being reset, {}, {}, {}",
                self.expand_node, self.total_count, self.total_weight);
-        self.stats = (0..self.num_candid).map(|_| get_candidate_node_stats())
+        self.stats = (0..num_tree_nodes).map(|_| get_candidate_node_stats())
                                          .collect();
         self.total_count = 0;
         self.total_weight = 0.0;
@@ -139,6 +137,11 @@ impl Learner {
         tree: &Model,
         data: &[ExampleInSampleSet],
     ) -> Option<TreeNode> {
+        if self.stats.len() < tree.tree_size {
+            self.reset(tree.tree_size);
+            debug!("learner, reset for larger tree, {}", tree.tree_size);
+        }
+
         // update global stats
         self.total_count       += data.len();
         self.total_weight      += data.par_iter().map(|t| (t.1).0).sum::<f32>();
@@ -162,7 +165,7 @@ impl Learner {
         let count = self.total_count;
         let total_weight = self.total_weight;
         let total_weight_sq = self.total_weight_sq;
-        for index in 0..self.num_candid { // Splitting node candidate index
+        for index in 0..tree.tree_size { // Splitting node candidate index
             if !data_by_node.contains_key(&index) {
                 continue;
             }
@@ -192,7 +195,7 @@ impl Learner {
         if !is_zero(gamma - self.rho_gamma) {
             debug!("set-gamma, {}, {}", self.rho_gamma, gamma);
             self.rho_gamma = gamma;
-            self.reset();
+            self.reset(self.stats.len());
             true
         } else {
             false

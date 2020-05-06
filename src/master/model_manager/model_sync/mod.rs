@@ -194,7 +194,12 @@ impl ModelSync {
 
 
     fn update_model(&mut self, packet: &Packet) -> Vec<usize> {
-        assert!(packet.updates.size > 0);
+        if packet.updates.size <= 0 {
+            debug!("model_manager, received an empty packet, {}, {}, {}, {}",
+                packet.packet_signature, packet.source_machine_id, packet.node_id, packet.gamma,
+            );
+            return vec![];
+        }
         let (new_node_indices, count_new, count_updates) = self.model.update(
             &packet.updates, &packet.this_model_signature, self.gamma.gamma);
         self.broadcast_model(true);
