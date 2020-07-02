@@ -1,2 +1,2 @@
 var ALIASES = {};
-ALIASES['sparrow'] = {};
+ALIASES["sparrow"] = {};

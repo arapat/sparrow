@@ -1,1 +1,1 @@
-initSidebarItems({"fn":[["testing",""],["training",""]],"struct":[["Config","Configuration for training and testing with Sparrow"]],"type":[["Example",""],["RawExample",""],["RawTFeature",""],["TFeature",""],["TLabel",""]]});
+initSidebarItems({"constant":[["BUCKET",""],["REGION",""]],"fn":[["testing",""],["training",""]],"type":[["Example",""],["RawExample",""],["RawTFeature",""],["TFeature",""],["TLabel",""]]});
