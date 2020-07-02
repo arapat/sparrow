@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["TreeNode","A weak rule with an edge larger or equal to the targetting value of `gamma`"]]});

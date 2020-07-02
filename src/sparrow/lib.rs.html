@@ -148,11 +148,11 @@ The components communicates via channels, which can be seens as shared FIFO queu
 
 <span class="doccomment">/// Common functions and classes.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">commons</span>;
-<span class="kw">mod</span> <span class="ident">config</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">config</span>;
 <span class="doccomment">/// Validating models</span>
-<span class="kw">mod</span> <span class="ident">testing</span>;
-<span class="kw">mod</span> <span class="ident">master</span>;
-<span class="kw">mod</span> <span class="ident">scanner</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">testing</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">master</span>;
+<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">scanner</span>;
 
 <span class="kw">use</span> <span class="ident">config</span>::<span class="ident">Config</span>;
 <span class="kw">use</span> <span class="ident">config</span>::<span class="ident">SampleMode</span>;
