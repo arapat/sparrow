@@ -1,0 +1,1 @@
+initSidebarItems({"struct":[["LabeledData","Training example. It consists of two fields: `feature` and `label`."]]});
