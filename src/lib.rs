@@ -28,7 +28,7 @@ extern crate tmsn;
 extern crate metricslib;
 
 /// Common functions and classes.
-mod commons;
+pub mod commons;
 mod config;
 /// Validating models
 mod testing;
