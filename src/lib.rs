@@ -29,11 +29,11 @@ extern crate metricslib;
 
 /// Common functions and classes.
 pub mod commons;
-mod config;
+pub mod config;
 /// Validating models
-mod testing;
-mod master;
-mod scanner;
+pub mod testing;
+pub mod master;
+pub mod scanner;
 
 use config::Config;
 use config::SampleMode;
