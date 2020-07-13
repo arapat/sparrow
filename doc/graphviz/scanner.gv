@@ -1,0 +1,20 @@
+digraph sparrow {
+    rankdir=LR;
+    size="16,10";
+    // node [shape = doublecircle]; LR_0 LR_3 LR_4 LR_8;
+    node [shape = circle];
+
+
+    Waiting -> ScanSamples [ label = "Received new task" ];
+    ScanSamples -> NewUpdate [ label = "Stopping rule triggered" ];
+    ScanSamples -> DefaultUpdate [ label = "Samples exhausted" ];
+    NewUpdate -> AddToTree;
+    DefaultUpdate -> AddToTree;
+    AddToTree -> SendUpdates [ label = "is full tree" ];
+    AddToTree -> ScanSamples [ label = "not full tree" ];
+
+    ScanSamples -> SwitchSample [ label = "New sample available" ];
+    SwitchSample -> ScanSamples;
+
+    SendUpdates -> Waiting;
+}

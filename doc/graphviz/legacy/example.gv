@@ -1,6 +1,6 @@
 digraph sparrow {
     rankdir=LR;
-    size="16,10"
+    size="64,40"
     // node [shape = doublecircle]; LR_0 LR_3 LR_4 LR_8;
     node [shape = circle];
 
