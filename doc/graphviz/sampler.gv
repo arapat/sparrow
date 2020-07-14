@@ -1,0 +1,13 @@
+digraph sparrow {
+    rankdir=LR;
+    size="64,40"
+    // node [shape = doublecircle]; LR_0 LR_3 LR_4 LR_8;
+    node [shape = circle];
+
+
+    // Sampler
+    SampleStrata -> "Get sample";
+    "Get sample" -> SampleStrata [ label = "Need more samples" ];
+    "Get sample" -> UploadSample [ label = "Enough samples" ];
+    UploadSample -> SampleStrata;
+}

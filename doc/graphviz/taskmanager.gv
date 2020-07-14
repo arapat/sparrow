@@ -1,0 +1,25 @@
+digraph sparrow {
+    rankdir=LR;
+    size="16,10";
+    node [shape = doublecircle]; Working_1;
+    node [shape = circle];
+
+    "Split this level" -> "Split this level" [ label = "Enough examples" ];
+    "Split this level" -> "Return the kd-tree" [ label = "Not enough examples" ];
+
+    Sleep -> IncreaseGamma [ label = "Network load is high" ];
+    Sleep -> DecreaseGamma [ label = "Network load is low" ];
+    IncreaseGamma -> ResetWorkers;
+    DecreaseGamma -> ResetWorkers;
+    IncreaseGamma -> Sleep;
+    DecreaseGamma -> Sleep;
+
+    SendNewTask -> GenGrid [ label = "gamma < t" ];
+    GenGrid -> SendNewTask;
+    SendNewTask -> Working_1 [ label = "gamma > t" ];
+    Working_1 -> SendNewTask [ label = "Timeout" ];
+    Working_1 -> UpdateModel [ label = "Stopping rule triggered" ];
+
+    UpdateModel -> ResetWorkers;
+    ResetWorkers -> Working_1;
+}

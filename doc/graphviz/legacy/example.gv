@@ -1,0 +1,79 @@
+digraph sparrow {
+    rankdir=LR;
+    size="64,40"
+    // node [shape = doublecircle]; LR_0 LR_3 LR_4 LR_8;
+    node [shape = circle];
+
+
+    // Sampler
+    SampleStrata -> GetExample;
+    GetExample -> UpdateWeight;
+    UpdateWeight -> AddToSample [ label = "Selected" ];
+    UpdateWeight -> AppendStrata [ label = "Not selected" ];
+    AddToSample -> AppendStrata;
+    AppendStrata -> SampleStrata;
+
+    // ModelManager
+    Wait0 -> UpdateStats [ label = "Received" ];
+    UpdateStats -> UpdateGlobalModel [ label = "Accept" ];
+    UpdateStats -> AdjustGamma [ label = "Reject" ];
+    UpdateGlobalModel -> UploadModel -> SendToSampler -> AdjustGamma;
+    CheckPacket -> AdjustGamma [ label = "Not received" ];
+    AdjustGamma -> SetTasksForScanner;
+    SetTasksForScanner -> CreateNewGrid [ label = "Gamma too small" ];
+    CreateNewGrid -> CheckPacket;
+    SetTasksForScanner -> CheckPacket [ label = "Otherwise" ];
+
+    // Task group := if one updates, all elese also need updates
+    // List of task groups
+    // Manager manages the task group, \gamma, current model
+
+    // Gamma manager
+    Sleep1Sec -> IncreaseGamma [ label = "Network load is high" ];
+    Sleep1Sec -> DecreaseGamma [ label = "Network load is low" ];
+    IncreaseGamma -> Sleep1Sec;
+    DecreaseGamma -> Sleep1Sec;
+
+    // kd-tree
+
+    // Manager for scanner i
+    SendNewTask -> _Working;
+    _Waiting -> SendNewTask;
+    _Working -> GetUpdate [ label = "Stopping rule triggered" ];
+    GetUpdate -> _UpdateModel;
+    _UpdateModel -> _Waiting;
+    _Working -> SendNewTask [ label = "Timeout" ];
+    // ResetScanner -> _Waiting;
+    StoppignRuleTriggeredInSameGroup -> _Working [ label = "Reset" ];
+
+    Waiting -> Working [ label = "Received new task" ];
+    Working -> NewUpdate [ label = "Stopping rule triggered" ];
+    Working -> DefaultUpdate [ label = "Samples are exhausted while stopping rule not triggered" ];
+    NewUpdate -> Waiting;
+    DefaultUpdate -> Waiting;
+
+
+
+
+    // Scanner
+
+    // DownloadSample -> DownloadModel;
+    // DownloadModel -> ReadBatch;
+    CheckNewSample -> ReadBatch;
+    ReadBatch -> UpdateWeights;
+    UpdateWeights -> AggregateStats;
+    AggregateStats -> StoppingRule;
+    StoppingRule -> NewRule [ label = "Triggered" ];
+    StoppingRule -> ExaustedSamples [ label = "Not triggered" ];
+    ExaustedSamples -> FindEmpBest [ label = "Yes" ];
+    ExaustedSamples -> CheckRemoteModel [ label = "No" ];
+    FindEmpBest -> NewRule;
+    NewRule -> UpdateModel;
+    UpdateModel -> CheckRemoteModel;
+    CheckRemoteModel -> ReplaceModel [ label = "Newer" ];
+    CheckRemoteModel -> SendLocalModel [ label = "Not newer" ];
+    ReplaceModel -> UpdateGamma;
+    SendLocalModel -> UpdateGamma;
+    UpdateGamma -> UpdateTask;
+    UpdateTask -> CheckNewSample;
+}
