@@ -2,12 +2,13 @@
 Sparrow is an implementation of TMSN for boosting.
 
 From a high level, Sparrow consists of three components,
-(1) stratified storage,
-(2) sampler, and
-(3) scanner.
-The components communicates via channels, which can be seens as shared FIFO queues.
 
-![System Design](https://www.lucidchart.com/publicSegments/view/b6ebfe77-33fe-4937-94e2-8a91175e355f/image.png)
+1. scanner: it runs the boosting process, which scans the samples in memory, and
+updates the current model by finding a new weak rule to be added to the score function;
+2. sampler: it samples examples from disk and updates their scores according to the latest
+score function,
+3. model manager: it assigns tasks to the scanners, receives model updates from them, and
+maintains the current score function.
 */
 #[macro_use] extern crate crossbeam_channel;
 #[macro_use] extern crate lazy_static;
@@ -32,8 +33,12 @@ mod commons;
 mod config;
 /// Validating models
 mod testing;
-mod master;
-mod scanner;
+/// Implementation of the components running on head node, specifically the scanner
+/// and the model manager
+pub mod head;
+/// Implementation of the scanner
+/// ![](/images/scanner.png)
+pub mod scanner;
 
 use config::Config;
 use config::SampleMode;
@@ -42,7 +47,7 @@ use commons::bins::Bins;
 use commons::tree::ADTree as Tree;
 
 use scanner::start as start_scanner;
-use master::start_master;
+use head::start_head;
 use testing::validate;
 
 use commons::bins::load_bins;
@@ -52,14 +57,14 @@ use commons::persistent_io::read_model;
 // Types
 // TODO: decide TFeature according to the bin size
 use commons::labeled_data::LabeledData;
-pub type RawTFeature = f32;
-pub type TFeature = u8;
-pub type TLabel = i8;
-pub type RawExample = LabeledData<RawTFeature, TLabel>;
-pub type Example = LabeledData<TFeature, TLabel>;
+type RawTFeature = f32;
+type TFeature = u8;
+type TLabel = i8;
+type RawExample = LabeledData<RawTFeature, TLabel>;
+type Example = LabeledData<TFeature, TLabel>;
 
-pub const REGION:   &str = "us-east-1";
-pub const BUCKET:   &str = "tmsn-cache2";
+const REGION:   &str = "us-east-1";
+const BUCKET:   &str = "tmsn-cache2";
 
 
 fn prep_training(config_filepath: &String) -> (Config, SampleMode, Vec<Bins>) {
@@ -77,7 +82,11 @@ fn prep_training(config_filepath: &String) -> (Config, SampleMode, Vec<Bins>) {
     (config, sample_mode, bins)
 }
 
-
+/// Train a model
+///
+/// Parameter:
+///
+/// * config_filepath: the filepath to the configuration file
 pub fn training(config_filepath: &String) {
     let (config, sample_mode, bins) = prep_training(config_filepath);
     let init_tree: Model = {
@@ -97,11 +106,16 @@ pub fn training(config_filepath: &String) {
     if config.sampler_scanner == "scanner" {
         start_scanner(&config, &sample_mode, &bins, &init_tree);
     } else { // if config.sampler_scanner == "sampler"
-        start_master(&config, &sample_mode, &bins, &init_tree);
+        start_head(&config, &sample_mode, &bins, &init_tree);
     }
 }
 
 
+/// Test a model
+///
+/// Parameter:
+///
+/// * config_filepath: the filepath to the configuration file
 pub fn testing(config_filepath: &String) {
     // Load configurations
     let config: Config = Config::new(config_filepath);

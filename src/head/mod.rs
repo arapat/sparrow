@@ -1,5 +1,8 @@
-
+/// Implementation of the model manager
+/// ![](/images/taskmanager.png)
 pub mod model_manager;
+/// Implementation of the sampler
+/// ![](/images/sampler.png)
 pub mod sampler;
 
 use std::path::Path;
@@ -16,7 +19,8 @@ use commons::io::raw_read_all;
 use self::sampler::start_sampler_async;
 use self::model_manager::start_model_manager_async;
 
-pub fn start_master(
+/// Start the components resided in head node
+pub fn start_head(
     config: &Config,
     sample_mode: &SampleMode,
     bins: &Vec<Bins>,

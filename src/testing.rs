@@ -11,7 +11,7 @@ use commons::io::create_bufwriter;
 use commons::io::raw_read_all;
 use commons::io::write_all;
 use commons::Model;
-use master::sampler::stratified_storage::serial_storage::SerialStorage;
+use head::sampler::stratified_storage::serial_storage::SerialStorage;
 use TLabel;
 
 

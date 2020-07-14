@@ -54,3 +54,10 @@ pub fn start_network_only_recv<T: 'static + Send>(
 ) -> Result<(), &'static str> {
     Ok(())
 }
+
+
+pub fn start_network_only_send<T: 'static + Send>(
+    _name: &str, _port: u16, _data_remote: mpsc::Receiver<T>,
+) -> Result<(), &'static str> {
+    Ok(())
+}

@@ -5,7 +5,8 @@ use std::sync::mpsc;
 use std::thread::sleep;
 use std::time::Duration;
 use std::fmt::Display;
-use tmsn::network::start_network_only_send;
+// TODO: use tmsn::network::start_network_only_send;
+use commons::test_helper::start_network_only_send;
 
 use commons::persistent_io::download_assignments;
 use commons::persistent_io::download_model;

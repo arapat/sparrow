@@ -5,7 +5,7 @@ use std::collections::VecDeque;
 use Example;
 use TFeature;
 use commons::is_zero;
-use master::model_manager::scheduler::kdtree::Grid;
+use head::model_manager::scheduler::kdtree::Grid;
 
 
 // split_feature, threshold, evaluation

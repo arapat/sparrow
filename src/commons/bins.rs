@@ -8,7 +8,7 @@ use commons::persistent_io::read_bins_disk;
 use commons::persistent_io::read_bins_s3;
 use commons::persistent_io::write_bins_disk;
 use commons::persistent_io::write_bins_s3;
-use master::sampler::stratified_storage::serial_storage::SerialStorage;
+use head::sampler::stratified_storage::serial_storage::SerialStorage;
 
 
 // If discretized to 1 value, keep the largest value;
