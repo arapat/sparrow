@@ -270,16 +270,6 @@
 <span id="270">270</span>
 <span id="271">271</span>
 <span id="272">272</span>
-<span id="273">273</span>
-<span id="274">274</span>
-<span id="275">275</span>
-<span id="276">276</span>
-<span id="277">277</span>
-<span id="278">278</span>
-<span id="279">279</span>
-<span id="280">280</span>
-<span id="281">281</span>
-<span id="282">282</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">kdtree</span>;
 
@@ -339,30 +329,28 @@
                 .<span class="ident">collect</span>();
         <span class="kw">let</span> <span class="ident">num_idle_scanners</span> <span class="op">=</span> <span class="ident">idle_scanners</span>.<span class="ident">len</span>();
         <span class="kw">let</span> <span class="ident">num_updates</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">assign</span>(<span class="ident">idle_scanners</span>, <span class="ident">model</span>, <span class="ident">gamma</span>);
+        <span class="kw">if</span> <span class="ident">num_idle_scanners</span> <span class="op">&gt;</span> <span class="number">0</span> {
+            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model-manager, assign updates, {}, {}&quot;</span>, <span class="ident">num_idle_scanners</span>, <span class="ident">num_updates</span>);
+        }
         <span class="kw">if</span> <span class="ident">num_updates</span> <span class="op">&gt;</span> <span class="number">0</span> {
             <span class="kw">let</span> <span class="ident">assignment</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_assignment</span>();
             <span class="ident">upload_assignments</span>(<span class="kw-2">&amp;</span><span class="ident">assignment</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">exp_name</span>);
-            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model-manager, assign updates, {}, {}&quot;</span>, <span class="ident">num_idle_scanners</span>, <span class="ident">num_updates</span>);
         }
         <span class="ident">num_updates</span>
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">handle_accept</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">packet</span>: <span class="kw-2">&amp;</span><span class="ident">Packet</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">handle_packet_with_reset</span>(<span class="ident">packet</span>, <span class="string">&quot;accept&quot;</span>)
+        <span class="self">self</span>.<span class="ident">get_grid_node_ids</span>(<span class="ident">packet</span>).<span class="ident">is_some</span>()
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">handle_fallback</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">packet</span>: <span class="kw-2">&amp;</span><span class="ident">Packet</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
-        <span class="self">self</span>.<span class="ident">handle_packet_with_reset</span>(<span class="ident">packet</span>, <span class="string">&quot;fallback&quot;</span>)
-    }
-
-    <span class="kw">fn</span> <span class="ident">handle_packet_with_reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">packet</span>: <span class="kw-2">&amp;</span><span class="ident">Packet</span>, <span class="ident">message</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">handle_empty</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">packet</span>: <span class="kw-2">&amp;</span><span class="ident">Packet</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
         <span class="kw">let</span> <span class="ident">grid_node_ids</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">get_grid_node_ids</span>(<span class="ident">packet</span>);
         <span class="kw">if</span> <span class="ident">grid_node_ids</span>.<span class="ident">is_none</span>() {
             <span class="kw">return</span> <span class="bool-val">false</span>;
         }
         <span class="kw">let</span> (<span class="ident">grid_index</span>, <span class="ident">node_id</span>) <span class="op">=</span> <span class="ident">grid_node_ids</span>.<span class="ident">unwrap</span>();
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, scheduler, handle packet, {}, {}, {}, {}&quot;</span>,
-                <span class="ident">message</span>, <span class="ident">packet</span>.<span class="ident">source_machine_id</span>, <span class="ident">node_id</span>, <span class="ident">packet</span>.<span class="ident">gamma</span>);
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, scheduler, handle empty, {}, {}, {}&quot;</span>,
+                <span class="ident">packet</span>.<span class="ident">source_machine_id</span>, <span class="ident">node_id</span>, <span class="ident">packet</span>.<span class="ident">gamma</span>);
         <span class="self">self</span>.<span class="ident">release_grid</span>(<span class="ident">grid_index</span>);
         <span class="self">self</span>.<span class="ident">last_gamma</span>[<span class="ident">grid_index</span>] <span class="op">=</span> <span class="ident">packet</span>.<span class="ident">gamma</span>;
         <span class="bool-val">true</span>
@@ -374,14 +362,6 @@
             <span class="self">self</span>.<span class="ident">next_grids</span> <span class="op">=</span> <span class="ident">new_grid</span>;
         }
         <span class="self">self</span>.<span class="ident">reset_assign</span>();
-    }
-
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_worker_assignment</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">worker_index</span>: <span class="ident">usize</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">scanner_task</span>[<span class="ident">worker_index</span>].<span class="ident">is_none</span>() {
-            <span class="prelude-val">None</span>
-        } <span class="kw">else</span> {
-            <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">scanner_task</span>[<span class="ident">worker_index</span>].<span class="ident">as_ref</span>().<span class="ident">unwrap</span>().<span class="number">1</span>)
-        }
     }
 
     <span class="kw">fn</span> <span class="ident">reset_assign</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {

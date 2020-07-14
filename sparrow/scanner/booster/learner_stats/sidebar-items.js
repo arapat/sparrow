@@ -1,1 +1,0 @@
-initSidebarItems({"struct":[["EarlyStoppingIntermediate",""],["EarlyStoppingStatsAtThreshold","Statisitics of all weak rules that are being evaluated. The objective of `Learner` is to find a weak rule that satisfies the condition of the stopping rule."]],"type":[["CandidateNodeStats",""],["RuleStats",""]]});

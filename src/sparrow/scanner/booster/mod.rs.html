@@ -410,48 +410,22 @@
 <span id="410">410</span>
 <span id="411">411</span>
 <span id="412">412</span>
-<span id="413">413</span>
-<span id="414">414</span>
-<span id="415">415</span>
-<span id="416">416</span>
-<span id="417">417</span>
-<span id="418">418</span>
-<span id="419">419</span>
-<span id="420">420</span>
-<span id="421">421</span>
-<span id="422">422</span>
-<span id="423">423</span>
-<span id="424">424</span>
-<span id="425">425</span>
-<span id="426">426</span>
-<span id="427">427</span>
-<span id="428">428</span>
-<span id="429">429</span>
-<span id="430">430</span>
-<span id="431">431</span>
-<span id="432">432</span>
-<span id="433">433</span>
-<span id="434">434</span>
-<span id="435">435</span>
-<span id="436">436</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">learner</span>;
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">learner_helpers</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">learner_stats</span>;
-<span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">tree_node</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">thread</span>::<span class="ident">sleep</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">time</span>::<span class="ident">Duration</span>;
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">fmt</span>::<span class="ident">Display</span>;
-<span class="kw">use</span> <span class="ident">tmsn</span>::<span class="ident">network</span>::<span class="ident">start_network_only_send</span>;
+<span class="comment">// TODO: use tmsn::network::start_network_only_send;</span>
+<span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">test_helper</span>::<span class="ident">start_network_only_send</span>;
 
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">persistent_io</span>::<span class="ident">download_assignments</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">persistent_io</span>::<span class="ident">download_model</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">persistent_io</span>::<span class="ident">write_model</span>;
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">learner_helpers</span>::<span class="ident">get_base_node</span>;
 
-<span class="kw">use</span> <span class="ident">Config</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">Model</span>;
 <span class="kw">use</span> <span class="ident">scanner</span>::<span class="ident">buffer_loader</span>::<span class="ident">BufferLoader</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">bins</span>::<span class="ident">Bins</span>;
@@ -459,39 +433,29 @@
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">performance_monitor</span>::<span class="ident">PerformanceMonitor</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">persistent_io</span>::<span class="ident">ModelPack</span>;
 <span class="kw">use</span> <span class="self">self</span>::<span class="ident">learner</span>::<span class="ident">Learner</span>;
-<span class="kw">use</span> <span class="self">self</span>::<span class="ident">tree_node</span>::<span class="ident">TreeNode</span>;
+<span class="kw">use</span> <span class="self">self</span>::<span class="ident">learner</span>::<span class="ident">TreeNode</span>;
 
 
 <span class="kw">pub</span> <span class="kw">const</span> <span class="ident">MODEL_SIG_PLACEHOLDER</span>: <span class="kw-2">&amp;</span><span class="ident">str</span> <span class="op">=</span> <span class="string">&quot;MODEL_SIG_PLACEHOLDER&quot;</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">VERBOSE</span>: <span class="ident">bool</span> <span class="op">=</span> <span class="bool-val">false</span>;
 
 
 <span class="doccomment">/// The boosting algorithm. It contains two functions, one for starting</span>
 <span class="doccomment">/// the network communication, the other for starting the training procedure.</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Boosting</span> {
     <span class="ident">exp_name</span>: <span class="ident">String</span>,
-    <span class="comment">// to stop when the master is stopped</span>
     <span class="ident">num_trees</span>: <span class="ident">usize</span>,
-    <span class="comment">// to grow tree instead of the decision stump later</span>
-    <span class="ident">_num_splits</span>: <span class="ident">usize</span>,
-
-    <span class="comment">// main boosting process</span>
-    <span class="ident">learner</span>: <span class="ident">Learner</span>,
-
-    <span class="comment">// sample and model</span>
     <span class="ident">training_loader</span>: <span class="ident">BufferLoader</span>,
+
+    <span class="ident">learner</span>: <span class="ident">Learner</span>,
     <span class="ident">model</span>: <span class="ident">Model</span>,
     <span class="ident">base_model_sig</span>: <span class="ident">String</span>,
     <span class="ident">base_model_size</span>: <span class="ident">usize</span>,
 
-    <span class="comment">// network</span>
     <span class="ident">network_sender</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">mpsc</span>::<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Packet</span><span class="op">&gt;</span><span class="op">&gt;</span>,
     <span class="ident">local_name</span>: <span class="ident">String</span>,
     <span class="ident">local_id</span>: <span class="ident">usize</span>,
     <span class="ident">packet_counter</span>: <span class="ident">usize</span>,
 
-    <span class="comment">// state variable</span>
-    <span class="ident">fallback</span>: <span class="ident">bool</span>,  <span class="comment">// does current tree contain any fallback nodes</span>
     <span class="ident">last_sent_model_length</span>: <span class="ident">usize</span>,
     <span class="comment">// for re-sending the non-empty packet if the sampler status changed</span>
     <span class="comment">// track: sample version</span>
@@ -499,17 +463,16 @@
     <span class="comment">// for re-sending the empty packet if the scanner status changed</span>
     <span class="comment">// track: expanding node, gamma value</span>
     <span class="ident">is_scanner_status_changed</span>: <span class="ident">bool</span>,
+    <span class="comment">// assignment is none if this scanner didn&#39;t receive any task from the sampler</span>
+    <span class="ident">is_assignment_none</span>: <span class="ident">bool</span>,
 
-    <span class="comment">// for saving the model to disk</span>
     <span class="ident">persist_id</span>: <span class="ident">u32</span>,
     <span class="ident">save_interval</span>: <span class="ident">usize</span>,
 
-    <span class="comment">// other meta info</span>
     <span class="ident">max_sample_size</span>: <span class="ident">usize</span>,
     <span class="ident">save_process</span>: <span class="ident">bool</span>,
     <span class="ident">verbose</span>: <span class="ident">bool</span>,
 }
-
 
 <span class="kw">impl</span> <span class="ident">Boosting</span> {
     <span class="doccomment">/// Create a boosting training class.</span>
@@ -520,18 +483,25 @@
     <span class="doccomment">/// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.</span>
     <span class="doccomment">/// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.</span>
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
-        <span class="ident">config</span>: <span class="kw-2">&amp;</span><span class="ident">Config</span>,
+        <span class="ident">exp_name</span>: <span class="ident">String</span>,
         <span class="ident">init_model</span>: <span class="ident">Model</span>,
-        <span class="ident">bins</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bins</span><span class="op">&gt;</span>,
+        <span class="ident">num_trees</span>: <span class="ident">usize</span>,
+        <span class="ident">num_splits</span>: <span class="ident">usize</span>,
+        <span class="ident">num_features</span>: <span class="ident">usize</span>,
+        <span class="ident">min_gamma</span>: <span class="ident">f32</span>,
         <span class="ident">training_loader</span>: <span class="ident">BufferLoader</span>,
+        <span class="ident">bins</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bins</span><span class="op">&gt;</span>,
+        <span class="ident">max_sample_size</span>: <span class="ident">usize</span>,
+        <span class="ident">default_gamma</span>: <span class="ident">f32</span>,
+        <span class="ident">save_process</span>: <span class="ident">bool</span>,
+        <span class="ident">save_interval</span>: <span class="ident">usize</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Boosting</span> {
         <span class="comment">// TODO: make num_cadid a paramter</span>
         <span class="kw">let</span> <span class="ident">learner</span> <span class="op">=</span> <span class="ident">Learner</span>::<span class="ident">new</span>(
-            <span class="ident">config</span>.<span class="ident">min_gamma</span>, <span class="ident">config</span>.<span class="ident">default_gamma</span>, <span class="ident">config</span>.<span class="ident">num_features</span>, <span class="ident">bins</span>);
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">bst</span> <span class="op">=</span> <span class="ident">Boosting</span> {
-            <span class="ident">exp_name</span>: <span class="ident">config</span>.<span class="ident">exp_name</span>.<span class="ident">clone</span>(),
-            <span class="ident">num_trees</span>: <span class="ident">config</span>.<span class="ident">num_trees</span>,
-            <span class="ident">_num_splits</span>: <span class="ident">config</span>.<span class="ident">num_splits</span>,
+            <span class="ident">min_gamma</span>, <span class="ident">default_gamma</span>, <span class="ident">num_features</span>, <span class="ident">bins</span>, <span class="ident">num_splits</span>);
+        <span class="ident">Boosting</span> {
+            <span class="ident">exp_name</span>: <span class="ident">exp_name</span>,
+            <span class="ident">num_trees</span>: <span class="ident">num_trees</span>,
             <span class="ident">training_loader</span>: <span class="ident">training_loader</span>,
 
             <span class="ident">learner</span>: <span class="ident">learner</span>,
@@ -539,10 +509,10 @@
             <span class="ident">base_model_sig</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>(),
             <span class="ident">base_model_size</span>: <span class="number">0</span>,
 
-            <span class="ident">fallback</span>: <span class="bool-val">false</span>,
             <span class="ident">is_sample_version_changed</span>: <span class="bool-val">true</span>,
             <span class="ident">is_scanner_status_changed</span>: <span class="bool-val">true</span>,
             <span class="ident">last_sent_model_length</span>: <span class="number">0</span>,
+            <span class="ident">is_assignment_none</span>: <span class="bool-val">true</span>,
 
             <span class="ident">network_sender</span>: <span class="prelude-val">None</span>,
             <span class="ident">local_name</span>: <span class="string">&quot;&quot;</span>.<span class="ident">to_string</span>(),
@@ -550,113 +520,15 @@
             <span class="ident">packet_counter</span>: <span class="number">0</span>,
 
             <span class="ident">persist_id</span>: <span class="number">0</span>,
-            <span class="ident">save_interval</span>: <span class="ident">config</span>.<span class="ident">save_interval</span>,
+            <span class="ident">save_interval</span>: <span class="ident">save_interval</span>,
 
-            <span class="ident">max_sample_size</span>: <span class="ident">config</span>.<span class="ident">max_sample_size</span>,
-            <span class="ident">save_process</span>: <span class="ident">config</span>.<span class="ident">save_process</span>,
-            <span class="ident">verbose</span>: <span class="ident">VERBOSE</span>,
-        };
-        <span class="ident">bst</span>.<span class="ident">enable_network</span>(<span class="ident">config</span>.<span class="ident">local_name</span>.<span class="ident">clone</span>(), <span class="ident">config</span>.<span class="ident">port</span>);
-        <span class="ident">bst</span>
-    }
-
-    <span class="doccomment">/// Start training the boosting algorithm.</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">training</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">prep_time</span>: <span class="ident">f32</span>) {
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Start training.&quot;</span>);
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Start booster initialization.&quot;</span>);
-        <span class="self">self</span>.<span class="ident">init</span>();
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Finished initialization&quot;</span>);
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">global_timer</span> <span class="op">=</span> <span class="ident">PerformanceMonitor</span>::<span class="ident">new</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">learner_timer</span> <span class="op">=</span> <span class="ident">PerformanceMonitor</span>::<span class="ident">new</span>();
-        <span class="ident">global_timer</span>.<span class="ident">start</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_last_communication_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_logging_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
-
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_data_size_without_fire</span> <span class="op">=</span> <span class="number">0</span>;
-        <span class="kw">while</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">is_gamma_significant</span>() <span class="kw-2">&amp;</span><span class="op">&amp;</span>
-                (<span class="self">self</span>.<span class="ident">num_trees</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">tree_size</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">num_trees</span>) {
-            <span class="comment">// Logging for the status check</span>
-            <span class="kw">if</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>() <span class="op">-</span> <span class="ident">last_logging_ts</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">10.0</span> {
-                <span class="self">self</span>.<span class="ident">print_log</span>(<span class="ident">total_data_size_without_fire</span>);
-                <span class="ident">last_logging_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
-            }
-
-            <span class="kw">let</span> (<span class="ident">new_rule</span>, <span class="ident">batch_size</span>, <span class="ident">switched</span>) <span class="op">=</span> {
-                <span class="kw">let</span> (<span class="ident">data</span>, <span class="ident">switched</span>) <span class="op">=</span>
-                    <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">get_next_batch_and_update</span>(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">model</span>);
-                {
-                    <span class="ident">learner_timer</span>.<span class="ident">resume</span>();
-                }
-                <span class="kw">let</span> <span class="ident">new_rule</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">model</span>, <span class="kw-2">&amp;</span><span class="ident">data</span>);
-                {
-                    <span class="ident">learner_timer</span>.<span class="ident">update</span>(<span class="ident">data</span>.<span class="ident">len</span>());
-                    <span class="ident">learner_timer</span>.<span class="ident">pause</span>();
-                }
-                (<span class="ident">new_rule</span>, <span class="ident">data</span>.<span class="ident">len</span>(), <span class="ident">switched</span>)
-            };
-            <span class="ident">total_data_size_without_fire</span> <span class="op">+</span><span class="op">=</span> <span class="ident">batch_size</span>;
-            <span class="ident">global_timer</span>.<span class="ident">update</span>(<span class="ident">batch_size</span>);
-
-            <span class="comment">// if exhausted all examples, return the emprically best one</span>
-            <span class="kw">let</span> <span class="ident">is_full_scan</span> <span class="op">=</span> <span class="ident">total_data_size_without_fire</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">size</span>;
-            <span class="kw">let</span> <span class="ident">new_rule</span> <span class="op">=</span> {
-                <span class="kw">if</span> <span class="ident">new_rule</span>.<span class="ident">is_none</span>() <span class="kw-2">&amp;</span><span class="op">&amp;</span> <span class="ident">is_full_scan</span> {
-                    <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_max_empirical_ratio_tree_node</span>()
-                } <span class="kw">else</span> {
-                    <span class="ident">new_rule</span>
-                }
-            };
-
-            <span class="comment">// Try to find new rule</span>
-            <span class="kw">if</span> <span class="ident">switched</span> {
-                <span class="self">self</span>.<span class="ident">is_sample_version_changed</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                <span class="comment">// self.update_model(</span>
-                <span class="comment">//     self.training_loader.base_model.clone(),</span>
-                <span class="comment">//     self.training_loader.base_model_sig.clone(),</span>
-                <span class="comment">//     &quot;loader&quot;,</span>
-                <span class="comment">// );</span>
-            }
-            <span class="kw">if</span> <span class="ident">new_rule</span>.<span class="ident">is_some</span>() {
-                <span class="kw">let</span> <span class="ident">new_rule</span> <span class="op">=</span> <span class="ident">new_rule</span>.<span class="ident">unwrap</span>();
-                <span class="kw">let</span> <span class="ident">ts</span> <span class="op">=</span> <span class="ident">prep_time</span> <span class="op">+</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
-                <span class="self">self</span>.<span class="ident">fallback</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">fallback</span> <span class="op">|</span><span class="op">|</span> <span class="ident">new_rule</span>.<span class="ident">fallback</span>;
-                <span class="self">self</span>.<span class="ident">process_new_rule</span>(<span class="ident">new_rule</span>, <span class="ident">total_data_size_without_fire</span>, <span class="ident">ts</span>);
-                <span class="ident">total_data_size_without_fire</span> <span class="op">=</span> <span class="number">0</span>;
-            }
-
-            <span class="comment">// Communicate</span>
-            <span class="kw">let</span> <span class="ident">is_communicated</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">handle_network</span>(<span class="ident">is_full_scan</span>);
-            <span class="kw">if</span> <span class="ident">is_communicated</span> {
-                <span class="ident">total_data_size_without_fire</span> <span class="op">=</span> <span class="number">0</span>;
-                <span class="self">self</span>.<span class="ident">fallback</span> <span class="op">=</span> <span class="bool-val">false</span>;
-                <span class="ident">_last_communication_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
-            }
-
-            <span class="ident">global_timer</span>.<span class="ident">write_log</span>(<span class="string">&quot;boosting-overall&quot;</span>);
-            <span class="ident">learner_timer</span>.<span class="ident">write_log</span>(<span class="string">&quot;boosting-learning&quot;</span>);
+            <span class="ident">max_sample_size</span>: <span class="ident">max_sample_size</span>,
+            <span class="ident">save_process</span>: <span class="ident">save_process</span>,
+            <span class="ident">verbose</span>: <span class="bool-val">false</span>,
         }
-        <span class="self">self</span>.<span class="ident">handle_persistent</span>(<span class="ident">prep_time</span> <span class="op">+</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>());
-        <span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;Training is finished. Model length: {}. Is gamma significant? {}.&quot;</span>,
-              <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>(), <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">is_gamma_significant</span>());
-    }
-
-    <span class="doccomment">/// Enable network communication. `name` is the name of this worker, which can be arbitrary</span>
-    <span class="doccomment">/// and is only used for debugging purpose.</span>
-    <span class="doccomment">/// `port` is the port number that used for network communication.</span>
-    <span class="kw">fn</span> <span class="ident">enable_network</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="ident">String</span>, <span class="ident">port</span>: <span class="ident">u16</span>) {
-        <span class="kw">let</span> (<span class="ident">local_s</span>, <span class="ident">local_r</span>): (<span class="ident">mpsc</span>::<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Packet</span><span class="op">&gt;</span>, <span class="ident">mpsc</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Packet</span><span class="op">&gt;</span>) <span class="op">=</span> <span class="ident">mpsc</span>::<span class="ident">channel</span>();
-        <span class="ident">start_network_only_send</span>(<span class="ident">name</span>.<span class="ident">as_ref</span>(), <span class="ident">port</span>, <span class="ident">local_r</span>).<span class="ident">unwrap</span>();
-        <span class="self">self</span>.<span class="ident">network_sender</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">local_s</span>);
-        <span class="self">self</span>.<span class="ident">local_name</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">clone</span>();
-        <span class="self">self</span>.<span class="ident">local_id</span> <span class="op">=</span> {
-            <span class="kw">let</span> <span class="ident">t</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">local_name</span>.<span class="ident">rsplitn</span>(<span class="number">2</span>, <span class="string">&#39;_&#39;</span>).<span class="ident">collect</span>();
-            <span class="ident">t</span>[<span class="number">0</span>].<span class="ident">parse</span>().<span class="ident">unwrap</span>()
-        };
     }
 
     <span class="kw">fn</span> <span class="ident">init</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
-        <span class="comment">// get sample</span>
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">timer</span> <span class="op">=</span> <span class="ident">PerformanceMonitor</span>::<span class="ident">new</span>();
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_reported_time</span> <span class="op">=</span> <span class="number">0.0</span>;
         <span class="ident">timer</span>.<span class="ident">start</span>();
@@ -669,18 +541,6 @@
             <span class="ident">sleep</span>(<span class="ident">Duration</span>::<span class="ident">from_millis</span>(<span class="number">2000</span>));
         }
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;booster, first sample is loaded&quot;</span>);
-        <span class="comment">// initialize a local model</span>
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;booster, initial model length, {}&quot;</span>, <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>());
-        <span class="self">self</span>.<span class="ident">update_model</span>(
-            <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">base_model</span>.<span class="ident">clone</span>(),
-            <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">base_model_sig</span>.<span class="ident">clone</span>(),
-            <span class="string">&quot;loader&quot;</span>,
-        );
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;booster, initial updated model length, {}&quot;</span>, <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>());
-        <span class="self">self</span>.<span class="ident">handle_network</span>(<span class="bool-val">false</span>);
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;booster, initial updated model sent&quot;</span>);
-        <span class="comment">// sync model between remote and local</span>
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;booster, model intialized&quot;</span>);
         <span class="ident">last_reported_time</span> <span class="op">=</span> <span class="ident">timer</span>.<span class="ident">get_duration</span>();
         <span class="kw">while</span> <span class="self">self</span>.<span class="ident">base_model_sig</span> <span class="op">=</span><span class="op">=</span> <span class="ident">MODEL_SIG_PLACEHOLDER</span> {
             <span class="kw">if</span> <span class="ident">timer</span>.<span class="ident">get_duration</span>() <span class="op">-</span> <span class="ident">last_reported_time</span> <span class="op">&gt;</span> <span class="number">60.0</span> {
@@ -702,9 +562,6 @@
     }
 
     <span class="kw">fn</span> <span class="ident">update_model</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">model</span>: <span class="ident">Model</span>, <span class="ident">model_sig</span>: <span class="ident">String</span>, <span class="ident">source</span>: <span class="kw-2">&amp;</span><span class="ident">str</span>) {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">base_model_sig</span> <span class="op">=</span><span class="op">=</span> <span class="ident">model_sig</span> {
-            <span class="kw">return</span>;
-        }
         <span class="kw">let</span> (<span class="ident">old_size</span>, <span class="ident">old_base_size</span>) <span class="op">=</span> (<span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>(), <span class="self">self</span>.<span class="ident">base_model_size</span>);
         <span class="self">self</span>.<span class="ident">model</span> <span class="op">=</span> <span class="ident">model</span>;
         <span class="self">self</span>.<span class="ident">base_model_sig</span> <span class="op">=</span> <span class="ident">model_sig</span>;
@@ -717,9 +574,108 @@
             <span class="comment">// loader needs to get rid of the rules that just got overwritten</span>
             <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">reset_scores</span>();
         }
-        <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>(<span class="self">self</span>.<span class="ident">model</span>.<span class="ident">tree_size</span>);
+        <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>();
         <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model-replaced, {}, {}, {}, {}&quot;</span>,
                 <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>(), <span class="ident">old_size</span>, <span class="self">self</span>.<span class="ident">base_model_sig</span>, <span class="ident">source</span>);
+    }
+
+    <span class="doccomment">/// Enable network communication. `name` is the name of this worker, which can be arbitrary</span>
+    <span class="doccomment">/// and is only used for debugging purpose.</span>
+    <span class="doccomment">/// `port` is the port number that used for network communication.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">enable_network</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">name</span>: <span class="ident">String</span>, <span class="ident">port</span>: <span class="ident">u16</span>) {
+        <span class="kw">let</span> (<span class="ident">local_s</span>, <span class="ident">local_r</span>): (<span class="ident">mpsc</span>::<span class="ident">Sender</span><span class="op">&lt;</span><span class="ident">Packet</span><span class="op">&gt;</span>, <span class="ident">mpsc</span>::<span class="ident">Receiver</span><span class="op">&lt;</span><span class="ident">Packet</span><span class="op">&gt;</span>) <span class="op">=</span>
+            <span class="ident">mpsc</span>::<span class="ident">channel</span>();
+        <span class="ident">start_network_only_send</span>(<span class="ident">name</span>.<span class="ident">as_ref</span>(), <span class="ident">port</span>, <span class="ident">local_r</span>).<span class="ident">unwrap</span>();
+        <span class="comment">// let (hb_s, hb_r): (mpsc::Sender&lt;String&gt;, mpsc::Receiver&lt;String&gt;) = mpsc::channel();</span>
+        <span class="comment">// start_network_only_send(name.as_ref(), port + 1, hb_r);</span>
+        <span class="self">self</span>.<span class="ident">network_sender</span> <span class="op">=</span> <span class="prelude-val">Some</span>(<span class="ident">local_s</span>);
+        <span class="self">self</span>.<span class="ident">local_name</span> <span class="op">=</span> <span class="ident">name</span>.<span class="ident">clone</span>();
+        <span class="self">self</span>.<span class="ident">local_id</span> <span class="op">=</span> {
+            <span class="kw">let</span> <span class="ident">t</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="kw-2">&amp;</span><span class="ident">str</span><span class="op">&gt;</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">local_name</span>.<span class="ident">rsplitn</span>(<span class="number">2</span>, <span class="string">&#39;_&#39;</span>).<span class="ident">collect</span>();
+            <span class="ident">t</span>[<span class="number">0</span>].<span class="ident">parse</span>().<span class="ident">unwrap</span>()
+        };
+    }
+
+    <span class="doccomment">/// Start training the boosting algorithm.</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">training</span>(
+        <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>,
+        <span class="ident">prep_time</span>: <span class="ident">f32</span>,
+    ) {
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Start training.&quot;</span>);
+        <span class="self">self</span>.<span class="ident">init</span>();
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Finished initialization&quot;</span>);
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">global_timer</span> <span class="op">=</span> <span class="ident">PerformanceMonitor</span>::<span class="ident">new</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">learner_timer</span> <span class="op">=</span> <span class="ident">PerformanceMonitor</span>::<span class="ident">new</span>();
+        <span class="ident">global_timer</span>.<span class="ident">start</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">_last_communication_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">last_logging_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
+
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">total_data_size_without_fire</span> <span class="op">=</span> <span class="number">0</span>;
+        <span class="self">self</span>.<span class="ident">verbose</span> <span class="op">=</span> <span class="bool-val">false</span>;
+        <span class="kw">while</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">is_gamma_significant</span>() <span class="kw-2">&amp;</span><span class="op">&amp;</span>
+                (<span class="self">self</span>.<span class="ident">num_trees</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">0</span> <span class="op">|</span><span class="op">|</span> <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">tree_size</span> <span class="op">&lt;</span> <span class="self">self</span>.<span class="ident">num_trees</span>) {
+            <span class="comment">// Logging for the status check</span>
+            <span class="kw">if</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>() <span class="op">-</span> <span class="ident">last_logging_ts</span> <span class="op">&gt;</span><span class="op">=</span> <span class="number">10.0</span> {
+                <span class="self">self</span>.<span class="ident">print_log</span>(<span class="ident">total_data_size_without_fire</span>);
+                <span class="ident">last_logging_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
+            }
+
+            <span class="kw">let</span> (<span class="ident">new_rule</span>, <span class="ident">batch_size</span>, <span class="ident">switched</span>) <span class="op">=</span> {
+                <span class="kw">let</span> (<span class="ident">data</span>, <span class="ident">switched</span>) <span class="op">=</span>
+                    <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">get_next_batch_and_update</span>(<span class="bool-val">true</span>, <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">model</span>);
+                <span class="kw">if</span> <span class="ident">switched</span> {
+                    <span class="comment">// TODO: it seems we don&#39;t we have to reset the learner for the new sample</span>
+                    <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>();
+                }
+                <span class="ident">learner_timer</span>.<span class="ident">resume</span>();
+                <span class="kw">let</span> <span class="ident">new_rule</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">update</span>(<span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">model</span>, <span class="kw-2">&amp;</span><span class="ident">data</span>);
+                <span class="ident">learner_timer</span>.<span class="ident">update</span>(<span class="ident">data</span>.<span class="ident">len</span>());
+                <span class="ident">learner_timer</span>.<span class="ident">pause</span>();
+                (<span class="ident">new_rule</span>, <span class="ident">data</span>.<span class="ident">len</span>(), <span class="ident">switched</span>)
+            };
+            <span class="ident">total_data_size_without_fire</span> <span class="op">+</span><span class="op">=</span> <span class="ident">batch_size</span>;
+            <span class="ident">global_timer</span>.<span class="ident">update</span>(<span class="ident">batch_size</span>);
+
+            <span class="comment">// if exhausted all examples, return the emprically best one</span>
+            <span class="kw">let</span> <span class="ident">is_full_scan</span> <span class="op">=</span> <span class="ident">total_data_size_without_fire</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">size</span>;
+            <span class="kw">let</span> <span class="ident">new_rule</span> <span class="op">=</span> {
+                <span class="kw">if</span> <span class="ident">new_rule</span>.<span class="ident">is_none</span>() <span class="kw-2">&amp;</span><span class="op">&amp;</span> <span class="ident">is_full_scan</span> {
+                    <span class="prelude-val">Some</span>(<span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">get_max_empirical_ratio_tree_node</span>())
+                } <span class="kw">else</span> {
+                    <span class="ident">new_rule</span>
+                }
+            };
+
+            <span class="comment">// Try to find new rule</span>
+            <span class="kw">if</span> <span class="ident">switched</span> {
+                <span class="self">self</span>.<span class="ident">is_sample_version_changed</span> <span class="op">=</span> <span class="bool-val">true</span>;
+                <span class="self">self</span>.<span class="ident">update_model</span>(
+                    <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">base_model</span>.<span class="ident">clone</span>(),
+                    <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">base_model_sig</span>.<span class="ident">clone</span>(),
+                    <span class="string">&quot;loader&quot;</span>,
+                );
+            }
+            <span class="kw">if</span> <span class="ident">new_rule</span>.<span class="ident">is_some</span>() {
+                <span class="kw">let</span> <span class="ident">ts</span> <span class="op">=</span> <span class="ident">prep_time</span> <span class="op">+</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
+                <span class="self">self</span>.<span class="ident">process_new_rule</span>(<span class="ident">new_rule</span>.<span class="ident">unwrap</span>(), <span class="ident">total_data_size_without_fire</span>, <span class="ident">ts</span>);
+                <span class="ident">total_data_size_without_fire</span> <span class="op">=</span> <span class="number">0</span>;
+            }
+
+            <span class="comment">// Communicate</span>
+            <span class="kw">let</span> <span class="ident">is_communicated</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">handle_network</span>(
+                <span class="ident">total_data_size_without_fire</span> <span class="op">&gt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">size</span>);
+            <span class="kw">if</span> <span class="ident">is_communicated</span> {
+                <span class="ident">total_data_size_without_fire</span> <span class="op">=</span> <span class="number">0</span>;
+                <span class="ident">_last_communication_ts</span> <span class="op">=</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>();
+            }
+
+            <span class="ident">global_timer</span>.<span class="ident">write_log</span>(<span class="string">&quot;boosting-overall&quot;</span>);
+            <span class="ident">learner_timer</span>.<span class="ident">write_log</span>(<span class="string">&quot;boosting-learning&quot;</span>);
+        }
+        <span class="self">self</span>.<span class="ident">handle_persistent</span>(<span class="ident">prep_time</span> <span class="op">+</span> <span class="ident">global_timer</span>.<span class="ident">get_duration</span>());
+        <span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;Training is finished. Model length: {}. Is gamma significant? {}.&quot;</span>,
+              <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>(), <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">is_gamma_significant</span>());
     }
 
     <span class="kw">fn</span> <span class="ident">process_new_rule</span>(
@@ -736,7 +692,7 @@
         <span class="macro">info</span><span class="macro">!</span>(<span class="string">&quot;scanner, added new rule, {}, {}, {}, {}, {}&quot;</span>,
                 <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>(), <span class="ident">rule</span>.<span class="ident">num_scanned</span>, <span class="ident">total_data_size</span>, <span class="ident">left_index</span>, <span class="ident">right_index</span>);
         <span class="comment">// post updates</span>
-        <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>(<span class="self">self</span>.<span class="ident">model</span>.<span class="ident">tree_size</span>);
+        <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>();
         <span class="kw">if</span> <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>() <span class="op">%</span> <span class="self">self</span>.<span class="ident">save_interval</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
             <span class="self">self</span>.<span class="ident">handle_persistent</span>(<span class="ident">ts</span>);
         }
@@ -804,15 +760,14 @@
         <span class="kw">let</span> <span class="ident">packet</span> <span class="op">=</span> <span class="ident">Packet</span>::<span class="ident">new</span>(
             <span class="kw-2">&amp;</span><span class="self">self</span>.<span class="ident">local_name</span>,
             <span class="self">self</span>.<span class="ident">local_id</span>,
-            <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">expand_node</span>,
             <span class="self">self</span>.<span class="ident">packet_counter</span>,
+            <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">expand_node</span>,
             <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">size</span>(),
             <span class="ident">tree_slice</span>,
             <span class="ident">gamma</span>,
             <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">ess</span>,
             <span class="self">self</span>.<span class="ident">training_loader</span>.<span class="ident">current_version</span>,
             <span class="self">self</span>.<span class="ident">base_model_sig</span>.<span class="ident">clone</span>(),
-            <span class="self">self</span>.<span class="ident">fallback</span>,
         );
         <span class="kw">let</span> <span class="ident">send_result</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">network_sender</span>.<span class="ident">as_ref</span>().<span class="ident">unwrap</span>()
                                 .<span class="ident">send</span>(<span class="ident">packet</span>);
@@ -832,14 +787,11 @@
         <span class="kw">if</span> <span class="ident">assigns</span>.<span class="ident">is_some</span>() {
             <span class="kw">let</span> <span class="ident">assignments</span> <span class="op">=</span> <span class="ident">assigns</span>.<span class="ident">unwrap</span>();
             <span class="kw">let</span> <span class="ident">expand_node</span> <span class="op">=</span> <span class="ident">assignments</span>[<span class="self">self</span>.<span class="ident">local_id</span> <span class="op">%</span> <span class="ident">assignments</span>.<span class="ident">len</span>()];
+            <span class="self">self</span>.<span class="ident">is_assignment_none</span> <span class="op">=</span> <span class="ident">expand_node</span>.<span class="ident">is_none</span>();
             <span class="kw">if</span> <span class="ident">expand_node</span>.<span class="ident">is_some</span>() {
                 <span class="kw">if</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">set_expand_node</span>(<span class="ident">expand_node</span>.<span class="ident">unwrap</span>()) {
-                    <span class="comment">// the assignment is updated, get the new model</span>
-                    <span class="kw">while</span> <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">tree_size</span> <span class="op">&lt;</span><span class="op">=</span> <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">expand_node</span> {
-                        <span class="self">self</span>.<span class="ident">handle_network</span>(<span class="bool-val">false</span>);
-                    }
                     <span class="self">self</span>.<span class="ident">is_scanner_status_changed</span> <span class="op">=</span> <span class="bool-val">true</span>;
-                    <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>(<span class="self">self</span>.<span class="ident">model</span>.<span class="ident">tree_size</span>);
+                    <span class="self">self</span>.<span class="ident">learner</span>.<span class="ident">reset</span>();
                 }
             }
         }

@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["NUM_RULES",""],["PREDS",""]],"struct":[["Learner",""]]});
+initSidebarItems({"constant":[["NUM_PREDS",""],["PREDS",""]],"struct":[["Learner","Statisitics of all weak rules that are being evaluated. The objective of `Learner` is to find a weak rule that satisfies the condition of the stopping rule."],["TreeNode","A weak rule with an edge larger or equal to the targetting value of `gamma`"]],"type":[["RuleStats",""]]});

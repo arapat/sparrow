@@ -1,1 +1,1 @@
-initSidebarItems({"constant":[["BUCKET",""],["REGION",""]],"fn":[["testing",""],["training",""]],"mod":[["commons","Common functions and classes."],["config",""],["master",""],["scanner",""],["testing","Validating models"]],"type":[["Example",""],["RawExample",""],["RawTFeature",""],["TFeature",""],["TLabel",""]]});
+initSidebarItems({"fn":[["testing","Test a model"],["training","Train a model"]],"mod":[["head","Implementation of the components running on head node, specifically the scanner and the model manager"],["scanner","Implementation of the scanner "]]});

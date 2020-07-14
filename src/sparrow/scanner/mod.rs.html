@@ -38,6 +38,15 @@
 <span id="38">38</span>
 <span id="39">39</span>
 <span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="doccomment">/// The implementation of the AdaBoost algorithm with early stopping rule.</span>
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">booster</span>;
@@ -72,11 +81,20 @@
     );
     <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;Starting the booster.&quot;</span>);
     <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">booster</span> <span class="op">=</span> <span class="ident">Boosting</span>::<span class="ident">new</span>(
-        <span class="ident">config</span>,
+        <span class="ident">config</span>.<span class="ident">exp_name</span>.<span class="ident">clone</span>(),
         <span class="ident">init_tree</span>.<span class="ident">clone</span>(),
-        <span class="ident">bins</span>.<span class="ident">clone</span>(),
+        <span class="ident">config</span>.<span class="ident">num_trees</span>,
+        <span class="ident">config</span>.<span class="ident">num_splits</span>,
+        <span class="ident">config</span>.<span class="ident">num_features</span>,
+        <span class="ident">config</span>.<span class="ident">min_gamma</span>,
         <span class="ident">buffer_loader</span>,
+        <span class="ident">bins</span>.<span class="ident">clone</span>(),
+        <span class="ident">config</span>.<span class="ident">max_sample_size</span>,
+        <span class="ident">config</span>.<span class="ident">default_gamma</span>,
+        <span class="ident">config</span>.<span class="ident">save_process</span>,
+        <span class="ident">config</span>.<span class="ident">save_interval</span>,
     );
+    <span class="ident">booster</span>.<span class="ident">enable_network</span>(<span class="ident">config</span>.<span class="ident">local_name</span>.<span class="ident">clone</span>(), <span class="ident">config</span>.<span class="ident">port</span>);
     <span class="ident">booster</span>.<span class="ident">training</span>(<span class="ident">training_perf_mon</span>.<span class="ident">get_duration</span>());
 }</pre></div>
 </section><section id="search" class="content hidden"></section><section class="footer"></section><script>window.rootPath = "../../../";window.currentCrate = "sparrow";</script><script src="../../../aliases.js"></script><script src="../../../main.js"></script><script src="../../../source-script.js"></script><script src="../../../source-files.js"></script><script defer src="../../../search-index.js"></script></body></html>

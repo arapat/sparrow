@@ -212,22 +212,109 @@
 <span id="212">212</span>
 <span id="213">213</span>
 <span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">rayon</span>::<span class="ident">prelude</span>::<span class="kw-2">*</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">collections</span>::<span class="ident">HashMap</span>;
 
 <span class="kw">use</span> <span class="ident">Example</span>;
+<span class="kw">use</span> <span class="ident">TFeature</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">ExampleInSampleSet</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">Model</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">bins</span>::<span class="ident">Bins</span>;
 
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">is_zero</span>;
 <span class="kw">use</span> <span class="kw">super</span>::<span class="ident">learner_helpers</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">learner_stats</span>::<span class="ident">CandidateNodeStats</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">learner_stats</span>::<span class="ident">EarlyStoppingStatsAtThreshold</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">learner_stats</span>::<span class="ident">RuleStats</span>;
-<span class="kw">use</span> <span class="kw">super</span>::<span class="ident">tree_node</span>::<span class="ident">TreeNode</span>;
 
 <span class="comment">// TODO: The tree generation and score updates are for AdaBoost only,</span>
 <span class="comment">// extend it to other potential functions</span>
@@ -237,28 +324,102 @@ TODO: extend support to regression tasks
 TODO: re-use ScoreBoard space of the generated rules to reduce the memory footprint by half
       (just adding a mapping from the index here to the index in the tree should do the job)
 
+ScoreBoard structure:
+Feature index -&gt; split value index -&gt; candidate splitting node index (removed) -&gt; prediction types
+
 Each split corresponds to 2 types of predictions,
     1. Left +1, Right -1;
     2. Left -1, Right +1;
 */</span>
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">NUM_RULES</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">2</span>;
-<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">PREDS</span>: [(<span class="ident">f32</span>, <span class="ident">f32</span>); <span class="ident">NUM_RULES</span>] <span class="op">=</span> [(<span class="op">-</span><span class="number">1.0</span>, <span class="number">1.0</span>), (<span class="number">1.0</span>, <span class="op">-</span><span class="number">1.0</span>)];
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">NUM_PREDS</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="number">2</span>;
+<span class="kw">const</span> <span class="ident">NUM_RULES</span>: <span class="ident">usize</span> <span class="op">=</span> <span class="ident">NUM_PREDS</span>;
+<span class="kw">pub</span> <span class="kw">const</span> <span class="ident">PREDS</span>: [(<span class="ident">f32</span>, <span class="ident">f32</span>); <span class="ident">NUM_PREDS</span>] <span class="op">=</span> [(<span class="op">-</span><span class="number">1.0</span>, <span class="number">1.0</span>), (<span class="number">1.0</span>, <span class="op">-</span><span class="number">1.0</span>)];
+<span class="comment">// (pred1, false), (pred1, true), (pred2, false), (pred2, true)</span>
+<span class="kw">type</span> <span class="ident">ScoreBoard</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span>[<span class="ident">f32</span>; <span class="ident">NUM_RULES</span>]<span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="kw">type</span> <span class="ident">ScoreBoard1</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span><span class="op">&gt;</span>;
+<span class="comment">// (f32, f32) -&gt; Stats if falls under left, and if falls under right</span>
+<span class="kw">pub</span> <span class="kw">type</span> <span class="ident">RuleStats</span> <span class="op">=</span> [[(<span class="ident">f32</span>, <span class="ident">f32</span>); <span class="number">2</span>]; <span class="ident">NUM_PREDS</span>];
 
+
+<span class="doccomment">/// A weak rule with an edge larger or equal to the targetting value of `gamma`</span>
+<span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">TreeNode</span> {
+    <span class="kw">pub</span> <span class="ident">prt_index</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">feature</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">threshold</span>: <span class="ident">TFeature</span>,
+    <span class="kw">pub</span> <span class="ident">predict</span>: (<span class="ident">f32</span>, <span class="ident">f32</span>),
+
+    <span class="kw">pub</span> <span class="ident">gamma</span>: <span class="ident">f32</span>,
+    <span class="kw">pub</span> <span class="ident">raw_martingale</span>: <span class="ident">f32</span>,
+    <span class="kw">pub</span> <span class="ident">sum_c</span>: <span class="ident">f32</span>,
+    <span class="kw">pub</span> <span class="ident">sum_c_squared</span>: <span class="ident">f32</span>,
+    <span class="kw">pub</span> <span class="ident">bound</span>: <span class="ident">f32</span>,
+    <span class="kw">pub</span> <span class="ident">num_scanned</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">fallback</span>: <span class="ident">bool</span>,
+
+    <span class="kw">pub</span> <span class="ident">positive</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">negative</span>: <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">positive_weight</span>: <span class="ident">f32</span>,
+    <span class="kw">pub</span> <span class="ident">negative_weight</span>: <span class="ident">f32</span>,
+}
+
+<span class="kw">impl</span> <span class="ident">TreeNode</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">write_log</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) {
+        <span class="macro">info</span><span class="macro">!</span>(
+            <span class="string">&quot;tree-node-info, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}&quot;</span>,
+            <span class="self">self</span>.<span class="ident">prt_index</span>,
+            <span class="self">self</span>.<span class="ident">feature</span>,
+            <span class="self">self</span>.<span class="ident">threshold</span>,
+            <span class="self">self</span>.<span class="ident">predict</span>.<span class="number">0</span>,
+            <span class="self">self</span>.<span class="ident">predict</span>.<span class="number">1</span>,
+
+            <span class="self">self</span>.<span class="ident">num_scanned</span>,
+            <span class="self">self</span>.<span class="ident">gamma</span>,
+            <span class="self">self</span>.<span class="ident">raw_martingale</span>,
+            <span class="self">self</span>.<span class="ident">sum_c</span>,
+            <span class="self">self</span>.<span class="ident">sum_c_squared</span>,
+            <span class="self">self</span>.<span class="ident">bound</span>,
+            <span class="self">self</span>.<span class="ident">sum_c_squared</span> <span class="op">/</span> <span class="self">self</span>.<span class="ident">num_scanned</span> <span class="kw">as</span> <span class="ident">f32</span>,
+
+            <span class="self">self</span>.<span class="ident">positive</span>,
+            <span class="self">self</span>.<span class="ident">negative</span>,
+            <span class="self">self</span>.<span class="ident">positive_weight</span>,
+            <span class="self">self</span>.<span class="ident">negative_weight</span>,
+
+            <span class="self">self</span>.<span class="ident">fallback</span>,
+        );
+    }
+}
+
+
+<span class="doccomment">/// Statisitics of all weak rules that are being evaluated.</span>
+<span class="doccomment">/// The objective of `Learner` is to find a weak rule that satisfies the condition of</span>
+<span class="doccomment">/// the stopping rule.</span>
+<span class="comment">// [i][k][j][rule_id] =&gt; bin i slot j candidate-node k</span>
+<span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Serialize</span>, <span class="ident">Deserialize</span>)]</span>
 <span class="kw">pub</span> <span class="kw">struct</span> <span class="ident">Learner</span> {
     <span class="ident">bins</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bins</span><span class="op">&gt;</span>,
-    <span class="ident">_num_features</span>:   <span class="ident">usize</span>,
+    <span class="ident">num_features</span>:   <span class="ident">usize</span>,
     <span class="ident">_default_gamma</span>: <span class="ident">f32</span>,
     <span class="ident">min_gamma</span>: <span class="ident">f32</span>,
+    <span class="ident">num_candid</span>: <span class="ident">usize</span>,
 
-    <span class="kw">pub</span> <span class="ident">rho_gamma</span>:    <span class="ident">f32</span>,
-    <span class="comment">// TODO: expand_node should be a vector so that we can grow a whole tree</span>
-    <span class="kw">pub</span> <span class="ident">expand_node</span>:  <span class="ident">usize</span>,
+    <span class="kw">pub</span> <span class="ident">rho_gamma</span>:        <span class="ident">f32</span>,
+    <span class="kw">pub</span> <span class="ident">expand_node</span>:      <span class="ident">usize</span>,
     <span class="comment">// global trackers</span>
     <span class="kw">pub</span> <span class="ident">total_count</span>:  <span class="ident">usize</span>,
     <span class="ident">total_weight</span>:     <span class="ident">f32</span>,
     <span class="ident">total_weight_sq</span>:  <span class="ident">f32</span>,
-
-    <span class="ident">stats</span>:            <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">CandidateNodeStats</span><span class="op">&gt;</span>,
+    <span class="comment">// trackers for each candidate</span>
+    <span class="ident">weak_rules_score</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScoreBoard</span><span class="op">&gt;</span>,
+    <span class="ident">sum_c_squared</span>:    <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScoreBoard</span><span class="op">&gt;</span>,
+    <span class="comment">// trackers for debugging</span>
+    <span class="ident">num_positive</span>:     <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScoreBoard1</span><span class="op">&gt;</span>,
+    <span class="ident">num_negative</span>:     <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScoreBoard1</span><span class="op">&gt;</span>,
+    <span class="ident">weight_positive</span>:  <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScoreBoard1</span><span class="op">&gt;</span>,
+    <span class="ident">weight_negative</span>:  <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">ScoreBoard1</span><span class="op">&gt;</span>,
+    <span class="comment">// track the number of examples exposed to each splitting candidates</span>
+    <span class="comment">// count:            usize,</span>
+    <span class="comment">// sum_weight:       f32,</span>
 }
 
 <span class="kw">impl</span> <span class="ident">Learner</span> {
@@ -270,75 +431,89 @@ Each split corresponds to 2 types of predictions,
         <span class="ident">default_gamma</span>: <span class="ident">f32</span>,
         <span class="ident">num_features</span>: <span class="ident">usize</span>,
         <span class="ident">bins</span>: <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">Bins</span><span class="op">&gt;</span>,
+        <span class="ident">num_splits</span>: <span class="ident">usize</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Learner</span> {
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">learner</span> <span class="op">=</span> <span class="ident">Learner</span> {
             <span class="ident">bins</span>: <span class="ident">bins</span>,
-            <span class="ident">_num_features</span>: <span class="ident">num_features</span>.<span class="ident">clone</span>(),
+            <span class="ident">num_features</span>: <span class="ident">num_features</span>.<span class="ident">clone</span>(),
             <span class="ident">_default_gamma</span>: <span class="ident">default_gamma</span>.<span class="ident">clone</span>(),
             <span class="ident">min_gamma</span>: <span class="ident">min_gamma</span>,
+            <span class="ident">num_candid</span>: <span class="number">1</span>,
 
             <span class="ident">rho_gamma</span>:        <span class="ident">default_gamma</span>.<span class="ident">clone</span>(),
             <span class="ident">expand_node</span>:      <span class="number">0</span>,
             <span class="ident">total_count</span>:      <span class="number">0</span>,
             <span class="ident">total_weight</span>:     <span class="number">0.0</span>,
             <span class="ident">total_weight_sq</span>:  <span class="number">0.0</span>,
+            <span class="ident">weak_rules_score</span>: <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">sum_c_squared</span>:    <span class="macro">vec</span><span class="macro">!</span>[],
 
-            <span class="ident">stats</span>:            <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">num_positive</span>:     <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">num_negative</span>:     <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">weight_positive</span>:  <span class="macro">vec</span><span class="macro">!</span>[],
+            <span class="ident">weight_negative</span>:  <span class="macro">vec</span><span class="macro">!</span>[],
         };
-        <span class="ident">learner</span>.<span class="ident">reset</span>(<span class="number">1</span>);
+        <span class="kw">let</span> <span class="ident">new_scoreboard</span> <span class="op">=</span> <span class="op">|</span><span class="ident">size</span><span class="op">|</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="macro">vec</span><span class="macro">!</span>[[<span class="number">0.0</span>; <span class="ident">NUM_RULES</span>]; <span class="ident">size</span>]; <span class="ident">num_splits</span>];
+        <span class="kw">let</span> <span class="ident">new_scoreboard1</span> <span class="op">=</span> <span class="op">|</span><span class="ident">size</span><span class="op">|</span> <span class="macro">vec</span><span class="macro">!</span>[<span class="macro">vec</span><span class="macro">!</span>[<span class="number">0.0</span>; <span class="ident">size</span>]; <span class="ident">num_splits</span>];
+        <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">num_features</span> {
+            <span class="kw">let</span> <span class="ident">size</span> <span class="op">=</span> <span class="ident">learner</span>.<span class="ident">bins</span>[<span class="ident">i</span>].<span class="ident">len</span>();
+            <span class="ident">learner</span>.<span class="ident">weak_rules_score</span>.<span class="ident">push</span>(<span class="ident">new_scoreboard</span>(<span class="ident">size</span>));
+            <span class="ident">learner</span>.<span class="ident">sum_c_squared</span>.<span class="ident">push</span>(<span class="ident">new_scoreboard</span>(<span class="ident">size</span>));
+            <span class="ident">learner</span>.<span class="ident">num_positive</span>.<span class="ident">push</span>(<span class="ident">new_scoreboard1</span>(<span class="ident">size</span>));
+            <span class="ident">learner</span>.<span class="ident">num_negative</span>.<span class="ident">push</span>(<span class="ident">new_scoreboard1</span>(<span class="ident">size</span>));
+            <span class="ident">learner</span>.<span class="ident">weight_positive</span>.<span class="ident">push</span>(<span class="ident">new_scoreboard1</span>(<span class="ident">size</span>));
+            <span class="ident">learner</span>.<span class="ident">weight_negative</span>.<span class="ident">push</span>(<span class="ident">new_scoreboard1</span>(<span class="ident">size</span>));
+        }
         <span class="ident">learner</span>
     }
 
     <span class="doccomment">/// Reset the statistics of all candidate weak rules</span>
     <span class="doccomment">/// (except gamma, because the advantage of the root node is not likely to increase)</span>
     <span class="doccomment">/// Trigger when the model or the gamma is changed</span>
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">num_tree_nodes</span>: <span class="ident">usize</span>) {
-        <span class="kw">let</span> <span class="ident">get_candidate_node_stats</span> <span class="op">=</span> <span class="op">|</span><span class="op">|</span> {
-            <span class="self">self</span>.<span class="ident">bins</span>.<span class="ident">iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">bin</span><span class="op">|</span> {
-                (<span class="number">0</span>..<span class="ident">bin</span>.<span class="ident">len</span>()).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> {
-                    <span class="ident">EarlyStoppingStatsAtThreshold</span>::<span class="ident">new</span>()
-                }).<span class="ident">collect</span>()
-            }).<span class="ident">collect</span>()
-        };
-
-        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;learner, learner is being reset, {}, {}, {}&quot;</span>,
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">reset</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>) {
+        <span class="kw">for</span> <span class="ident">t</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_candid</span> {
+            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_features</span> {
+                <span class="kw">for</span> <span class="ident">j</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">bins</span>[<span class="ident">i</span>].<span class="ident">len</span>() {
+                    <span class="kw">for</span> <span class="ident">k</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_RULES</span> {
+                        <span class="self">self</span>.<span class="ident">weak_rules_score</span>[<span class="ident">t</span>][<span class="ident">i</span>][<span class="ident">j</span>][<span class="ident">k</span>] <span class="op">=</span> <span class="number">0.0</span>;
+                        <span class="self">self</span>.<span class="ident">sum_c_squared</span>[<span class="ident">t</span>][<span class="ident">i</span>][<span class="ident">j</span>][<span class="ident">k</span>]    <span class="op">=</span> <span class="number">0.0</span>;
+                    }
+                    <span class="self">self</span>.<span class="ident">num_positive</span>[<span class="ident">t</span>][<span class="ident">i</span>][<span class="ident">j</span>] <span class="op">=</span> <span class="number">0.0</span>;
+                    <span class="self">self</span>.<span class="ident">num_negative</span>[<span class="ident">t</span>][<span class="ident">i</span>][<span class="ident">j</span>] <span class="op">=</span> <span class="number">0.0</span>;
+                    <span class="self">self</span>.<span class="ident">weight_positive</span>[<span class="ident">t</span>][<span class="ident">i</span>][<span class="ident">j</span>] <span class="op">=</span> <span class="number">0.0</span>;
+                    <span class="self">self</span>.<span class="ident">weight_negative</span>[<span class="ident">t</span>][<span class="ident">i</span>][<span class="ident">j</span>] <span class="op">=</span> <span class="number">0.0</span>;
+                }
+            }
+        }
+        <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;learner, learner is reset, {}, {}, {}&quot;</span>,
                <span class="self">self</span>.<span class="ident">expand_node</span>, <span class="self">self</span>.<span class="ident">total_count</span>, <span class="self">self</span>.<span class="ident">total_weight</span>);
-        <span class="self">self</span>.<span class="ident">stats</span> <span class="op">=</span> (<span class="number">0</span>..<span class="ident">num_tree_nodes</span>).<span class="ident">map</span>(<span class="op">|</span><span class="kw">_</span><span class="op">|</span> <span class="ident">get_candidate_node_stats</span>())
-                                         .<span class="ident">collect</span>();
         <span class="self">self</span>.<span class="ident">total_count</span> <span class="op">=</span> <span class="number">0</span>;
         <span class="self">self</span>.<span class="ident">total_weight</span> <span class="op">=</span> <span class="number">0.0</span>;
         <span class="self">self</span>.<span class="ident">total_weight_sq</span> <span class="op">=</span> <span class="number">0.0</span>;
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_max_empirical_ratio_tree_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TreeNode</span><span class="op">&gt;</span> {
-        <span class="kw">type</span> <span class="ident">U</span> <span class="op">=</span> <span class="ident">Vec</span><span class="op">&lt;</span>((<span class="ident">usize</span>, <span class="ident">usize</span>, <span class="ident">usize</span>, <span class="ident">usize</span>), <span class="ident">f32</span>, <span class="ident">EarlyStoppingStatsAtThreshold</span>)<span class="op">&gt;</span>;
-        <span class="kw">let</span> <span class="ident">total_weight</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">total_weight</span>;
-        <span class="kw">let</span> <span class="ident">optimal_rule</span> <span class="op">=</span> {
-            <span class="self">self</span>.<span class="ident">stats</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>().<span class="ident">flat_map</span>(<span class="op">|</span>(<span class="ident">t</span>, <span class="ident">features</span>)<span class="op">|</span> {
-                <span class="ident">features</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>().<span class="ident">flat_map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">thresholds</span>)<span class="op">|</span> {
-                    <span class="ident">thresholds</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>().<span class="ident">flat_map</span>(<span class="op">|</span>(<span class="ident">j</span>, <span class="ident">stats</span>)<span class="op">|</span> {
-                        <span class="kw">let</span> <span class="ident">stats</span>: <span class="ident">EarlyStoppingStatsAtThreshold</span> <span class="op">=</span> (<span class="kw-2">*</span><span class="ident">stats</span>).<span class="ident">clone</span>();
-                        <span class="ident">stats</span>.<span class="ident">weak_rules_score</span>.<span class="ident">iter</span>().<span class="ident">enumerate</span>()
-                             .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">k</span>, <span class="ident">weak_rule_score</span>)<span class="op">|</span> {
-                                 <span class="kw">let</span> <span class="ident">rule_id</span> <span class="op">=</span> (<span class="ident">t</span>, <span class="ident">i</span>, <span class="ident">j</span>, <span class="ident">k</span>);
-                                 <span class="kw">let</span> <span class="ident">ratio</span> <span class="op">=</span> <span class="ident">weak_rule_score</span> <span class="op">/</span> <span class="ident">total_weight</span>;
-                                 (<span class="ident">rule_id</span>, <span class="ident">ratio</span>, <span class="ident">stats</span>)
-                             }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>()
-                    }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>()
-                }).<span class="ident">collect</span>::<span class="op">&lt;</span><span class="ident">U</span><span class="op">&gt;</span>()
-            }).<span class="ident">max_by</span>(<span class="op">|</span>(<span class="ident">_k1</span>, <span class="ident">a</span>, <span class="ident">_s1</span>), (<span class="ident">_k2</span>, <span class="ident">b</span>, <span class="ident">_s2</span>)<span class="op">|</span> {
-                <span class="ident">a</span>.<span class="ident">partial_cmp</span>(<span class="ident">b</span>).<span class="ident">unwrap_or</span>(<span class="ident">std</span>::<span class="ident">cmp</span>::<span class="ident">Ordering</span>::<span class="ident">Equal</span>)
-            })
-        };
-        <span class="kw">if</span> <span class="ident">optimal_rule</span>.<span class="ident">is_none</span>() {
-            <span class="macro">error</span><span class="macro">!</span>(<span class="string">&quot;Failed to find the best empirical rule.&quot;</span>);
-            <span class="kw">return</span> <span class="prelude-val">None</span>
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_max_empirical_ratio_tree_node</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">TreeNode</span> {
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">max_ratio</span> <span class="op">=</span> <span class="number">0.0</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">actual_ratio</span> <span class="op">=</span> <span class="number">0.0</span>;
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">rule_id</span> <span class="op">=</span> (<span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>, <span class="number">0</span>);
+        <span class="kw">for</span> <span class="ident">t</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_candid</span> {
+            <span class="kw">for</span> <span class="ident">i</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_features</span> {
+                <span class="kw">for</span> <span class="ident">j</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">bins</span>[<span class="ident">i</span>].<span class="ident">len</span>() {
+                    <span class="kw">for</span> <span class="ident">k</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">NUM_RULES</span> {
+                        <span class="comment">// max ratio considers absent examples, actual ratio does not</span>
+                        <span class="kw">let</span> <span class="ident">ratio</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">weak_rules_score</span>[<span class="ident">t</span>][<span class="ident">i</span>][<span class="ident">j</span>][<span class="ident">k</span>] <span class="op">/</span> <span class="self">self</span>.<span class="ident">total_weight</span>;
+                        <span class="kw">if</span> <span class="ident">ratio</span> <span class="op">&gt;</span><span class="op">=</span> <span class="ident">max_ratio</span> {
+                            <span class="ident">max_ratio</span> <span class="op">=</span> <span class="ident">ratio</span>;
+                            <span class="ident">actual_ratio</span> <span class="op">=</span> <span class="ident">ratio</span>;
+                            <span class="ident">rule_id</span> <span class="op">=</span> (<span class="ident">t</span>, <span class="ident">i</span>, <span class="ident">j</span>, <span class="ident">k</span>);
+                        }
+                    }
+                }
+            }
         }
-        <span class="kw">let</span> (<span class="ident">rule_id</span>, <span class="ident">ratio</span>, <span class="ident">stats</span>) <span class="op">=</span> <span class="ident">optimal_rule</span>.<span class="ident">unwrap</span>();
+
         <span class="kw">let</span> (<span class="ident">t</span>, <span class="ident">i</span>, <span class="ident">j</span>, <span class="ident">k</span>) <span class="op">=</span> <span class="ident">rule_id</span>;
-        <span class="kw">let</span> <span class="ident">tree_node</span> <span class="op">=</span> <span class="ident">learner_helpers</span>::<span class="ident">gen_tree_node</span>(
-            <span class="ident">t</span>, <span class="ident">i</span>, <span class="ident">j</span>, <span class="ident">k</span>, <span class="ident">ratio</span>, <span class="ident">stats</span>, <span class="self">self</span>.<span class="ident">total_count</span>, <span class="self">self</span>.<span class="ident">total_weight</span>, <span class="self">self</span>.<span class="ident">total_weight_sq</span>);
-        <span class="prelude-val">Some</span>(<span class="ident">tree_node</span>)
+        <span class="ident">learner_helpers</span>::<span class="ident">gen_tree_node</span>(<span class="ident">t</span>, <span class="ident">i</span>, <span class="ident">j</span>, <span class="ident">k</span>, <span class="ident">actual_ratio</span>)
     }
 
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">is_gamma_significant</span>(<span class="kw-2">&amp;</span><span class="self">self</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">bool</span> {
@@ -352,26 +527,23 @@ Each split corresponds to 2 types of predictions,
         <span class="ident">tree</span>: <span class="kw-2">&amp;</span><span class="ident">Model</span>,
         <span class="ident">data</span>: <span class="kw-2">&amp;</span>[<span class="ident">ExampleInSampleSet</span>],
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">TreeNode</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">stats</span>.<span class="ident">len</span>() <span class="op">&lt;</span> <span class="ident">tree</span>.<span class="ident">tree_size</span> {
-            <span class="self">self</span>.<span class="ident">reset</span>(<span class="ident">tree</span>.<span class="ident">tree_size</span>);
-            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;learner, reset for larger tree, {}&quot;</span>, <span class="ident">tree</span>.<span class="ident">tree_size</span>);
-        }
-
         <span class="comment">// update global stats</span>
         <span class="self">self</span>.<span class="ident">total_count</span>       <span class="op">+</span><span class="op">=</span> <span class="ident">data</span>.<span class="ident">len</span>();
         <span class="self">self</span>.<span class="ident">total_weight</span>      <span class="op">+</span><span class="op">=</span> <span class="ident">data</span>.<span class="ident">par_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> (<span class="ident">t</span>.<span class="number">1</span>).<span class="number">0</span>).<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>();
         <span class="self">self</span>.<span class="ident">total_weight_sq</span>   <span class="op">+</span><span class="op">=</span> <span class="ident">data</span>.<span class="ident">par_iter</span>().<span class="ident">map</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> ((<span class="ident">t</span>.<span class="number">1</span>).<span class="number">0</span>) <span class="op">*</span> ((<span class="ident">t</span>.<span class="number">1</span>).<span class="number">0</span>)).<span class="ident">sum</span>::<span class="op">&lt;</span><span class="ident">f32</span><span class="op">&gt;</span>();
+        <span class="self">self</span>.<span class="ident">num_candid</span>         <span class="op">=</span> <span class="ident">tree</span>.<span class="ident">tree_size</span>;
 
         <span class="kw">let</span> <span class="ident">expand_node</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">expand_node</span>;
         <span class="kw">let</span> <span class="ident">rho_gamma</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">rho_gamma</span>;
 
-        <span class="comment">// Put examples into bins by where they fall on the tree - Complexity: O(Examples)</span>
-        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data_by_node</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="kw-2">&amp;</span><span class="ident">Example</span>, <span class="ident">f32</span>, <span class="ident">RuleStats</span>)<span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
         <span class="comment">// preprocess examples - Complexity: O(Examples * NumRules)</span>
-        <span class="kw">let</span> <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="kw-2">&amp;</span><span class="ident">Example</span>, <span class="ident">f32</span>, <span class="ident">RuleStats</span>)<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">learner_helpers</span>::<span class="ident">preprocess_data</span>(
+        <span class="kw">let</span> <span class="ident">data</span>: <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">usize</span>, <span class="ident">f32</span>, (<span class="kw-2">&amp;</span><span class="ident">Example</span>, <span class="ident">RuleStats</span>))<span class="op">&gt;</span> <span class="op">=</span> <span class="ident">learner_helpers</span>::<span class="ident">preprocess_data</span>(
             <span class="ident">data</span>, <span class="ident">tree</span>, <span class="ident">expand_node</span>, <span class="ident">rho_gamma</span>);
-        <span class="ident">data</span>.<span class="ident">into_iter</span>().<span class="ident">for_each</span>(<span class="op">|</span>(<span class="ident">index</span>, <span class="ident">example</span>, <span class="ident">weight</span>, <span class="ident">stats</span>)<span class="op">|</span> {
-            <span class="ident">data_by_node</span>.<span class="ident">entry</span>(<span class="ident">index</span>).<span class="ident">or_insert</span>(<span class="ident">Vec</span>::<span class="ident">new</span>()).<span class="ident">push</span>((<span class="ident">example</span>, <span class="ident">weight</span>, <span class="ident">stats</span>));
+
+        <span class="comment">// Put examples into bins by where they fall on the tree - Complexity: O(Examples)</span>
+        <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">data_by_node</span>: <span class="ident">HashMap</span><span class="op">&lt;</span><span class="ident">usize</span>, <span class="ident">Vec</span><span class="op">&lt;</span>(<span class="ident">f32</span>, (<span class="kw-2">&amp;</span><span class="ident">Example</span>, <span class="ident">RuleStats</span>))<span class="op">&gt;</span><span class="op">&gt;</span> <span class="op">=</span> <span class="ident">HashMap</span>::<span class="ident">new</span>();
+        <span class="ident">data</span>.<span class="ident">into_iter</span>().<span class="ident">for_each</span>(<span class="op">|</span>(<span class="ident">index</span>, <span class="ident">weight</span>, <span class="ident">stats</span>)<span class="op">|</span> {
+            <span class="ident">data_by_node</span>.<span class="ident">entry</span>(<span class="ident">index</span>).<span class="ident">or_insert</span>(<span class="ident">Vec</span>::<span class="ident">new</span>()).<span class="ident">push</span>((<span class="ident">weight</span>, <span class="ident">stats</span>));
         });
 
         <span class="comment">// TODO: Calculate total sum of the weights and the number of examples</span>
@@ -380,21 +552,29 @@ Each split corresponds to 2 types of predictions,
         <span class="kw">let</span> <span class="ident">count</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">total_count</span>;
         <span class="kw">let</span> <span class="ident">total_weight</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">total_weight</span>;
         <span class="kw">let</span> <span class="ident">total_weight_sq</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">total_weight_sq</span>;
-        <span class="kw">for</span> <span class="ident">index</span> <span class="kw">in</span> <span class="number">0</span>..<span class="ident">tree</span>.<span class="ident">tree_size</span> { <span class="comment">// Splitting node candidate index</span>
+        <span class="kw">for</span> <span class="ident">index</span> <span class="kw">in</span> <span class="number">0</span>..<span class="self">self</span>.<span class="ident">num_candid</span> { <span class="comment">// Splitting node candidate index</span>
             <span class="kw">if</span> <span class="op">!</span><span class="ident">data_by_node</span>.<span class="ident">contains_key</span>(<span class="kw-2">&amp;</span><span class="ident">index</span>) {
                 <span class="kw">continue</span>;
             }
             <span class="kw">let</span> <span class="ident">data</span> <span class="op">=</span> <span class="kw-2">&amp;</span><span class="ident">data_by_node</span>[<span class="kw-2">&amp;</span><span class="ident">index</span>];
             <span class="kw">let</span> <span class="ident">tree_node</span> <span class="op">=</span> {
                 <span class="comment">// all bins read data in parallel</span>
-                <span class="self">self</span>.<span class="ident">bins</span>.<span class="ident">par_iter</span>()
-                    .<span class="ident">zip</span>(
-                        <span class="self">self</span>.<span class="ident">stats</span>[<span class="ident">index</span>].<span class="ident">par_iter_mut</span>()
-                    ).<span class="ident">enumerate</span>()
-                    .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">feature_index</span>, (<span class="ident">feature_bins</span>, <span class="kw-2">mut</span> <span class="ident">stats</span>))<span class="op">|</span> {
+                <span class="self">self</span>.<span class="ident">bins</span>.<span class="ident">par_iter</span>().<span class="ident">zip</span>(
+                    <span class="self">self</span>.<span class="ident">weak_rules_score</span>[<span class="ident">index</span>].<span class="ident">par_iter_mut</span>()
+                ).<span class="ident">zip</span>(
+                    <span class="self">self</span>.<span class="ident">sum_c_squared</span>[<span class="ident">index</span>].<span class="ident">par_iter_mut</span>()
+                ).<span class="ident">zip</span>(
+                    <span class="self">self</span>.<span class="ident">num_positive</span>[<span class="ident">index</span>].<span class="ident">par_iter_mut</span>()
+                        .<span class="ident">zip</span>(<span class="self">self</span>.<span class="ident">num_negative</span>[<span class="ident">index</span>].<span class="ident">par_iter_mut</span>())
+                        .<span class="ident">zip</span>(<span class="self">self</span>.<span class="ident">weight_positive</span>[<span class="ident">index</span>].<span class="ident">par_iter_mut</span>())
+                        .<span class="ident">zip</span>(<span class="self">self</span>.<span class="ident">weight_negative</span>[<span class="ident">index</span>].<span class="ident">par_iter_mut</span>())
+                ).<span class="ident">enumerate</span>()
+                .<span class="ident">map</span>(<span class="op">|</span>(<span class="ident">i</span>, <span class="ident">zipped_values</span>)<span class="op">|</span> {
+                    <span class="kw">let</span> (((<span class="ident">bin</span>, <span class="ident">weak_rules_score</span>), <span class="ident">sum_c_squared</span>), <span class="ident">debug_info</span>) <span class="op">=</span> <span class="ident">zipped_values</span>;
                     <span class="ident">learner_helpers</span>::<span class="ident">find_tree_node</span>(
-                        <span class="ident">data</span>, <span class="ident">feature_index</span>, <span class="ident">rho_gamma</span>, <span class="ident">count</span>, <span class="ident">total_weight</span>, <span class="ident">total_weight_sq</span>,
-                        <span class="ident">expand_node</span>, <span class="ident">feature_bins</span>, <span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="ident">stats</span>)
+                        <span class="kw-2">&amp;</span><span class="ident">data</span>, <span class="ident">i</span>, <span class="ident">rho_gamma</span>, <span class="ident">count</span>, <span class="ident">total_weight</span>, <span class="ident">total_weight_sq</span>,
+                        <span class="ident">index</span>, <span class="comment">// TODO: debug this expand_node</span>
+                        <span class="ident">bin</span>, <span class="ident">weak_rules_score</span>, <span class="ident">sum_c_squared</span>, <span class="ident">debug_info</span>)
                 })
                 .<span class="ident">find_any</span>(<span class="op">|</span><span class="ident">t</span><span class="op">|</span> <span class="ident">t</span>.<span class="ident">is_some</span>())
                 .<span class="ident">unwrap_or</span>(<span class="prelude-val">None</span>)
@@ -410,7 +590,7 @@ Each split corresponds to 2 types of predictions,
         <span class="kw">if</span> <span class="op">!</span><span class="ident">is_zero</span>(<span class="ident">gamma</span> <span class="op">-</span> <span class="self">self</span>.<span class="ident">rho_gamma</span>) {
             <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;set-gamma, {}, {}&quot;</span>, <span class="self">self</span>.<span class="ident">rho_gamma</span>, <span class="ident">gamma</span>);
             <span class="self">self</span>.<span class="ident">rho_gamma</span> <span class="op">=</span> <span class="ident">gamma</span>;
-            <span class="self">self</span>.<span class="ident">reset</span>(<span class="self">self</span>.<span class="ident">stats</span>.<span class="ident">len</span>());
+            <span class="self">self</span>.<span class="ident">reset</span>();
             <span class="bool-val">true</span>
         } <span class="kw">else</span> {
             <span class="bool-val">false</span>

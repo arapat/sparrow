@@ -293,23 +293,14 @@
 <span id="293">293</span>
 <span id="294">294</span>
 <span id="295">295</span>
-<span id="296">296</span>
-<span id="297">297</span>
-<span id="298">298</span>
-<span id="299">299</span>
-<span id="300">300</span>
-<span id="301">301</span>
-<span id="302">302</span>
-<span id="303">303</span>
-<span id="304">304</span>
-<span id="305">305</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">pub</span> <span class="kw">mod</span> <span class="ident">packet_stats</span>;
 
 <span class="kw">use</span> <span class="ident">std</span>::<span class="ident">sync</span>::<span class="ident">mpsc</span>;
 
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">not</span>(<span class="ident">test</span>))]</span> <span class="kw">use</span> <span class="ident">tmsn</span>::<span class="ident">network</span>::<span class="ident">start_network_only_recv</span>;
-<span class="attribute">#[<span class="ident">cfg</span>(<span class="ident">test</span>)]</span> <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">test_helper</span>::<span class="ident">start_network_only_recv</span>;
+<span class="comment">// #[cfg(not(test))] use tmsn::network::start_network_only_recv;</span>
+<span class="comment">// #[cfg(test)]</span>
+<span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">test_helper</span>::<span class="ident">start_network_only_recv</span>;
 
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">Model</span>;
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">bins</span>::<span class="ident">Bins</span>;
@@ -430,9 +421,7 @@
         }
         <span class="comment">// refresh kdtree when gamma is too small</span>
         <span class="self">self</span>.<span class="ident">adjust_gamma</span>();
-        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">scheduler</span>.<span class="ident">set_assignments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">model</span>, <span class="self">self</span>.<span class="ident">gamma</span>.<span class="ident">value</span>()) <span class="op">&gt;</span> <span class="number">0</span> {
-            <span class="self">self</span>.<span class="ident">broadcast_model</span>(<span class="bool-val">true</span>);
-        }
+        <span class="self">self</span>.<span class="ident">scheduler</span>.<span class="ident">set_assignments</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>.<span class="ident">model</span>, <span class="self">self</span>.<span class="ident">gamma</span>.<span class="ident">value</span>());
         <span class="kw">if</span> <span class="op">!</span><span class="self">self</span>.<span class="ident">gamma</span>.<span class="ident">is_valid</span>() {
             <span class="self">self</span>.<span class="ident">scheduler</span>.<span class="ident">refresh_grid</span>(<span class="self">self</span>.<span class="ident">min_grid_size</span>);
         }
@@ -450,18 +439,14 @@
         <span class="kw">let</span> <span class="kw-2">mut</span> <span class="ident">packet_stats</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">packet_stats</span>.<span class="ident">take</span>().<span class="ident">unwrap</span>();
         <span class="ident">packet</span>.<span class="ident">source_machine_id</span> <span class="op">=</span>
             <span class="ident">packet</span>.<span class="ident">source_machine_id</span> <span class="op">%</span> <span class="ident">packet_stats</span>.<span class="ident">num_machines</span>;
-        <span class="kw">let</span> <span class="ident">worker_assignment</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">scheduler</span>.<span class="ident">get_worker_assignment</span>(<span class="ident">packet</span>.<span class="ident">source_machine_id</span>);
-        <span class="kw">let</span> <span class="ident">packet_type</span> <span class="op">=</span> <span class="ident">packet</span>.<span class="ident">get_packet_type</span>(<span class="ident">worker_assignment</span>, <span class="self">self</span>.<span class="ident">min_ess</span>);
+        <span class="kw">let</span> <span class="ident">packet_type</span> <span class="op">=</span> <span class="ident">packet</span>.<span class="ident">get_packet_type</span>(<span class="self">self</span>.<span class="ident">min_ess</span>);
         <span class="ident">packet_stats</span>.<span class="ident">handle_new_packet</span>(<span class="ident">packet</span>, <span class="kw-2">&amp;</span><span class="ident">packet_type</span>);
         <span class="kw">match</span> <span class="ident">packet_type</span> {
             <span class="ident">PacketType</span>::<span class="ident">SmallEffSize</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="comment">// Ignore updates generated on a small-ess sample</span>
             },
-            <span class="ident">PacketType</span>::<span class="ident">AssignMismatch</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="comment">// Ignore updates because of mismatch</span>
-            },
-            <span class="ident">PacketType</span>::<span class="ident">Fallback</span> <span class="op">=</span><span class="op">&gt;</span> {
-                <span class="self">self</span>.<span class="ident">scheduler</span>.<span class="ident">handle_fallback</span>(<span class="ident">packet</span>);
+            <span class="ident">PacketType</span>::<span class="ident">Empty</span> <span class="op">=</span><span class="op">&gt;</span> {
+                <span class="self">self</span>.<span class="ident">scheduler</span>.<span class="ident">handle_empty</span>(<span class="ident">packet</span>);
             },
             <span class="ident">PacketType</span>::<span class="ident">Accept</span> <span class="op">=</span><span class="op">&gt;</span> {
                 <span class="self">self</span>.<span class="ident">model_ts</span> <span class="op">=</span> <span class="self">self</span>.<span class="ident">_performance_mon</span>.<span class="ident">get_duration</span>();
@@ -500,12 +485,7 @@
 
 
     <span class="kw">fn</span> <span class="ident">update_model</span>(<span class="kw-2">&amp;</span><span class="kw-2">mut</span> <span class="self">self</span>, <span class="ident">packet</span>: <span class="kw-2">&amp;</span><span class="ident">Packet</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Vec</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span> {
-        <span class="kw">if</span> <span class="ident">packet</span>.<span class="ident">updates</span>.<span class="ident">size</span> <span class="op">&lt;</span><span class="op">=</span> <span class="number">0</span> {
-            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, received an empty packet, {}, {}, {}, {}&quot;</span>,
-                <span class="ident">packet</span>.<span class="ident">packet_signature</span>, <span class="ident">packet</span>.<span class="ident">source_machine_id</span>, <span class="ident">packet</span>.<span class="ident">node_id</span>, <span class="ident">packet</span>.<span class="ident">gamma</span>,
-            );
-            <span class="kw">return</span> <span class="macro">vec</span><span class="macro">!</span>[];
-        }
+        <span class="macro">assert</span><span class="macro">!</span>(<span class="ident">packet</span>.<span class="ident">updates</span>.<span class="ident">size</span> <span class="op">&gt;</span> <span class="number">0</span>);
         <span class="kw">let</span> (<span class="ident">new_node_indices</span>, <span class="ident">count_new</span>, <span class="ident">count_updates</span>) <span class="op">=</span> <span class="self">self</span>.<span class="ident">model</span>.<span class="ident">update</span>(
             <span class="kw-2">&amp;</span><span class="ident">packet</span>.<span class="ident">updates</span>, <span class="kw-2">&amp;</span><span class="ident">packet</span>.<span class="ident">this_model_signature</span>, <span class="self">self</span>.<span class="ident">gamma</span>.<span class="ident">gamma</span>);
         <span class="self">self</span>.<span class="ident">broadcast_model</span>(<span class="bool-val">true</span>);

@@ -71,21 +71,6 @@
 <span id="71">71</span>
 <span id="72">72</span>
 <span id="73">73</span>
-<span id="74">74</span>
-<span id="75">75</span>
-<span id="76">76</span>
-<span id="77">77</span>
-<span id="78">78</span>
-<span id="79">79</span>
-<span id="80">80</span>
-<span id="81">81</span>
-<span id="82">82</span>
-<span id="83">83</span>
-<span id="84">84</span>
-<span id="85">85</span>
-<span id="86">86</span>
-<span id="87">87</span>
-<span id="88">88</span>
 </pre><div class="example-wrap"><pre class="rust ">
 <span class="kw">use</span> <span class="ident">commons</span>::<span class="ident">tree</span>::<span class="ident">UpdateList</span>;
 
@@ -93,9 +78,8 @@
 <span class="attribute">#[<span class="ident">derive</span>(<span class="ident">Debug</span>)]</span>
 <span class="kw">pub</span> <span class="kw">enum</span> <span class="ident">PacketType</span> {
     <span class="ident">Accept</span>,
-    <span class="ident">Fallback</span>,
+    <span class="ident">Empty</span>,
     <span class="ident">SmallEffSize</span>,
-    <span class="ident">AssignMismatch</span>,
 }
 
 
@@ -111,7 +95,6 @@
     <span class="kw">pub</span> <span class="ident">ess</span>: <span class="ident">f32</span>,
     <span class="kw">pub</span> <span class="ident">base_model_signature</span>: <span class="ident">String</span>,
     <span class="kw">pub</span> <span class="ident">this_model_signature</span>: <span class="ident">String</span>,
-    <span class="kw">pub</span> <span class="ident">fallback</span>: <span class="ident">bool</span>,
 }
 
 
@@ -119,15 +102,14 @@
     <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">new</span>(
         <span class="ident">machine_name</span>: <span class="kw-2">&amp;</span><span class="ident">String</span>,
         <span class="ident">machine_id</span>: <span class="ident">usize</span>,
-        <span class="ident">node_id</span>: <span class="ident">usize</span>,
         <span class="ident">packet_counter</span>: <span class="ident">usize</span>,
+        <span class="ident">node_id</span>: <span class="ident">usize</span>,
         <span class="ident">final_model_size</span>: <span class="ident">usize</span>,
         <span class="ident">updates</span>: <span class="ident">UpdateList</span>,
         <span class="ident">gamma</span>: <span class="ident">f32</span>,
         <span class="ident">ess</span>: <span class="ident">f32</span>,
         <span class="ident">sample_version</span>: <span class="ident">usize</span>,
         <span class="ident">base_model_sig</span>: <span class="ident">String</span>,
-        <span class="ident">fallback</span>: <span class="ident">bool</span>,
     ) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">Packet</span> {
         <span class="kw">let</span> <span class="ident">this_model_sig</span> <span class="op">=</span> <span class="ident">machine_name</span>.<span class="ident">clone</span>() <span class="op">+</span> <span class="string">&quot;_&quot;</span> <span class="op">+</span> <span class="kw-2">&amp;</span><span class="ident">final_model_size</span>.<span class="ident">to_string</span>();
         <span class="kw">let</span> <span class="ident">packet_sig</span> <span class="op">=</span> <span class="macro">format</span><span class="macro">!</span>(<span class="string">&quot;pac_{}_{}&quot;</span>, <span class="ident">this_model_sig</span>, <span class="ident">packet_counter</span>);
@@ -142,32 +124,20 @@
             <span class="ident">ess</span>: <span class="ident">ess</span>,
             <span class="ident">base_model_signature</span>: <span class="ident">base_model_sig</span>,
             <span class="ident">this_model_signature</span>: <span class="ident">this_model_sig</span>,
-            <span class="ident">fallback</span>: <span class="ident">fallback</span>,
         }
     }
 
-    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_packet_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">assignment</span>: <span class="prelude-ty">Option</span><span class="op">&lt;</span><span class="ident">usize</span><span class="op">&gt;</span>, <span class="ident">min_ess</span>: <span class="ident">f32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">PacketType</span> {
+    <span class="kw">pub</span> <span class="kw">fn</span> <span class="ident">get_packet_type</span>(<span class="kw-2">&amp;</span><span class="self">self</span>, <span class="ident">min_ess</span>: <span class="ident">f32</span>) <span class="op">-</span><span class="op">&gt;</span> <span class="ident">PacketType</span> {
         <span class="comment">// Ignore any claims made on a very small effective sample</span>
-        <span class="kw">let</span> <span class="ident">assignment</span>: <span class="ident">i32</span> <span class="op">=</span> {
-            <span class="kw">if</span> <span class="ident">assignment</span>.<span class="ident">is_none</span>() {
-                <span class="op">-</span><span class="number">1</span>
-            } <span class="kw">else</span> {
-                <span class="ident">assignment</span>.<span class="ident">unwrap</span>() <span class="kw">as</span> <span class="ident">i32</span>
-            }
-        };
-        <span class="kw">if</span> <span class="ident">assignment</span> <span class="op">!</span><span class="op">=</span> (<span class="self">self</span>.<span class="ident">node_id</span> <span class="kw">as</span> <span class="ident">i32</span>) {
-            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, packet, worker assignment mismatch, {}, {}, {}, {}&quot;</span>,
-                    <span class="self">self</span>.<span class="ident">source_machine_id</span>, <span class="ident">assignment</span>, <span class="self">self</span>.<span class="ident">node_id</span>, <span class="self">self</span>.<span class="ident">ess</span>);
-            <span class="ident">PacketType</span>::<span class="ident">AssignMismatch</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ess</span> <span class="op">&lt;</span> <span class="ident">min_ess</span> {
-            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, packet, small ess, {}, {}, {}&quot;</span>,
+        <span class="kw">if</span> <span class="self">self</span>.<span class="ident">ess</span> <span class="op">&lt;</span> <span class="ident">min_ess</span> {
+            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, packet, empty small ess, {}, {}, {}&quot;</span>,
                     <span class="self">self</span>.<span class="ident">source_machine_id</span>, <span class="self">self</span>.<span class="ident">node_id</span>, <span class="self">self</span>.<span class="ident">ess</span>);
             <span class="ident">PacketType</span>::<span class="ident">SmallEffSize</span>
-        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">fallback</span> {
+        } <span class="kw">else</span> <span class="kw">if</span> <span class="self">self</span>.<span class="ident">updates</span>.<span class="ident">size</span> <span class="op">=</span><span class="op">=</span> <span class="number">0</span> {
             <span class="comment">// Empty packets</span>
-            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, packet, fallback, {}, {}, {}&quot;</span>,
+            <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, packet, empty, {}, {}, {}&quot;</span>,
                     <span class="self">self</span>.<span class="ident">source_machine_id</span>, <span class="self">self</span>.<span class="ident">node_id</span>, <span class="self">self</span>.<span class="ident">ess</span>);
-            <span class="ident">PacketType</span>::<span class="ident">Fallback</span>
+            <span class="ident">PacketType</span>::<span class="ident">Empty</span>
         } <span class="kw">else</span> {
             <span class="macro">debug</span><span class="macro">!</span>(<span class="string">&quot;model_manager, packet, accept, {}, {}, {}&quot;</span>,
                     <span class="self">self</span>.<span class="ident">source_machine_id</span>, <span class="self">self</span>.<span class="ident">node_id</span>, <span class="self">self</span>.<span class="ident">ess</span>);

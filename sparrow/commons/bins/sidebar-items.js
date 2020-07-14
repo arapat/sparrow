@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["load_bins",""]],"struct":[["Bins","The percentiles of a specific feature dimension, which would be used as the candidates weak rules on that dimension."]]});

@@ -1,1 +1,0 @@
-initSidebarItems({"enum":[["SampleMode",""]],"struct":[["Config","Configuration for training and testing with Sparrow"]]});

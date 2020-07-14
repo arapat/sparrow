@@ -1,1 +1,0 @@
-initSidebarItems({"fn":[["bounded",""]],"struct":[["ChannelMonitor",""],["Receiver",""],["Sender",""]]});
