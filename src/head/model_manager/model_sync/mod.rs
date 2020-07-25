@@ -2,9 +2,9 @@ pub mod packet_stats;
 
 use std::sync::mpsc;
 
-// #[cfg(not(test))] use tmsn::network::start_network_only_recv;
-// #[cfg(test)]
-use commons::test_helper::start_network_only_recv;
+// TODO: replace network
+/* #[cfg(not(test))] use tmsn::network::start_network_only_recv;
+// #[cfg(test)] */ use commons::test_helper::start_network_only_recv;
 
 use commons::Model;
 use commons::bins::Bins;

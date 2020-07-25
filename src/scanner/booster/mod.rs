@@ -2,11 +2,12 @@ pub mod learner;
 pub mod learner_helpers;
 
 use std::sync::mpsc;
+use std::sync::Arc;
+use std::sync::RwLock;
 use std::thread::sleep;
 use std::time::Duration;
 use std::fmt::Display;
-// TODO: use tmsn::network::start_network_only_send;
-use commons::test_helper::start_network_only_send;
+// use tmsn::network::start_network_only_send;
 
 use commons::persistent_io::download_assignments;
 use commons::persistent_io::download_model;
@@ -21,6 +22,7 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::ModelPack;
 use self::learner::Learner;
 use self::learner::TreeNode;
+use super::BoosterState;
 
 
 pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";
@@ -31,7 +33,8 @@ pub const MODEL_SIG_PLACEHOLDER: &str = "MODEL_SIG_PLACEHOLDER";
 pub struct Boosting {
     exp_name: String,
     num_trees: usize,
-    training_loader: BufferLoader,
+    pub training_loader: BufferLoader,
+    booster_state: Arc<RwLock<BoosterState>>,
 
     learner: Learner,
     model: Model,
@@ -82,6 +85,7 @@ impl Boosting {
         default_gamma: f32,
         save_process: bool,
         save_interval: usize,
+        booster_state: Arc<RwLock<BoosterState>>,
     ) -> Boosting {
         // TODO: make num_cadid a paramter
         let learner = Learner::new(
@@ -90,6 +94,7 @@ impl Boosting {
             exp_name: exp_name,
             num_trees: num_trees,
             training_loader: training_loader,
+            booster_state: booster_state,
 
             learner: learner,
             model: init_model,
@@ -172,9 +177,7 @@ impl Boosting {
     pub fn enable_network(&mut self, name: String, port: u16) {
         let (local_s, local_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) =
             mpsc::channel();
-        start_network_only_send(name.as_ref(), port, local_r).unwrap();
-        // let (hb_s, hb_r): (mpsc::Sender<String>, mpsc::Receiver<String>) = mpsc::channel();
-        // start_network_only_send(name.as_ref(), port + 1, hb_r);
+        // start_network_only_send(name.as_ref(), port, local_r).unwrap();
         self.network_sender = Some(local_s);
         self.local_name = name.clone();
         self.local_id = {
@@ -184,10 +187,7 @@ impl Boosting {
     }
 
     /// Start training the boosting algorithm.
-    pub fn training(
-        &mut self,
-        prep_time: f32,
-    ) {
+    pub fn training(&mut self) {
         debug!("Start training.");
         self.init();
         debug!("Finished initialization");
@@ -244,7 +244,7 @@ impl Boosting {
                 );
             }
             if new_rule.is_some() {
-                let ts = prep_time + global_timer.get_duration();
+                let ts = global_timer.get_duration();
                 self.process_new_rule(new_rule.unwrap(), total_data_size_without_fire, ts);
                 total_data_size_without_fire = 0;
             }
@@ -260,7 +260,7 @@ impl Boosting {
             global_timer.write_log("boosting-overall");
             learner_timer.write_log("boosting-learning");
         }
-        self.handle_persistent(prep_time + global_timer.get_duration());
+        self.handle_persistent(global_timer.get_duration());
         info!("Training is finished. Model length: {}. Is gamma significant? {}.",
               self.model.size(), self.learner.is_gamma_significant());
     }

@@ -21,25 +21,25 @@ use self::model_manager::start_model_manager_async;
 
 /// Start the components resided in head node
 pub fn start_head(
-    config: &Config,
-    sample_mode: &SampleMode,
-    bins: &Vec<Bins>,
-    init_tree: &Model,
+    config: Config,
+    sample_mode: SampleMode,
+    bins: Vec<Bins>,
+    init_tree: Model,
 ) {
     // Pass the models between the network to the Strata
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
 
     let sampler_state = start_sampler_async(
-        config,
-        sample_mode,
-        bins,
-        init_tree,
+        &config,
+        &sample_mode,
+        &bins,
+        &init_tree,
         next_model_r,
     );
     start_model_manager_async(
-        config,
-        init_tree,
-        bins,
+        &config,
+        &init_tree,
+        &bins,
         next_model_s,
     );
 

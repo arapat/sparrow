@@ -104,9 +104,9 @@ pub fn training(config_filepath: &String) {
         }
     };
     if config.sampler_scanner == "scanner" {
-        start_scanner(&config, &sample_mode, &bins, &init_tree);
+        start_scanner(config, sample_mode, bins, init_tree);
     } else { // if config.sampler_scanner == "sampler"
-        start_head(&config, &sample_mode, &bins, &init_tree);
+        start_head(config, sample_mode, bins, init_tree);
     }
 }
 

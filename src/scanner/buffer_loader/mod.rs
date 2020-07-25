@@ -4,6 +4,7 @@ use rayon::prelude::*;
 use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::mpsc::Receiver;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -64,6 +65,7 @@ impl BufferLoader {
         sleep_duration: usize,
         min_ess: f32,
         exp_name: String,
+        sampler_signal_receiver: Receiver<usize>,
     ) -> BufferLoader {
         let new_buffer = Arc::new(RwLock::new(None));
         let num_batch = (size + batch_size - 1) / batch_size;

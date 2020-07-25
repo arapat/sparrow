@@ -1,4 +1,4 @@
-mod gamma;
+pub mod gamma;
 pub mod model_sync;
 mod model_with_version;
 pub mod scheduler;
