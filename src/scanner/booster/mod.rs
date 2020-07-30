@@ -100,7 +100,7 @@ impl Boosting {
                 last_logging_ts = global_timer.get_duration();
             }
 
-            let (_new_rule, batch_size, switched) = {
+            let (rule, batch_size, switched) = {
                 let (data, switched) =
                     self.training_loader.get_next_batch_and_update(true, &self.model);
 
@@ -115,8 +115,8 @@ impl Boosting {
             global_timer.update(batch_size);
 
             // Try to find new rule
-            if _new_rule.is_some() {
-                new_rule = _new_rule;
+            if rule.is_some() {
+                new_rule = rule;
                 break;
             }
 

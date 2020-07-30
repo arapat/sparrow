@@ -134,52 +134,6 @@ impl StratifiedStorage {
         // let (sampled_examples_s, sampled_examples_r): (Sender<((ExampleWithScore, u32), u32)>, _) =
         let (sampled_examples_s, sampled_examples_r) =
             channel::bounded(channel_size, "gather-samples");
-        /* TODO: Set a flag to enable resuming weight tables and the latest sample  */
-        /* The backup mechanism does not back up the slot indices for each stratum  */
-        /* yet. Implement it before turning on this flag.                           */
-        /* For now, all examples will be reset their scores to 0 during the         */
-        /* initilization.                                                           */
-        /*
-        let ser_strata = {
-            if resume_training {
-                // read snapshot
-                debug!("reading the snapshot");
-                let (ser_strata, _tables): (Vec<u8>, (HashMap<i8, i32>, HashMap<i8, f64>)) =
-                    deserialize(&read_all(&snapshot_filename)).unwrap();
-                debug!("reading the tables");
-                let (counts_table, weights_table): (HashMap<_, _>, HashMap<_, f64>) = tables;
-                // initialize the weight tables from the snapshot
-                debug!("resume counts_table, {:?}", counts_table);
-                debug!("resume weights_table, {:?}", weights_table);
-                for (key, val) in counts_table.iter() {
-                    counts_table_w.update(*key, *val);
-                }
-                for (key, val) in weights_table.iter() {
-                    weights_table_w.update(*key, Box::new(F64 { val: *val }));
-                }
-                {
-                    counts_table_w.refresh();
-                    weights_table_w.refresh();
-                }
-                debug!("refreshed table");
-                // Send out the last sample before creating the snapshot to the scanners
-                {
-                    let (version, last_sample): (usize, Vec<ExampleWithScore>) =
-                        deserialize(&read_all(&"latest_sample.bin".to_string())).unwrap();
-                    debug!("Loaded examples from the Sample version {}. \
-                            Will send out to the scanners", version);
-                    let sampled_examples = sampled_examples.clone();
-                    spawn(move || {
-                        last_sample.into_iter().for_each(|t| sampled_examples.send(((t, 1), 1)));
-                    });
-                }
-                // serialized strata will be used for initialization in its `new` func
-                Some(ser_strata)
-            } else {
-                None
-            }
-        };
-        */
         let ser_strata = None;
         // Maintains weight tables
         let stats_update_s = start_update_weights_table(
