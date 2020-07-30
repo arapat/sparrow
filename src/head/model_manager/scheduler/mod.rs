@@ -4,7 +4,7 @@ use rand::Rng;
 use rand::thread_rng;
 
 use commons::bins::Bins;
-use commons::packet::Packet;
+use commons::packet::UpdatePacket;
 use commons::persistent_io::VersionedSampleModel;
 use commons::persistent_io::load_sample_s3;
 use commons::persistent_io::upload_assignments;
@@ -66,20 +66,20 @@ impl Scheduler {
         num_updates
     }
 
-    pub fn handle_accept(&mut self, packet: &Packet) -> bool {
+    pub fn handle_accept(&mut self, packet: &UpdatePacket) -> bool {
         self.get_grid_node_ids(packet).is_some()
     }
 
-    pub fn handle_empty(&mut self, packet: &Packet) -> bool {
+    pub fn handle_empty(&mut self, packet: &UpdatePacket) -> bool {
         let grid_node_ids = self.get_grid_node_ids(packet);
         if grid_node_ids.is_none() {
             return false;
         }
         let (grid_index, node_id) = grid_node_ids.unwrap();
-        debug!("model_manager, scheduler, handle empty, {}, {}, {}",
-                packet.source_machine_id, node_id, packet.gamma);
+        debug!("model_manager, scheduler, handle empty, {}", node_id);
         self.release_grid(grid_index);
-        self.last_gamma[grid_index] = packet.gamma;
+        // callback TODO:
+        // self.last_gamma[grid_index] = packet.gamma;
         true
     }
 
@@ -161,20 +161,22 @@ impl Scheduler {
         self.scanner_task[machine_id] = None;
     }
 
-    fn get_grid_node_ids(&self, packet: &Packet) -> Option<(usize, usize)> {
-        if self.scanner_task[packet.source_machine_id].is_none() {
-            debug!("model_manager, scheduler, no assignment, {}, {}, {}",
-                    packet.packet_signature, packet.source_machine, packet.source_machine_id);
-            return None;
-        }
-        let (grid_index, node_id) = self.scanner_task[packet.source_machine_id].unwrap();
-        if node_id != packet.node_id {
-            debug!("model_manager, scheduler, node_id mismatch, {}, {}, {}, {}, {}",
-                    packet.packet_signature, packet.source_machine, packet.source_machine_id,
-                    node_id, packet.node_id);
-            return None;
-        }
-        Some((grid_index, node_id))
+    fn get_grid_node_ids(&self, packet: &UpdatePacket) -> Option<(usize, usize)> {
+        // callback TODO:
+        // if self.scanner_task[packet.source_machine_id].is_none() {
+        //     debug!("model_manager, scheduler, no assignment, {}, {}, {}",
+        //             packet.packet_signature, packet.source_machine, packet.source_machine_id);
+        //     return None;
+        // }
+        // let (grid_index, node_id) = self.scanner_task[packet.source_machine_id].unwrap();
+        // if node_id != packet.node_id {
+        //     debug!("model_manager, scheduler, node_id mismatch, {}, {}, {}, {}, {}",
+        //             packet.packet_signature, packet.source_machine, packet.source_machine_id,
+        //             node_id, packet.node_id);
+        //     return None;
+        // }
+        // Some((grid_index, node_id))
+        None
     }
 
     pub fn print_log(&self, num_consecutive_err: usize, gamma: &Gamma) {

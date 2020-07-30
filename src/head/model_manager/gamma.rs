@@ -1,7 +1,7 @@
 use super::model_sync::packet_stats::PacketStats;
 use super::model_sync::packet_stats::UpdateSpeed;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Gamma {
     pub gamma: f32,
     shrink_factor: f32,

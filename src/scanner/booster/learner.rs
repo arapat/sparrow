@@ -94,8 +94,6 @@ impl TreeNode {
 pub struct Learner {
     bins: Vec<Bins>,
     num_features:   usize,
-    _default_gamma: f32,
-    min_gamma: f32,
     num_candid: usize,
 
     pub rho_gamma:        f32,
@@ -119,23 +117,20 @@ pub struct Learner {
 
 impl Learner {
     /// Create a `Learner` that search for valid weak rules.
-    /// `default_gamma` is the initial value of the edge `gamma`.
+    /// `gamma` is the initial value of the edge `gamma`.
     /// `bins` is vectors of the all thresholds on all candidate features for generating weak rules.
     pub fn new(
-        min_gamma: f32,
-        default_gamma: f32,
-        num_features: usize,
+        gamma: f32,
         bins: Vec<Bins>,
+        num_features: usize,
         num_splits: usize,
     ) -> Learner {
         let mut learner = Learner {
             bins: bins,
             num_features: num_features.clone(),
-            _default_gamma: default_gamma.clone(),
-            min_gamma: min_gamma,
             num_candid: 1,
 
-            rho_gamma:        default_gamma.clone(),
+            rho_gamma:        gamma.clone(),
             expand_node:      0,
             total_count:      0,
             total_weight:     0.0,
@@ -209,10 +204,6 @@ impl Learner {
 
         let (t, i, j, k) = rule_id;
         learner_helpers::gen_tree_node(t, i, j, k, actual_ratio)
-    }
-
-    pub fn is_gamma_significant(&self) -> bool {
-        self.rho_gamma >= self.min_gamma
     }
 
     /// Update the statistics of all candidate weak rules using current batch of

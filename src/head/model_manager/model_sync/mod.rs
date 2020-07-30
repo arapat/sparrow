@@ -9,12 +9,11 @@ use std::sync::mpsc;
 use commons::Model;
 use commons::bins::Bins;
 use commons::channel::Sender;
-use commons::packet::Packet;
-use commons::packet::PacketType;
+use commons::packet::UpdatePacket;
+use commons::packet::UpdatePacketType;
 use commons::performance_monitor::PerformanceMonitor;
 
 use commons::io::write_all;
-use commons::persistent_io::upload_model;
 use commons::persistent_io::write_model;
 
 use super::gamma::Gamma;
@@ -35,7 +34,7 @@ pub struct ModelSync {
     gamma: Gamma,
     next_model_sender: Sender<(Model, String)>,
     scheduler: Scheduler,
-    packet_receiver: Option<mpsc::Receiver<Packet>>,
+    packet_receiver: Option<mpsc::Receiver<(String, UpdatePacket)>>,
     packet_stats: Option<PacketStats>,
 
     _performance_mon: PerformanceMonitor,
@@ -55,7 +54,7 @@ impl ModelSync {
         bins: &Vec<Bins>,
         num_scanners: usize,
     ) -> ModelSync {
-        let mut model = ModelWithVersion::new(init_tree.clone());
+        let mut model = ModelWithVersion::new(init_tree.clone(), "Sampler".to_string());
         let scheduler = Scheduler::new(num_scanners, exp_name, bins, &mut model);
         ModelSync {
             model: model,
@@ -104,7 +103,7 @@ impl ModelSync {
 
     fn start_network(
         &mut self, machine_name: String, remote_ips: Vec<String>, port: u16,
-    ) -> mpsc::Sender<Packet> {
+    ) -> mpsc::Sender<(String, UpdatePacket)> {
         let (packet_stats, packet_sender, packet_receiver) =
             start_network(machine_name, remote_ips, port);
         self.packet_stats = Some(packet_stats);
@@ -120,7 +119,8 @@ impl ModelSync {
         if packet.is_err() {
             *num_consecutive_err += 1;
         } else {
-            self.handle_packet(&mut packet.unwrap());
+            let (source_ip, mut packet) = packet.unwrap();
+            self.handle_packet(&source_ip, &mut packet);
             *num_consecutive_err = 0;
         }
         // refresh kdtree when gamma is too small
@@ -139,22 +139,17 @@ impl ModelSync {
     }
 
 
-    fn handle_packet(&mut self, packet: &mut Packet) {
+    fn handle_packet(&mut self, source_ip: &String, packet: &mut UpdatePacket) {
         let mut packet_stats = self.packet_stats.take().unwrap();
-        packet.source_machine_id =
-            packet.source_machine_id % packet_stats.num_machines;
         let packet_type = packet.get_packet_type(self.min_ess);
-        packet_stats.handle_new_packet(packet, &packet_type);
+        packet_stats.handle_new_packet(source_ip, packet, &packet_type);
         match packet_type {
-            PacketType::SmallEffSize => {
-                // Ignore updates generated on a small-ess sample
-            },
-            PacketType::Empty => {
+            UpdatePacketType::Empty => {
                 self.scheduler.handle_empty(packet);
             },
-            PacketType::Accept => {
+            UpdatePacketType::Accept => {
                 self.model_ts = self._performance_mon.get_duration();
-                self.update_model(packet);
+                self.update_model(source_ip, packet);
                 self.scheduler.handle_accept(packet);
             },
         }
@@ -176,27 +171,29 @@ impl ModelSync {
 
 
     fn broadcast_model(&mut self, is_model_updated: bool) {
-        let is_upload_success = upload_model(
-            &self.model.model, &self.model.model_sig, self.gamma.gamma, &self.exp_name);
+        // callback TODO: fix upload model
+        // let is_upload_success = upload_model(
+        //     &self.model.model, &self.model.model_sig, self.gamma.gamma, &self.exp_name);
         if is_model_updated {
-            self.next_model_sender.send(
-                (self.model.model.clone(), self.model.model_sig.clone()));
+            // callback TODO: next_model_sender
+            // self.next_model_sender.send(
+            //     (self.model.model.clone(), self.model.model_sig.clone()));
             write_model(&self.model.model, self.model_ts, true);
         }
-        debug!("model_manager, upload model, {}, {}",
-                is_upload_success, self.model.model_sig);
+        // debug!("model_manager, upload model, {}, {}",
+        //         is_upload_success, self.model.model_sig);
     }
 
 
-    fn update_model(&mut self, packet: &Packet) -> Vec<usize> {
+    fn update_model(&mut self, last_update_from: &String, packet: &UpdatePacket) -> Vec<usize> {
         assert!(packet.updates.size > 0);
         let (new_node_indices, count_new, count_updates) = self.model.update(
-            &packet.updates, &packet.this_model_signature, self.gamma.gamma);
+            &packet.updates, last_update_from, self.gamma.gamma);
         self.broadcast_model(true);
-        debug!("model_manager, new updates, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}",
-                self.model.model.tree_size, self.model.model.size(),
-                packet.packet_signature, packet.source_machine_id, packet.node_id,
-                self.model.model.depth[packet.node_id], packet.gamma, packet.updates.size,
+        debug!("model_manager, new updates, {}, {}, {}, {}, {}",
+                self.model.model.tree_size,
+                self.model.model.size(),
+                packet.updates.size,
                 count_new, count_updates);
         new_node_indices
     }
@@ -216,8 +213,10 @@ impl ModelSync {
 // start a network _receiver_ on the master node, which receives packages from the scanners
 fn start_network(
     machine_name: String, remote_ips: Vec<String>, port: u16,
-) -> (PacketStats, mpsc::Sender<Packet>, mpsc::Receiver<Packet>) {
-    let (packet_s, packet_r): (mpsc::Sender<Packet>, mpsc::Receiver<Packet>) = mpsc::channel();
+) -> (PacketStats, mpsc::Sender<(String, UpdatePacket)>, mpsc::Receiver<(String, UpdatePacket)>) {
+    let (packet_s, packet_r):
+        (mpsc::Sender<(String, UpdatePacket)>, mpsc::Receiver<(String, UpdatePacket)>) =
+        mpsc::channel();
     start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s.clone()).unwrap();
     (PacketStats::new(remote_ips.len()), packet_s, packet_r)
 }
@@ -228,7 +227,7 @@ mod tests {
     use super::ModelSync;
     use commons::Model;
     use commons::channel::Receiver;
-    use master::model_manager::gamma::Gamma;
+    use head::model_manager::gamma::Gamma;
 
     use commons::channel;
     use commons::test_helper::get_mock_packet;

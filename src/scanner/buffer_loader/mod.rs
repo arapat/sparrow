@@ -122,6 +122,10 @@ impl BufferLoader {
 
     fn get_next_mut_batch(&mut self, allow_switch: bool) -> (&mut [ExampleInSampleSet], bool) {
         let mut switched = false;
+        while self.examples.is_empty() {
+            switched = self.try_switch();
+            sleep(Duration::from_millis(2000));
+        }
         // if self.ess <= self.min_ess && allow_switch {
         if allow_switch {
             switched = self.try_switch();
@@ -137,7 +141,7 @@ impl BufferLoader {
         (&mut self.examples[self.curr_example..tail], switched)
     }
 
-    pub fn try_switch(&mut self) -> bool {
+    fn try_switch(&mut self) -> bool {
         self.sampling_pm.resume();
         let new_buffer = self.new_buffer.try_write();
         if new_buffer.is_err() {
@@ -199,10 +203,6 @@ impl BufferLoader {
     pub fn reset_scores(&mut self) {
         debug!("buffer-loader, reset all examples");
         reset_scores(&mut self.examples, &self.base_model);
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.examples.is_empty()
     }
 }
 

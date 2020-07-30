@@ -1,7 +1,8 @@
 use std::cmp::max;
+use std::collections::HashMap;
 
-use commons::packet::Packet;
-use commons::packet::PacketType;
+use commons::packet::UpdatePacket;
+use commons::packet::UpdatePacketType;
 
 
 // TODO: move the parameters into the config
@@ -32,9 +33,9 @@ pub struct PacketStats {
     last_condition:      UpdateSpeed,
     pub curr_condition:  UpdateSpeed,
 
-    num_packs:           Vec<usize>,
-    num_acc_packs:       Vec<usize>,
-    num_empty_packs:     Vec<usize>,
+    num_packs:           HashMap<String, usize>,
+    num_acc_packs:       HashMap<String, usize>,
+    num_empty_packs:     HashMap<String, usize>,
     pub num_machines:    usize,
 }
 
@@ -54,28 +55,29 @@ impl PacketStats {
             last_condition:  UpdateSpeed::Okay,
             curr_condition:  UpdateSpeed::Okay,
 
-            num_packs:       vec![0; num_machines],
-            num_acc_packs:   vec![0; num_machines],
-            num_empty_packs: vec![0; num_machines],
+            num_packs:       HashMap::new(),
+            num_acc_packs:   HashMap::new(),
+            num_empty_packs: HashMap::new(),
             num_machines:    num_machines,
         }
     }
 
-    pub fn handle_new_packet(&mut self, packet: &Packet, packet_type: &PacketType) {
+    pub fn handle_new_packet(
+        &mut self, source_ip: &String, packet: &UpdatePacket, packet_type: &UpdatePacketType,
+    ) {
         self.total_packets += 1;
-        let machine_id = packet.source_machine_id;
-        self.num_packs[machine_id] += 1;
+        let num_packs = self.num_packs.entry(source_ip.clone()).or_insert(0);
+        *num_packs += 1;
         match packet_type {
-            PacketType::Accept => {
-                self.accept_packets            += 1;
-                self.num_acc_packs[machine_id] += 1;
+            UpdatePacketType::Accept => {
+                self.accept_packets           += 1;
+                let num_acc_packs = self.num_acc_packs.entry(source_ip.clone()).or_insert(0);
+                *num_acc_packs   += 1;
             },
-            PacketType::Empty => {
-                self.empty_packets               += 1;
-                self.num_empty_packs[machine_id] += 1;
-            },
-            PacketType::SmallEffSize => {
-                self.small_ess_packets       += 1;
+            UpdatePacketType::Empty => {
+                self.empty_packets              += 1;
+                let num_empty_packs = self.num_empty_packs.entry(source_ip.clone()).or_insert(0);
+                *num_empty_packs   += 1;
             },
         };
         self.update_condition();
@@ -113,11 +115,11 @@ impl PacketStats {
         self.small_ess_packets = 0;
 
         self.num_packs.iter_mut()
-            .for_each(|t| *t = 0);
+            .for_each(|(_, val)| *val = 0);
         self.num_acc_packs.iter_mut()
-            .for_each(|t| *t = 0);
+            .for_each(|(_, val)| *val = 0);
         self.num_empty_packs.iter_mut()
-            .for_each(|t| *t = 0);
+            .for_each(|(_, val)| *val = 0);
     }
 
     pub fn print_log(&self) {
@@ -132,9 +134,9 @@ impl PacketStats {
                 self.last_accept_rate.to_string(),
                 format!("{:?}", self.curr_condition),
 
-                vec_to_string(&self.num_packs),
-                vec_to_string(&self.num_acc_packs),
-                vec_to_string(&self.num_empty_packs),
+                map_to_string(&self.num_packs),
+                map_to_string(&self.num_acc_packs),
+                map_to_string(&self.num_empty_packs),
             ]).join(", ")
         );
     }
@@ -159,7 +161,7 @@ fn get_condition_updates(
 }
 
 
-fn vec_to_string(vec: &Vec<usize>) -> String {
-    let s: Vec<String> = vec.iter().map(|t| t.to_string()).collect();
+fn map_to_string(vec: &HashMap<String, usize>) -> String {
+    let s: Vec<String> = vec.iter().map(|(key, val)| format!("{}({})", key, val)).collect();
     s.join(", ")
 }
