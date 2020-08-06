@@ -3,6 +3,7 @@ use std::fs::remove_file;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::mpsc::Receiver;
 
 use REGION;
 use BUCKET;
@@ -79,46 +80,36 @@ pub fn write_sample_s3(
 
 // For loader
 
-pub fn load_sample<F>(
-    new_buffer: LockedBuffer,
-    handler: F,
-    last_version: usize,
-    exp_name: &str,
-) -> usize
-where F: Fn(usize, &str) -> Option<VersionedSampleModel> {
+pub fn load_sample<F>(load_handler: F, exp_name: &str) -> Option<VersionedSampleModel>
+where F: Fn(&str) -> Option<VersionedSampleModel> {
     let mut pm = PerformanceMonitor::new();
     pm.start();
-    let ret = handler(last_version, exp_name);
+    let ret = load_handler(exp_name);
     if ret.is_none() {
-        debug!("scanner, failed to receive a new sample");
-        last_version
+        debug!("scanner, failed to receive a sample");
+        None
     } else {
-        let (version, new_sample, new_model, model_sig) = ret.unwrap();
-        let new_buffer = new_buffer.write();
-        *(new_buffer.unwrap()) = Some((version, new_sample, new_model, model_sig));
-        debug!("scanner, received a new sample, {}, {}", version, pm.get_duration());
-        version
+        debug!("scanner, received a new sample");
+        ret
     }
 }
 
 
-pub fn load_sample_local(last_version: usize, exp_name: &str) -> Option<VersionedSampleModel> {
+pub fn load_sample_local(exp_name: &str) -> Option<VersionedSampleModel> {
     let base_filename = get_sample_local_filename(exp_name);
     let temp_filename = base_filename.clone() + "_READING";
     if rename(base_filename, temp_filename.clone()).is_ok() {
         let (version, sample, model, model_sig): VersionedSampleModel =
             deserialize(read_all(&temp_filename).as_ref()).unwrap();
-        if version > last_version {
-            remove_file(temp_filename).unwrap();
-            return Some((version, sample, model, model_sig));
-        }
+        remove_file(temp_filename).unwrap();
+        return Some((version, sample, model, model_sig));
     }
     None
 }
 
 
 #[cfg(not(test))]
-pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSampleModel> {
+pub fn load_sample_s3(exp_name: &str) -> Option<VersionedSampleModel> {
     // debug!("scanner, start, download sample from s3");
     let s3_path = format!("{}/{}", exp_name, S3_PATH_SAMPLE);
     let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), SAMPLE_FILENAME);
@@ -128,11 +119,7 @@ pub fn load_sample_s3(last_version: usize, exp_name: &str) -> Option<VersionedSa
     let (data, code) = ret.unwrap();
     if code == 200 {
         let (version, sample, model, model_sig) = deserialize(&data).unwrap();
-        if version > last_version {
-            return Some((version, sample, model, model_sig));
-        }
-        debug!("scanner, finished, download sample from s3, remote sample is old, {}, {}",
-               version, last_version);
+        return Some((version, sample, model, model_sig));
     } else {
         debug!("scanner, failed, download sample from s3, err {}", code);
     }

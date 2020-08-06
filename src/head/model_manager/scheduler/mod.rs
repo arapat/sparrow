@@ -189,7 +189,7 @@ impl Scheduler {
 
 // TODO: support loading from the local disk
 fn get_new_grids(min_size: usize, exp_name: &str) -> Option<Grids> {
-    let ret = load_sample_s3(0, exp_name);
+    let ret = load_sample_s3(exp_name);
     if ret.is_none() {
         return None;
     }

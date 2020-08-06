@@ -32,6 +32,7 @@ pub fn start(config: Config, sample_mode: SampleMode, bins: Vec<Bins>, init_tree
     debug!("Starting the buffered loader.");
     // sending signals to the sample loader
     let (sampler_signal_sender, sampler_signal_receiver) = mpsc::channel();
+    sampler_signal_sender.send(0).unwrap();
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,
@@ -52,7 +53,7 @@ pub fn start(config: Config, sample_mode: SampleMode, bins: Vec<Bins>, init_tree
     let buffer_loader_m = Mutex::new(Some(buffer_loader));
     let mut network = Network::new(config.port, &vec![],
         Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
-            debug!("Received a new packet from head");
+            debug!("Received a new packet from head, {}, {}", from_addr, to_addr);
             let packet: TaskPacket = serde_json::from_str(&task_packet).unwrap();
             if packet.new_sample_version.is_some() {
                 debug!("Packet is a new sample signal");
@@ -108,8 +109,9 @@ pub fn start(config: Config, sample_mode: SampleMode, bins: Vec<Bins>, init_tree
                 *booster_state = BoosterState::IDLE;
                 drop(booster_state);
             }
-        }
-    ));
+        }),
+        false,
+    );
     network.set_health_parameter(10);
     for (packet_id, new_updates) in new_updates_receiver.iter().enumerate() {
         network.send(new_updates).unwrap();

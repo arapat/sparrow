@@ -89,7 +89,7 @@ impl BufferLoader {
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
-        buffer_loader.loader.run(sample_mode.clone());
+        buffer_loader.loader.run(sample_mode.clone(), sampler_signal_receiver);
         buffer_loader
     }
 

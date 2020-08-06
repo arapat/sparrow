@@ -1,3 +1,4 @@
+use std::sync::mpsc::Receiver;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
@@ -34,33 +35,29 @@ impl Loader {
     /// Start the loaders
     ///
     /// Fill the alternate memory buffer of the buffer loader
-    pub fn run(&self, mode: SampleMode) {
+    pub fn run(&self, mode: SampleMode, sampler_signal_receiver: Receiver<usize>) {
         let buffer: LockedBuffer = self.new_buffer.clone();
         let sleep_duration = self.sleep_duration;
         let exp_name = self.exp_name.clone();
+        let load_func = match mode {
+            SampleMode::LOCAL => load_sample_local,
+            SampleMode::S3 => load_sample_s3,
+        };
         info!("Starting non-blocking loader");
         spawn(move || {
-            let mut last_version: usize = 0;
-            loop {
-                last_version = match mode {
-                    SampleMode::LOCAL => {
-                        load_sample(
-                            buffer.clone(),
-                            load_sample_local,
-                            last_version,
-                            exp_name.as_str(),
-                        )
-                    },
-                    SampleMode::S3 => {
-                        load_sample(
-                            buffer.clone(),
-                            load_sample_s3,
-                            last_version,
-                            exp_name.as_str(),
-                        )
-                    },
-                };
-                sleep(Duration::from_secs(sleep_duration));
+            for incoming_version in sampler_signal_receiver.iter() {
+                loop {
+                    let sample = load_sample(load_func, exp_name.as_str());
+                    if sample.is_some() {
+                        let (version, new_sample, new_model, model_sig) = sample.unwrap();
+                        if version >= incoming_version {
+                            let new_buffer = buffer.write();
+                            *(new_buffer.unwrap()) = Some((version, new_sample, new_model, model_sig));
+                            break;
+                        }
+                    }
+                    sleep(Duration::from_secs(sleep_duration));
+                }
             }
         });
     }
