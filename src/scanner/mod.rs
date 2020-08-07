@@ -47,7 +47,6 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
     // sending signals to the scanner
     let (new_updates_sender, new_updates_receiver) = mpsc::channel();
     let new_updates_sender = Mutex::new(new_updates_sender);
-    let packet_id = Mutex::new(0);
     let booster_state = Arc::new(RwLock::new(BoosterState::IDLE));
     let sampler_signal_sender = Mutex::new(sampler_signal_sender);
     let buffer_loader_m = Mutex::new(Some(buffer_loader));
@@ -91,13 +90,9 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
 
                 let (prev_packet, model, mut buffer_loader) = booster.destroy();
                 // send out updates
-                let mut packet_id = packet_id.lock().unwrap();
-                let updates_packet = get_packet(*packet_id, &model, prev_packet, &buffer_loader);
-                let updates_json = serde_json::to_string(&updates_packet).unwrap();
-                *packet_id += 1;
-                drop(packet_id);
+                let updates_packet = get_packet(&model, prev_packet, &buffer_loader);
                 let new_updates_sender = new_updates_sender.lock().unwrap();
-                new_updates_sender.send(updates_json).unwrap();
+                new_updates_sender.send(updates_packet).unwrap();
                 drop(new_updates_sender);
                 // reset buffer scores
                 buffer_loader.reset_scores();
@@ -112,23 +107,19 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
         }),
         false,
     );
+
+    // launch network send
     network.set_health_parameter(10);
-    for (_packet_id, new_updates) in new_updates_receiver.iter().enumerate() {
-        network.send(new_updates).unwrap();
+    for (packet_id, mut new_updates) in new_updates_receiver.iter().enumerate() {
+        new_updates.set_packet_id(packet_id);
+        let updates_json = serde_json::to_string(&new_updates).unwrap();
+        network.send(updates_json).unwrap();
     }
 }
 
 
-fn get_packet(
-    packet_id: usize, model: &Model, task: TaskPacket, buffer_loader: &BufferLoader,
-) -> UpdatePacket {
+fn get_packet(model: &Model, task: TaskPacket, buffer_loader: &BufferLoader) -> UpdatePacket {
     let base_model_size = task.model.as_ref().unwrap().size();
     let tree_slice = model.model_updates.create_slice(base_model_size..model.size());
-    UpdatePacket::new(
-        packet_id,
-        tree_slice,
-        task,
-        buffer_loader.current_version,
-        buffer_loader.ess,
-    )
+    UpdatePacket::new(tree_slice, task, buffer_loader.current_version, buffer_loader.ess)
 }

@@ -20,6 +20,7 @@ use commons::Model;
 
 use commons::channel;
 use commons::io::raw_read_all;
+use commons::packet::TaskPacket;
 use self::sampler::start_sampler_async;
 use self::model_manager::start_model_manager_async;
 
@@ -60,6 +61,23 @@ pub fn start_head(
         next_model_r,
         task_packet_sender.clone(),
     );
+
+    // launch network send
+    let mut current_packet = TaskPacket::new();
+    let mut _current_sample_version = 0;
+    network.set_health_parameter(10);
+    for (packet_id, mut task) in task_packet_receiver.iter().enumerate() {
+        task.set_packet_id(packet_id);
+        if task.new_sample_version.is_none() {
+            _current_sample_version = task.new_sample_version.as_ref().unwrap().clone();
+        } else {
+            task.fill_none(&current_packet);
+            current_packet = task.clone();
+        }
+
+        let task_json = serde_json::to_string(&task).unwrap();
+        network.send(task_json).unwrap();
+    }
 }
 
 /*

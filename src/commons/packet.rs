@@ -57,6 +57,19 @@ impl TaskPacket {
     pub fn set_sample_version(&mut self, sample_version: usize) {
         self.new_sample_version = Some(sample_version);
     }
+
+    pub fn fill_none(&mut self, other_packet: &TaskPacket) {
+        assert!(self.new_sample_version.is_none());
+        if self.model.is_none() {
+            self.model = other_packet.model.clone();
+        }
+        if self.gamma.is_none() {
+            self.gamma = other_packet.gamma;
+        }
+        if self.expand_node.is_none() {
+            self.expand_node = other_packet.expand_node;
+        }
+    }
 }
 
 
@@ -73,22 +86,22 @@ pub struct UpdatePacket {
 
 impl UpdatePacket {
     pub fn new(
-        packet_id: usize,
         updates: UpdateList,
         task: TaskPacket,
         sample_version: usize,
         ess: f32,
     ) -> UpdatePacket {
-        // TODO: remove sigs
-        // let this_model_sig = machine_name.clone() + "_" + &final_model_size.to_string();
-        // let packet_sig = format!("pac_{}_{}", this_model_sig, packet_counter);
         UpdatePacket {
-            packet_id: packet_id,
+            packet_id: 0,
             updates: updates,
             task: task,
             sample_version: sample_version,
             ess: ess,
         }
+    }
+
+    pub fn set_packet_id(&mut self, packet_id: usize) {
+        self.packet_id = packet_id;
     }
 
     pub fn get_packet_type(&self, min_ess: f32) -> UpdatePacketType {
