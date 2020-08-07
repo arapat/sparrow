@@ -22,6 +22,7 @@ use commons::channel;
 use commons::io::raw_read_all;
 use commons::packet::TaskPacket;
 use self::sampler::start_sampler_async;
+use self::scheduler::start_scheduler_async;
 use self::model_manager::start_model_manager_async;
 
 use tmsn::Network;
@@ -32,27 +33,18 @@ pub fn start_head(
     config: Config,
     sample_mode: SampleMode,
     bins: Vec<Bins>,
-    init_tree: Model,
+    mut init_tree: Model,
 ) {
-    // TODO: add a way to stop sampler
+    let (task_packet_sender, task_packet_receiver) = mpsc::channel();
 
     // Pass the models between the network to the Strata
     let (next_model_s, next_model_r) = channel::bounded(config.channel_size, "updated-models");
-    start_model_manager_async(
-        &config,
-        &init_tree,
-        &bins,
-        next_model_s,
-    );
 
-    let (task_packet_sender, task_packet_receiver) = mpsc::channel();
-    // with new network
-    let mut network = Network::new(config.port, &vec![],
-        Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
-        }),
-        false,
-    );
+    // =============
+
+    // 1. Start sampler
     // let sampler_state = start_sampler_async(
+    // TODO: add a way to stop sampler
     start_sampler_async(
         &config,
         &sample_mode,
@@ -60,6 +52,30 @@ pub fn start_head(
         &init_tree,
         next_model_r,
         task_packet_sender.clone(),
+    );
+
+    // 2. Start model manager
+    start_model_manager_async(
+        &config,
+        &init_tree,
+        &bins,
+        next_model_s,
+    );
+
+    // 3. Start scheduler
+    // TODO: read num_machines from disk
+    let num_machines: usize = 0;
+    start_scheduler_async(
+        &config,
+        num_machines,
+        &mut init_tree,
+    );
+
+    // with new network
+    let mut network = Network::new(config.port, &vec![],
+        Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
+        }),
+        false,
     );
 
     // launch network send
