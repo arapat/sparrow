@@ -7,6 +7,7 @@ pub mod serial_storage;
 use std::cmp::max;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::mpsc;
 use std::thread::spawn;
 use std::thread::sleep;
 use std::time::Duration;
@@ -22,6 +23,7 @@ use commons::get_sign;
 use commons::ExampleWithScore;
 use commons::Model;
 use commons::labeled_data::LabeledData;
+use commons::packet::TaskPacket;
 
 use self::assigners::Assigners;
 use self::samplers::Samplers;
@@ -123,6 +125,7 @@ impl StratifiedStorage {
         debug_mode: bool,
         resume_training: bool,
         exp_name: String,
+        packet_sender: mpsc::Sender<TaskPacket>,
     ) -> StratifiedStorage {
         // let snapshot_filename = "stratified.serde".to_string();
         if resume_training {
@@ -182,7 +185,7 @@ impl StratifiedStorage {
             num_samplers,
             sampler_state.clone(),
         );
-        gatherer.run(sample_mode);
+        gatherer.run(sample_mode, packet_sender);
         assigners.run();
         samplers.run();
 

@@ -3,6 +3,7 @@ use rand::Rng;
 use std::fs::rename;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::mpsc::Sender;
 use std::thread::spawn;
 use rand::thread_rng;
 use bincode::serialize;
@@ -12,6 +13,7 @@ use commons::channel::Receiver;
 use commons::Model;
 use commons::io::write_all;
 use commons::ExampleWithScore;
+use commons::packet::TaskPacket;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::write_sample_local;
 use commons::persistent_io::write_sample_s3;
@@ -46,7 +48,7 @@ impl Gatherer {
     /// Start the gatherer.
     ///
     /// Fill the alternate memory buffer of the buffer loader
-    pub fn run(&self, mode: SampleMode) {
+    pub fn run(&self, mode: SampleMode, packet_sender: Sender<TaskPacket>) {
         let new_sample_capacity = self.new_sample_capacity;
         let gather_new_sample = self.gather_new_sample.clone();
         let model = self.model.clone();
@@ -72,6 +74,10 @@ impl Gatherer {
                     model.clone(),
                     exp_name.as_str(),
                 );
+
+                let mut packet = TaskPacket::new();
+                packet.set_sample_version(version);
+                packet_sender.send(packet).unwrap();
             }
         });
     }

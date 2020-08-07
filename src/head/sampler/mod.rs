@@ -4,6 +4,7 @@ pub mod stratified_storage;
 
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::sync::mpsc::Sender;
 
 use commons::channel::Receiver;
 use commons::Model;
@@ -13,6 +14,7 @@ use config::Config;
 use config::SampleMode;
 
 use self::stratified_storage::StratifiedStorage;
+use commons::packet::TaskPacket;
 
 
 pub fn start_sampler_async(
@@ -21,6 +23,7 @@ pub fn start_sampler_async(
     bins: &Vec<Bins>,
     init_tree: &Model,
     next_model_recv: Receiver<(Model, String)>,
+    packet_sender: Sender<TaskPacket>,
 ) -> Arc<RwLock<bool>> {
     debug!("Starting Sampler");
     let sampler_state = Arc::new(RwLock::new(true));
@@ -45,6 +48,7 @@ pub fn start_sampler_async(
         config.debug_mode,
         config.resume_training,
         config.exp_name.clone(),
+        packet_sender,
     );
 
     debug!("Initializing the stratified structure.");

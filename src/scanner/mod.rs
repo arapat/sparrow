@@ -26,7 +26,7 @@ use std::time::Duration;
 use tmsn::Network;
 
 
-pub fn start(config: Config, sample_mode: SampleMode, bins: Vec<Bins>, init_tree: Model) {
+pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
     println!("Starting scanner");
 
     debug!("Starting the buffered loader.");
@@ -113,7 +113,7 @@ pub fn start(config: Config, sample_mode: SampleMode, bins: Vec<Bins>, init_tree
         false,
     );
     network.set_health_parameter(10);
-    for (packet_id, new_updates) in new_updates_receiver.iter().enumerate() {
+    for (_packet_id, new_updates) in new_updates_receiver.iter().enumerate() {
         network.send(new_updates).unwrap();
     }
 }

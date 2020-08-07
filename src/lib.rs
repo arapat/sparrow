@@ -46,7 +46,7 @@ use commons::Model;
 use commons::bins::Bins;
 use commons::tree::ADTree as Tree;
 
-use scanner::start as start_scanner;
+use scanner::start_scanner;
 use head::start_head;
 use testing::validate;
 
@@ -104,7 +104,7 @@ pub fn training(config_filepath: &String) {
         }
     };
     if config.sampler_scanner == "scanner" {
-        start_scanner(config, sample_mode, bins, init_tree);
+        start_scanner(config, sample_mode, bins);
     } else { // if config.sampler_scanner == "sampler"
         start_head(config, sample_mode, bins, init_tree);
     }
