@@ -1,7 +1,7 @@
 
 use commons::Model;
 use commons::tree::UpdateList;
-use super::scheduler::kdtree::Grid;
+use head::scheduler::kdtree::Grid;
 
 
 pub struct ModelWithVersion {

@@ -1,7 +1,6 @@
 pub mod gamma;
 pub mod model_sync;
-mod model_with_version;
-pub mod scheduler;
+pub mod model_with_version;
 
 use std::thread::spawn;
 

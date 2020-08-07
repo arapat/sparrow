@@ -16,9 +16,9 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::io::write_all;
 use commons::persistent_io::write_model;
 
+use head::scheduler::Scheduler;
 use super::gamma::Gamma;
 use super::model_with_version::ModelWithVersion;
-use super::scheduler::Scheduler;
 
 use self::packet_stats::PacketStats;
 

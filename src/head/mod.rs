@@ -1,9 +1,12 @@
-/// Implementation of the model manager
+/// Accept and maintain a global model
 /// ![](/images/taskmanager.png)
 pub mod model_manager;
-/// Implementation of the sampler
+/// Generate new samples
 /// ![](/images/sampler.png)
 pub mod sampler;
+/// Assign tasks to the scanners
+pub mod scheduler;
+
 
 use std::path::Path;
 use std::sync::mpsc;
