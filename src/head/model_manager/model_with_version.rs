@@ -28,9 +28,9 @@ impl ModelWithVersion {
     }
 
     pub fn update(
-        &mut self, patch: &UpdateList, last_update_from: &String, gamma: f32,
+        &mut self, patch: &UpdateList, last_update_from: &String,
     ) -> (Vec<usize>, usize, usize) {
-        let node_indices: Vec<(usize, bool)> = self.model.append_patch(&patch, gamma, true);
+        let node_indices: Vec<(usize, bool)> = self.model.append_patch(&patch, true);
         let (count_new, count_updates) = patch.is_new.iter().fold(
             (0, 0), |(new, old), t| { if *t { (new + 1, old) } else { (new, old + 1) } });
         self.last_update_from = last_update_from.clone();

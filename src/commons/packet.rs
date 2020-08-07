@@ -10,7 +10,7 @@ pub enum BoosterState {
 }
 
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum UpdatePacketType {
     Accept,
     Empty,
@@ -104,7 +104,7 @@ impl UpdatePacket {
         self.packet_id = packet_id;
     }
 
-    pub fn get_packet_type(&self, min_ess: f32) -> UpdatePacketType {
+    pub fn get_packet_type(&self) -> UpdatePacketType {
         if self.updates.size == 0 {
             // Empty packets
             debug!("model_manager, packet, empty");

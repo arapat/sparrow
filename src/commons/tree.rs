@@ -28,7 +28,6 @@ pub struct ADTree {
     predicts:       Vec<f32>,
     is_active:      Vec<bool>,
     pub depth:      Vec<usize>,
-    pub last_gamma:     f32,
     pub base_version:   usize,
     pub model_updates:  UpdateList,
 }
@@ -45,7 +44,6 @@ impl Clone for ADTree {
             predicts:       self.predicts.clone(),
             depth:          self.depth.clone(),
             is_active:      self.is_active.clone(),
-            last_gamma:     self.last_gamma,
             base_version:   self.base_version,
             model_updates:  self.model_updates.clone(),
         }
@@ -65,7 +63,6 @@ impl ADTree {
             predicts:       Vec::with_capacity(max_nodes),
             depth:          Vec::with_capacity(max_nodes),
             is_active:      Vec::with_capacity(max_nodes),
-            last_gamma:     0.0,
             base_version:   0,
             model_updates:  UpdateList::new(),
         }
@@ -100,7 +97,6 @@ impl ADTree {
         self.depth.push(0);
         self.tree_size += 1;
 
-        self.last_gamma = gamma;
         self.model_updates.add(-1, 0, 0, false, pred_value, vec![], true);
 
         debug!("new-tree-node, 0, true, 0, 0, 0, 0, false, {}", pred_value);
@@ -144,7 +140,6 @@ impl ADTree {
                 (index, true)
             }
         };
-        self.last_gamma = gamma;
         let condition = self.get_conditions(new_index);
         self.model_updates.add(
             parent as i32, feature, threshold, evaluation, pred_value, condition, is_new);
@@ -256,7 +251,7 @@ impl ADTree {
 
     // return the indices of the added nodes and whether they are new nodes
     pub fn append_patch(
-        &mut self, patch: &UpdateList, last_gamma: f32, always_new_node: bool,
+        &mut self, patch: &UpdateList, always_new_node: bool,
     ) -> Vec<(usize, bool)> {
         let prev_tree_size = self.tree_size;
         let mut node_indices = vec![];
@@ -270,7 +265,6 @@ impl ADTree {
                 ));
             }
         }
-        self.last_gamma = last_gamma;
         self.base_version = self.model_updates.size;
         node_indices.iter()
                     .map(|t| (*t, (*t) >= prev_tree_size))  // newly added indices

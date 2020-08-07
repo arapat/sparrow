@@ -1,27 +1,35 @@
+pub mod gamma;
 pub mod kdtree;
+pub mod packet_stats;
 
 use rand::Rng;
 use rand::thread_rng;
 
-use commons::bins::Bins;
 use commons::packet::UpdatePacket;
+use commons::packet::UpdatePacketType;
 use commons::persistent_io::VersionedSampleModel;
 use commons::persistent_io::load_sample_s3;
 use commons::persistent_io::upload_assignments;
+use config::Config;
 use Example;
-use head::model_manager::gamma::Gamma;
 use head::model_manager::model_with_version::ModelWithVersion;
+use self::gamma::Gamma;
 use self::kdtree::Grid;
 use self::kdtree::Grids;
 use self::kdtree::KdTree;
+use self::packet_stats::PacketStats;
 
 pub struct Scheduler {
     exp_name: String,
     num_machines: usize,
+    min_grid_size: usize,
 
     scanner_task: Vec<Option<(usize, usize)>>,  // (key, node_id)
     availability: Vec<Option<usize>>,
     last_gamma: Vec<f32>,
+
+    gamma: Gamma,
+    packet_stats: PacketStats,
 
     pub grids_version: usize,
     curr_grids: Grids,
@@ -31,18 +39,30 @@ pub struct Scheduler {
 
 impl Scheduler {
     pub fn new(
-        num_machines: usize, exp_name: &String, _bins: &Vec<Bins>, model: &mut ModelWithVersion,
+        num_machines: usize,
+        exp_name: &String,
+        min_grid_size: usize,
+        model: &mut ModelWithVersion,
+        config: &Config,
     ) -> Scheduler {
+        let gamma = Gamma::new(config.default_gamma, config.min_gamma);
         let mut scheduler = Scheduler {
             exp_name: exp_name.clone(),
             num_machines: num_machines.clone(),
+            min_grid_size: min_grid_size,
+
             scanner_task: vec![None; num_machines],
             grids_version: 0,
             curr_grids: vec![vec![]],  // by default, all scanners are assigned to root
             availability: vec![None],  // ditto
             last_gamma: vec![1.0],     // ditto
             next_grids: None,
+
+            gamma: gamma,
+            packet_stats: PacketStats::new(num_machines),
         };
+        // let scheduler = Scheduler::new(num_scanners, exp_name, bins, &mut model);
+        // scheduler: scheduler,
         scheduler.set_assignments(model, 1.0);
         scheduler
     }
@@ -66,11 +86,33 @@ impl Scheduler {
         num_updates
     }
 
-    pub fn handle_accept(&mut self, packet: &UpdatePacket) -> bool {
+    fn handle_packet(
+        &mut self, source_ip: &String, packet: &mut UpdatePacket, model: &mut ModelWithVersion,
+    ) {
+        let packet_type = packet.get_packet_type();
+        self.packet_stats.handle_new_packet(source_ip, packet, &packet_type);
+        match packet_type {
+            UpdatePacketType::Empty => {
+                self.handle_empty(packet);
+            },
+            UpdatePacketType::Accept => {
+                self.handle_accept(packet);
+            },
+        }
+
+        // refresh kdtree when gamma is too small
+        self.adjust_gamma(model);
+        self.set_assignments(model, self.gamma.value());
+        if !self.gamma.is_valid() {
+            self.refresh_grid(self.min_grid_size);
+        }
+    }
+
+    fn handle_accept(&mut self, packet: &UpdatePacket) -> bool {
         self.get_grid_node_ids(packet).is_some()
     }
 
-    pub fn handle_empty(&mut self, packet: &UpdatePacket) -> bool {
+    fn handle_empty(&mut self, packet: &UpdatePacket) -> bool {
         let grid_node_ids = self.get_grid_node_ids(packet);
         if grid_node_ids.is_none() {
             return false;
@@ -82,6 +124,18 @@ impl Scheduler {
         // self.last_gamma[grid_index] = packet.gamma;
         true
     }
+
+    fn adjust_gamma(&mut self, model: &mut ModelWithVersion) {
+        if self.packet_stats.got_sufficient_packages() {
+            if self.gamma.adjust(&self.packet_stats, model.model.size()) {
+                model.update_gamma(self.gamma.gamma_version);
+                // TODO: broadcast model
+                // self.broadcast_model(false);
+            }
+            self.packet_stats.reset();
+        }
+    }
+    
 
     pub fn refresh_grid(&mut self, min_size: usize) {
         let new_grid = get_new_grids(min_size, self.exp_name.as_ref());
@@ -272,3 +326,7 @@ mod tests {
         assert!(scheduler.get_assignment()[test_machine_id].is_some());
     }
 }
+
+// let curr_acc_rate = model_sync.packet_stats.as_ref().unwrap().avg_accept_rate;
+// let new_acc_rate = model_sync.packet_stats.as_ref().unwrap().avg_accept_rate;
+// assert!(new_acc_rate < curr_acc_rate);

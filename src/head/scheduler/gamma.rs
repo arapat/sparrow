@@ -1,5 +1,5 @@
-use super::model_sync::packet_stats::PacketStats;
-use super::model_sync::packet_stats::UpdateSpeed;
+use super::packet_stats::PacketStats;
+use super::packet_stats::UpdateSpeed;
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Gamma {
