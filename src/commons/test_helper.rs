@@ -37,7 +37,7 @@ pub fn get_mock_packet(
         update_list.add(0, 0, 0 as TFeature, false, 0.0, vec![], true);
     }
     let models = Model::new(packet_size);
-    let task_packet = TaskPacket::new(0, models, 0.1, 0, None);
+    let task_packet = TaskPacket::new();
     UpdatePacket::new(0, update_list, task_packet, 0, ess)
 }
 

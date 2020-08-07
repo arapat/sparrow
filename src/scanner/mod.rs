@@ -122,7 +122,7 @@ pub fn start(config: Config, sample_mode: SampleMode, bins: Vec<Bins>, init_tree
 fn get_packet(
     packet_id: usize, model: &Model, task: TaskPacket, buffer_loader: &BufferLoader,
 ) -> UpdatePacket {
-    let base_model_size = task.model.size();
+    let base_model_size = task.model.as_ref().unwrap().size();
     let tree_slice = model.model_updates.create_slice(base_model_size..model.size());
     UpdatePacket::new(
         packet_id,

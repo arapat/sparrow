@@ -51,8 +51,9 @@ impl Boosting {
         config: &Config,
     ) -> Boosting {
         // TODO: make num_cadid a paramter
+        let packet = init_packet.clone();
         let (model, gamma, expand_node) = (
-            init_packet.model.clone(), init_packet.gamma, init_packet.expand_node.clone(),
+            packet.model.unwrap(), packet.gamma.unwrap(), packet.expand_node.unwrap(),
         );
         let mut learner = Learner::new(gamma, bins, config.num_features, config.num_splits);
         learner.set_expand_node(expand_node);

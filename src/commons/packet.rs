@@ -17,31 +17,45 @@ pub enum UpdatePacketType {
 }
 
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct TaskPacket {
     pub packet_id: usize,
-    pub model: Model,
-    pub gamma: f32,
-    pub expand_node: usize,
+    pub model: Option<Model>,
+    pub gamma: Option<f32>,
+    pub expand_node: Option<usize>,
     pub new_sample_version: Option<usize>,
 }
 
 
 impl TaskPacket {
-    pub fn new(
-        packet_id: usize,
-        model: Model,
-        gamma: f32,
-        expand_node: usize,
-        new_sample_version: Option<usize>,
-    ) -> TaskPacket {
+    pub fn new() -> TaskPacket {
         TaskPacket {
-            packet_id: packet_id,
-            model: model,
-            gamma: gamma,
-            expand_node: expand_node,
+            packet_id: 0,
+            model: None,
+            gamma: None,
+            expand_node: None,
             new_sample_version: None,
         }
+    }
+
+    pub fn set_packet_id(&mut self, packet_id: usize) {
+        self.packet_id = packet_id;
+    }
+
+    pub fn set_model(&mut self, model: Model) {
+        self.model = Some(model);
+    }
+
+    pub fn set_gamma(&mut self, gamma: f32) {
+        self.gamma = Some(gamma);
+    }
+
+    pub fn set_expand_node(&mut self, expand_node: usize) {
+        self.expand_node = Some(expand_node);
+    }
+
+    pub fn set_sample_version(&mut self, sample_version: usize) {
+        self.new_sample_version = Some(sample_version);
     }
 }
 
