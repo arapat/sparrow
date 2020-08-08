@@ -22,8 +22,8 @@ use commons::channel;
 use commons::io::raw_read_all;
 use commons::packet::TaskPacket;
 use self::sampler::start_sampler_async;
-use self::scheduler::start_scheduler_async;
-use self::model_manager::start_model_manager_async;
+use self::scheduler::Scheduler;
+use self::model_manager::ModelSync;
 
 use tmsn::Network;
 
@@ -54,26 +54,33 @@ pub fn start_head(
         task_packet_sender.clone(),
     );
 
-    // 2. Start model manager
-    start_model_manager_async(
-        &config,
+    // 2. Create a model manager
+    let mut model_sync = ModelSync::new(
         &init_tree,
-        &bins,
+        config.num_trees,
+        &config.exp_name,
+        config.min_ess,
         next_model_s,
+        &bins,
+        config.network.len(),
     );
 
-    // 3. Start scheduler
+    // 3. Create a scheduler
     // TODO: read num_machines from disk
-    let num_machines: usize = 0;
-    start_scheduler_async(
+    let scheduler = Scheduler::new(
+        config.network.len(),
+        &config.exp_name,
+        config.min_grid_size,
         &config,
-        num_machines,
-        &mut init_tree,
     );
+    // let mut model = ModelWithVersion::new(init_tree.clone(), "Sampler".to_string());
+    // scheduler.set_assignments(model, 1.0);
 
     // with new network
     let mut network = Network::new(config.port, &vec![],
         Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
+            // model_sync.handle_packet(source_ip: &String, packet: &mut UpdatePacket)();
+            // model_sync.print_log();
         }),
         false,
     );
@@ -94,6 +101,10 @@ pub fn start_head(
         let task_json = serde_json::to_string(&task).unwrap();
         network.send(task_json).unwrap();
     }
+
+    info!("Head node quits.");
+    // let final_model = write_model(&self.model.model, self.model_ts, false);
+    // debug!("model_manager, final model, {}", final_model);
 }
 
 /*
