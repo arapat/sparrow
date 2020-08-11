@@ -125,7 +125,7 @@ impl StratifiedStorage {
         debug_mode: bool,
         resume_training: bool,
         exp_name: String,
-        packet_sender: mpsc::Sender<TaskPacket>,
+        packet_sender: mpsc::Sender<(Option<String>, TaskPacket)>,
     ) -> StratifiedStorage {
         // let snapshot_filename = "stratified.serde".to_string();
         if resume_training {

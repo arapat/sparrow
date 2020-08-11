@@ -50,6 +50,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
     let booster_state = Arc::new(RwLock::new(BoosterState::IDLE));
     let sampler_signal_sender = Mutex::new(sampler_signal_sender);
     let buffer_loader_m = Mutex::new(Some(buffer_loader));
+    let mut curr_packet: Option<TaskPacket> = None;
     let mut network = Network::new(config.port, &vec![],
         Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
             debug!("Received a new packet from head, {}, {}", from_addr, to_addr);
@@ -60,7 +61,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
                 sampler_signal_sender.send(new_version).unwrap();
                 drop(sampler_signal_sender);
-            } else {
+            } else if curr_packet.is_some() && curr_packet.as_ref().unwrap().equals(&packet) {
                 debug!("Stopping existing booster");
                 let mut is_booster_stopped = false;
                 while !is_booster_stopped {
@@ -79,7 +80,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
                 drop(buffer_loader);
                 let ro_booster_state = booster_state.clone();
                 let mut booster = Boosting::new(
-                    packet,
+                    packet.clone(),
                     ro_booster_state,
                     training_loader,
                     bins.clone(),
@@ -103,6 +104,10 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
                 let mut booster_state = booster_state.write().unwrap();
                 *booster_state = BoosterState::IDLE;
                 drop(booster_state);
+
+                curr_packet = Some(packet);
+            } else {
+                info!("Package is ignored, {}", packet.packet_id);
             }
         }),
         false,
@@ -113,7 +118,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
     for (packet_id, mut new_updates) in new_updates_receiver.iter().enumerate() {
         new_updates.set_packet_id(packet_id);
         let updates_json = serde_json::to_string(&new_updates).unwrap();
-        network.send(updates_json).unwrap();
+        network.send(None, updates_json).unwrap();
     }
 }
 

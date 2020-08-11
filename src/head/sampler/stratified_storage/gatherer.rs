@@ -48,7 +48,7 @@ impl Gatherer {
     /// Start the gatherer.
     ///
     /// Fill the alternate memory buffer of the buffer loader
-    pub fn run(&self, mode: SampleMode, packet_sender: Sender<TaskPacket>) {
+    pub fn run(&self, mode: SampleMode, packet_sender: Sender<(Option<String>, TaskPacket)>) {
         let new_sample_capacity = self.new_sample_capacity;
         let gather_new_sample = self.gather_new_sample.clone();
         let model = self.model.clone();
@@ -77,7 +77,7 @@ impl Gatherer {
 
                 let mut packet = TaskPacket::new();
                 packet.set_sample_version(version);
-                packet_sender.send(packet).unwrap();
+                packet_sender.send((None, packet)).unwrap();
             }
         });
     }

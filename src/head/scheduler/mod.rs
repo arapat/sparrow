@@ -12,11 +12,11 @@ use commons::persistent_io::load_sample_s3;
 use commons::persistent_io::upload_assignments;
 use config::Config;
 use Example;
-use head::model_manager::model_with_version::ModelWithVersion;
+use head::model_with_version::ModelWithVersion;
 use self::gamma::Gamma;
-use self::kdtree::Grid;
-use self::kdtree::Grids;
-use self::kdtree::KdTree;
+// use self::kdtree::Grid;
+// use self::kdtree::Grids;
+// use self::kdtree::KdTree;
 use self::packet_stats::PacketStats;
 
 
@@ -25,16 +25,17 @@ pub struct Scheduler {
     num_machines: usize,
     min_grid_size: usize,
 
-    scanner_task: Vec<Option<(usize, usize)>>,  // (key, node_id)
-    availability: Vec<Option<usize>>,
+    scanner_addr: Vec<String>,
+    scanner_task: Vec<Option<usize>>,  // None for idle, otherwise Some(node_id)
+    // availability: Vec<Option<usize>>,
     last_gamma: Vec<f32>,
 
     gamma: Gamma,
     packet_stats: PacketStats,
 
-    pub grids_version: usize,
-    curr_grids: Grids,
-    next_grids: Option<Grids>,
+    // pub grids_version: usize,
+    // curr_grids: Grids,
+    // next_grids: Option<Grids>,
 }
 
 
@@ -51,12 +52,9 @@ impl Scheduler {
             num_machines: num_machines.clone(),
             min_grid_size: min_grid_size,
 
-            scanner_task: vec![None; num_machines],
-            grids_version: 0,
-            curr_grids: vec![vec![]],  // by default, all scanners are assigned to root
-            availability: vec![None],  // ditto
+            scanner_addr: vec![],
+            scanner_task: vec![],
             last_gamma: vec![1.0],     // ditto
-            next_grids: None,
 
             gamma: gamma,
             packet_stats: PacketStats::new(num_machines),
@@ -64,7 +62,14 @@ impl Scheduler {
         scheduler
     }
 
-    pub fn set_assignments(&mut self, model: &mut ModelWithVersion, gamma: f32) -> usize {
+    pub fn add_scanner(&mut self, addr: String) {
+        self.scanner_addr.push(addr);
+        self.scanner_task.push(None);
+    }
+
+    pub fn set_assignments(
+        &mut self, model: &mut ModelWithVersion, gamma: f32, capacity: usize,
+    ) -> Vec<(String, usize)> {
         let idle_scanners: Vec<usize> =
             self.scanner_task.iter()
                 .enumerate()
@@ -72,20 +77,48 @@ impl Scheduler {
                 .map(|(scanner_index, _)| scanner_index)
                 .collect();
         let num_idle_scanners = idle_scanners.len();
-        let num_updates = self.assign(idle_scanners, model, gamma);
+        let new_assigns = self.assign(idle_scanners, model, gamma, capacity);
         if num_idle_scanners > 0 {
-            debug!("model-manager, assign updates, {}, {}", num_idle_scanners, num_updates);
+            debug!("model-manager, assign updates, {}, {}", num_idle_scanners, new_assigns.len());
         }
-        if num_updates > 0 {
-            let assignment: Vec<Option<usize>> = self.get_assignment();
-            upload_assignments(&assignment, &self.exp_name);
-        }
-        num_updates
+        // if new_assigns.len() > 0 {
+        //     let assignment: Vec<Option<usize>> = self.get_assignment();
+        //     upload_assignments(&assignment, &self.exp_name);
+        // }
+        new_assigns
     }
 
-    fn handle_packet(
-        &mut self, source_ip: &String, packet: &mut UpdatePacket, model: &mut ModelWithVersion,
-    ) {
+    // assign a non-taken grid to each idle scanner
+    fn assign(
+        &mut self,
+        idle_scanners: Vec<usize>,
+        model: &mut ModelWithVersion,
+        gamma: f32,
+        capacity: usize,
+    ) -> Vec<(String, usize)> {
+        let assignments: Vec<(usize, usize)> =
+            idle_scanners.into_iter()
+                         .map(|scanner_id| (scanner_id, self.get_new_grid(scanner_id, gamma)))
+                         .take(capacity)
+                         .collect();
+        let update_size = assignments.len();
+        assignments.iter().for_each(|(scanner_id, node_index)| {
+            self.scanner_task[*scanner_id] = Some(*node_index);
+            debug!("model-manager, assign, {}, {}", scanner_id, node_index);
+        });
+        assignments.into_iter()
+                   .map(|(scanner_id, node_index)| {
+                       (self.scanner_addr[scanner_id].clone(), node_index)
+                   }).collect()
+    }
+
+    pub fn handle_packet(
+        &mut self,
+        source_ip: &String,
+        packet: &mut UpdatePacket,
+        model: &mut ModelWithVersion,
+        capacity: usize,
+    ) -> (f32, Vec<(String, usize)>) {
         let packet_type = packet.get_packet_type();
         self.packet_stats.handle_new_packet(source_ip, packet, &packet_type);
         match packet_type {
@@ -99,24 +132,27 @@ impl Scheduler {
 
         // refresh kdtree when gamma is too small
         self.adjust_gamma(model);
-        self.set_assignments(model, self.gamma.value());
-        if !self.gamma.is_valid() {
-            self.refresh_grid(self.min_grid_size);
-        }
+        let assigns = self.set_assignments(model, self.gamma.value(), capacity);
+        // if !self.gamma.is_valid() {
+        //     self.refresh_grid(self.min_grid_size);
+        // }
+
+        (self.gamma.gamma, assigns)
     }
 
     fn handle_accept(&mut self, packet: &UpdatePacket) -> bool {
-        self.get_grid_node_ids(packet).is_some()
+        // self.get_grid_node_ids(packet).is_some()
+        true
     }
 
     fn handle_empty(&mut self, packet: &UpdatePacket) -> bool {
-        let grid_node_ids = self.get_grid_node_ids(packet);
-        if grid_node_ids.is_none() {
-            return false;
-        }
-        let (grid_index, node_id) = grid_node_ids.unwrap();
-        debug!("model_manager, scheduler, handle empty, {}", node_id);
-        self.release_grid(grid_index);
+        // let grid_node_ids = self.get_grid_node_ids(packet);
+        // if grid_node_ids.is_none() {
+        //     return false;
+        // }
+        // let (grid_index, node_id) = grid_node_ids.unwrap();
+        // debug!("model_manager, scheduler, handle empty, {}", node_id);
+        // self.release_grid(grid_index);
         // callback TODO:
         // self.last_gamma[grid_index] = packet.gamma;
         true
@@ -133,7 +169,7 @@ impl Scheduler {
         }
     }
     
-
+    /*
     pub fn refresh_grid(&mut self, min_size: usize) {
         let new_grid = get_new_grids(min_size, self.exp_name.as_ref());
         if new_grid.is_some() {
@@ -166,50 +202,33 @@ impl Scheduler {
                 }
             }).collect()
     }
+    */
 
-    // assign a non-taken grid to each idle scanner
-    fn assign(
-        &mut self, idle_scanners: Vec<usize>, model: &mut ModelWithVersion, gamma: f32,
-    ) -> usize {
-        let assignment: Vec<(usize, (usize, Grid))> =
-            idle_scanners.into_iter()
-                         .map(|scanner_id| (scanner_id, self.get_new_grid(scanner_id, gamma)))
-                         .filter(|(_, grid)| grid.is_some())
-                         .map(|(scanner_id, grid)| (scanner_id, grid.unwrap()))
-                         .collect();
-        let update_size = assignment.len();
-        assignment.into_iter().for_each(|(scanner_id, (grid_index, grid))| {
-            let node_index = model.add_grid(grid);
-            self.scanner_task[scanner_id] = Some((grid_index, node_index));
-            debug!("model-manager, assign, {}, {}, {}", scanner_id, grid_index, node_index);
-        });
-        update_size
+    fn get_new_grid(&mut self, scanner_id: usize, gamma: f32) -> usize {
+        // let mut grid_index = 0;
+        // while grid_index < self.curr_grids.len() {
+        //     if self.availability[grid_index].is_none() && self.last_gamma[grid_index] > gamma {
+        //         break;
+        //     }
+        //     grid_index += 1;
+        // }
+        // if grid_index >= self.curr_grids.len() {
+        //     return None;
+        // }
+        // let grid = self.curr_grids[grid_index].clone();
+        // self.availability[grid_index] = Some(scanner_id);
+        // Some((grid_index, grid))
+        0
     }
 
-    fn get_new_grid(&mut self, scanner_id: usize, gamma: f32) -> Option<(usize, Grid)> {
-        let mut grid_index = 0;
-        while grid_index < self.curr_grids.len() {
-            if self.availability[grid_index].is_none() && self.last_gamma[grid_index] > gamma {
-                break;
-            }
-            grid_index += 1;
-        }
-        if grid_index >= self.curr_grids.len() {
-            return None;
-        }
-        let grid = self.curr_grids[grid_index].clone();
-        self.availability[grid_index] = Some(scanner_id);
-        Some((grid_index, grid))
-    }
-
+    /*
     fn release_grid(&mut self, grid_index: usize) {
-        let machine_id = self.availability[grid_index];
+        let machine_id = self.scanner_task[grid_index];
         if machine_id.is_none() {
             return;
         }
         let machine_id = machine_id.unwrap();
         self.availability[grid_index] = None;
-        self.scanner_task[machine_id] = None;
     }
 
     fn get_grid_node_ids(&self, packet: &UpdatePacket) -> Option<(usize, usize)> {
@@ -229,6 +248,7 @@ impl Scheduler {
         // Some((grid_index, node_id))
         None
     }
+    */
 
     pub fn print_log(&self, num_consecutive_err: usize, gamma: &Gamma) {
         let num_working_scanners = self.scanner_task.iter().filter(|t| t.is_some()).count();
@@ -239,6 +259,7 @@ impl Scheduler {
 }
 
 // TODO: support loading from the local disk
+/*
 fn get_new_grids(min_size: usize, exp_name: &str) -> Option<Grids> {
     let ret = load_sample_s3(exp_name);
     if ret.is_none() {
@@ -255,6 +276,7 @@ fn get_new_grids(min_size: usize, exp_name: &str) -> Option<Grids> {
 
     Some(grids)
 }
+*/
 
 
 #[cfg(test)]

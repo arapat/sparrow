@@ -6,10 +6,12 @@ pub mod model_manager;
 pub mod sampler;
 /// Assign tasks to the scanners
 pub mod scheduler;
+mod model_with_version;
 
 
 use std::path::Path;
 use std::sync::mpsc;
+use std::sync::Mutex;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -21,9 +23,11 @@ use commons::Model;
 use commons::channel;
 use commons::io::raw_read_all;
 use commons::packet::TaskPacket;
+use commons::packet::UpdatePacket;
 use self::sampler::start_sampler_async;
 use self::scheduler::Scheduler;
 use self::model_manager::ModelSync;
+use self::model_with_version::ModelWithVersion;
 
 use tmsn::Network;
 
@@ -66,8 +70,7 @@ pub fn start_head(
     );
 
     // 3. Create a scheduler
-    // TODO: read num_machines from disk
-    let scheduler = Scheduler::new(
+    let mut scheduler = Scheduler::new(
         config.network.len(),
         &config.exp_name,
         config.min_grid_size,
@@ -77,29 +80,44 @@ pub fn start_head(
     // scheduler.set_assignments(model, 1.0);
 
     // with new network
+    let mut model = ModelWithVersion::new(init_tree, "Head".to_string());
+    let mut task_packet_sender = Mutex::new(task_packet_sender);
+    // TODO: increase capacity
+    let capacity = 1;
     let mut network = Network::new(config.port, &vec![],
-        Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
-            // model_sync.handle_packet(source_ip: &String, packet: &mut UpdatePacket)();
-            // model_sync.print_log();
+        Box::new(move |from_addr: String, to_addr: String, update_packet: String| {
+            let task_packet_sender = task_packet_sender.lock().unwrap();
+            let mut packet: UpdatePacket = serde_json::from_str(&update_packet).unwrap();
+            let mut model = model_sync.handle_packet(&from_addr, &mut packet);
+            let (gamma, assigns) = scheduler.handle_packet(
+                &from_addr, &mut packet, &mut model, capacity);
+
+            let mut task_packet = TaskPacket::new();
+            task_packet.set_model(model.model);
+            task_packet.set_gamma(gamma);
+            assigns.into_iter().for_each(|(addr, task)| {
+                task_packet.set_expand_node(Some(task));
+                task_packet_sender.send((Some(addr), task_packet.clone()));
+            });
+            // other scanners also receive an update without updating their tasks
+            task_packet.set_expand_node(None);
+            task_packet_sender.send((None, task_packet));
+            drop(task_packet_sender);
         }),
         false,
     );
 
     // launch network send
-    let mut current_packet = TaskPacket::new();
     let mut _current_sample_version = 0;
     network.set_health_parameter(10);
-    for (packet_id, mut task) in task_packet_receiver.iter().enumerate() {
+    for (packet_id, (dest, mut task)) in task_packet_receiver.iter().enumerate() {
         task.set_packet_id(packet_id);
         if task.new_sample_version.is_none() {
             _current_sample_version = task.new_sample_version.as_ref().unwrap().clone();
-        } else {
-            task.fill_none(&current_packet);
-            current_packet = task.clone();
         }
 
         let task_json = serde_json::to_string(&task).unwrap();
-        network.send(task_json).unwrap();
+        network.send(dest, task_json).unwrap();
     }
 
     info!("Head node quits.");

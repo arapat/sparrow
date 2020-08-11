@@ -38,10 +38,6 @@ impl TaskPacket {
         }
     }
 
-    pub fn set_packet_id(&mut self, packet_id: usize) {
-        self.packet_id = packet_id;
-    }
-
     pub fn set_model(&mut self, model: Model) {
         self.model = Some(model);
     }
@@ -50,25 +46,23 @@ impl TaskPacket {
         self.gamma = Some(gamma);
     }
 
-    pub fn set_expand_node(&mut self, expand_node: usize) {
-        self.expand_node = Some(expand_node);
+    pub fn set_packet_id(&mut self, packet_id: usize) {
+        self.packet_id = packet_id;
+    }
+
+    pub fn set_expand_node(&mut self, expand_node: Option<usize>) {
+        self.expand_node = expand_node;
     }
 
     pub fn set_sample_version(&mut self, sample_version: usize) {
         self.new_sample_version = Some(sample_version);
     }
 
-    pub fn fill_none(&mut self, other_packet: &TaskPacket) {
-        assert!(self.new_sample_version.is_none());
-        if self.model.is_none() {
-            self.model = other_packet.model.clone();
-        }
-        if self.gamma.is_none() {
-            self.gamma = other_packet.gamma;
-        }
-        if self.expand_node.is_none() {
-            self.expand_node = other_packet.expand_node;
-        }
+    pub fn equals(&self, other: &TaskPacket) -> bool {
+        self.new_sample_version.is_some() && self.new_sample_version == other.new_sample_version ||
+        self.model == other.model && self.gamma == other.gamma && (
+            other.expand_node.is_none() || self.expand_node == other.expand_node
+        )
     }
 }
 

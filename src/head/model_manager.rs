@@ -1,5 +1,3 @@
-pub mod model_with_version;
-
 use std::sync::mpsc;
 
 // TODO: replace network
@@ -16,7 +14,7 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::io::write_all;
 use commons::persistent_io::write_model;
 
-use self::model_with_version::ModelWithVersion;
+use head::model_with_version::ModelWithVersion;
 
 
 pub struct ModelSync {
@@ -27,7 +25,6 @@ pub struct ModelSync {
     min_ess: f32,
 
     next_model_sender: Sender<(Model, String)>,
-    packet_receiver: Option<mpsc::Receiver<(String, UpdatePacket)>>,
 
     _performance_mon: PerformanceMonitor,
     _last_logging_ts: f32,
@@ -57,18 +54,20 @@ impl ModelSync {
             // Shared variables
             next_model_sender: next_model_sender,
 
-            packet_receiver: None,
-
             _performance_mon: PerformanceMonitor::new(),
             _last_logging_ts: 0.0,
         }
     }
 
-    fn handle_packet(&mut self, source_ip: &String, packet: &mut UpdatePacket) {
+    pub fn handle_packet(
+        &mut self, source_ip: &String, packet: &mut UpdatePacket,
+    ) -> ModelWithVersion {
         if packet.get_packet_type() == UpdatePacketType::Accept {
             self.model_ts = self._performance_mon.get_duration();
             self.update_model(&source_ip, &packet);
+            self.print_log();
         }
+        self.model.clone()
     }
 
 
@@ -116,18 +115,6 @@ impl ModelSync {
 }
 
 
-// start a network _receiver_ on the master node, which receives packages from the scanners
-fn start_network(
-    machine_name: String, remote_ips: Vec<String>, port: u16,
-) -> (mpsc::Sender<(String, UpdatePacket)>, mpsc::Receiver<(String, UpdatePacket)>) {
-    let (packet_s, packet_r):
-        (mpsc::Sender<(String, UpdatePacket)>, mpsc::Receiver<(String, UpdatePacket)>) =
-        mpsc::channel();
-    start_network_only_recv(machine_name.as_ref(), &remote_ips, port, packet_s.clone()).unwrap();
-    (packet_s, packet_r)
-}
-
-
 #[cfg(test)]
 mod tests {
     use super::ModelSync;
@@ -155,6 +142,7 @@ mod tests {
         );
         let packet_sender = model_sync.start_network(
             "tester".to_string(), vec!["s1".to_string(), "s2".to_string()], 8000);
+        packet_sender.set_input("./debug.txt");
         assert!(try_recv(&mut next_model_r).is_some());
 
         // no packet sent

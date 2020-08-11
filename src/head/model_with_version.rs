@@ -4,6 +4,7 @@ use commons::tree::UpdateList;
 use head::scheduler::kdtree::Grid;
 
 
+#[derive(Clone)]
 pub struct ModelWithVersion {
     pub model: Model,
     pub last_update_from: String,

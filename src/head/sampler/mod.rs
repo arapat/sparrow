@@ -23,7 +23,7 @@ pub fn start_sampler_async(
     bins: &Vec<Bins>,
     init_tree: &Model,
     next_model_recv: Receiver<(Model, String)>,
-    packet_sender: Sender<TaskPacket>,
+    packet_sender: Sender<(Option<String>, TaskPacket)>,
 ) -> Arc<RwLock<bool>> {
     debug!("Starting Sampler");
     let sampler_state = Arc::new(RwLock::new(true));
