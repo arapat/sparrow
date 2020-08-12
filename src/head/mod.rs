@@ -91,6 +91,7 @@ pub fn start_head(
     );
 
     // activate first scanner
+    info!("Activate first scanner");
     let mut task_packet = TaskPacket::new();
     task_packet.set_model(model.model);
     task_packet.set_gamma(config.default_gamma);
@@ -103,12 +104,12 @@ pub fn start_head(
     network.set_health_parameter(10);
     for (packet_id, (dest, mut task)) in task_packet_receiver.iter().enumerate() {
         task.set_packet_id(packet_id);
-        if task.new_sample_version.is_none() {
+        if task.new_sample_version.is_some() {
             _current_sample_version = task.new_sample_version.as_ref().unwrap().clone();
         }
 
         let task_json = serde_json::to_string(&task).unwrap();
-        info!("head packet, {}", task_json);
+        info!("head packet, {:?}, {}", dest, task_json);
         network.send(dest, task_json).unwrap();
     }
 

@@ -53,7 +53,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
     let mut curr_packet: Option<TaskPacket> = None;
     let mut network = Network::new(config.port, &vec![],
         Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
-            debug!("Received a new packet from head, {}, {}", from_addr, to_addr);
+            debug!("Received a new packet from head, {}, {}, {}", from_addr, to_addr, task_packet);
             let packet: TaskPacket = serde_json::from_str(&task_packet).unwrap();
             if packet.new_sample_version.is_some() {
                 debug!("Packet is a new sample signal");
@@ -61,7 +61,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
                 sampler_signal_sender.send(new_version).unwrap();
                 drop(sampler_signal_sender);
-            } else if curr_packet.is_some() && curr_packet.as_ref().unwrap().equals(&packet) {
+            } else if curr_packet.is_some() && !curr_packet.as_ref().unwrap().equals(&packet) {
                 debug!("Stopping existing booster");
                 let mut is_booster_stopped = false;
                 while !is_booster_stopped {
