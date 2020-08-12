@@ -52,7 +52,7 @@ impl Scheduler {
     }
 
     pub fn set_assignments(
-        &mut self, model: &mut ModelWithVersion, gamma: f32, capacity: usize,
+        &mut self, model: &ModelWithVersion, gamma: f32, capacity: usize,
     ) -> Vec<(String, usize)> {
         let idle_scanners: Vec<usize> =
             self.scanner_task.iter()
@@ -76,7 +76,7 @@ impl Scheduler {
     fn assign(
         &mut self,
         idle_scanners: Vec<usize>,
-        _model: &mut ModelWithVersion,
+        _model: &ModelWithVersion,
         gamma: f32,
         capacity: usize,
     ) -> Vec<(String, usize)> {
@@ -325,7 +325,7 @@ mod tests {
             assert!(assignment[i].is_some());
         }
         // now we have enough grids, so no need to set lower gamma (yet)
-        scheduler.set_assignments(&mut model, 0.5);
+        scheduler.set_assignments(&model, 0.5);
         assert!(scheduler.get_assignment()[test_machine_id].is_some());
     }
 }

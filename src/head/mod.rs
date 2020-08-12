@@ -58,8 +58,7 @@ pub fn start_head(
 
     // 3. Create a scheduler
     let mut scheduler = Scheduler::new(config.network.len(), config.min_grid_size, &config);
-    // let mut model = ModelWithVersion::new(init_tree.clone(), "Sampler".to_string());
-    // scheduler.set_assignments(model, 1.0);
+    scheduler.set_assignments(&model, config.default_gamma, 1);
 
     let mutex_task_packet_sender = Mutex::new(task_packet_sender.clone());
     // TODO: increase capacity
