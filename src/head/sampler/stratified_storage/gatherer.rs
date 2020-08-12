@@ -22,7 +22,7 @@ use commons::persistent_io::write_sample_s3;
 pub struct Gatherer {
     gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
     new_sample_capacity:    usize,
-    model:                  Arc<RwLock<(Model, String)>>,
+    model:                  Arc<RwLock<Model>>,
     pub counter:            Arc<RwLock<Vec<u32>>>,
     exp_name:               String,
 }
@@ -33,7 +33,7 @@ impl Gatherer {
     pub fn new(
         gather_new_sample:      Receiver<((ExampleWithScore, u32), u32)>,
         new_sample_capacity:    usize,
-        model:                  Arc<RwLock<(Model, String)>>,
+        model:                  Arc<RwLock<Model>>,
         exp_name:               String,
     ) -> Gatherer {
         Gatherer {
@@ -89,9 +89,9 @@ fn gather<F>(
     gather_new_sample: Receiver<((ExampleWithScore, u32), u32)>,
     broadcast_handler: F,
     version: usize,
-    model_with_sig: Arc<RwLock<(Model, String)>>,
+    model: Arc<RwLock<Model>>,
     exp_name: &str,
-) where F: Fn(Vec<ExampleWithScore>, Model, String, usize, &str) {
+) where F: Fn(Vec<ExampleWithScore>, Model, usize, &str) {
     debug!("sampler, start, generate sample");
     let mut pm = PerformanceMonitor::new();
     pm.start();
@@ -123,8 +123,8 @@ fn gather<F>(
     }
     thread_rng().shuffle(&mut new_sample);
     // TODO: count number of examples fall, make sure the numbering is the same as the assignments
-    let (model, model_sig) = {
-        let lock = model_with_sig.read().unwrap();
+    let model = {
+        let lock = model.read().unwrap();
         lock.clone()
     };
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}, {}",
@@ -136,7 +136,7 @@ fn gather<F>(
         .expect("Failed to write the sample set to file for snapshot");
     rename(filename, "latest_sample.bin".to_string()).unwrap();
     // Send the sample to the broadcast handler
-    broadcast_handler(new_sample, model, model_sig, version, exp_name);
+    broadcast_handler(new_sample, model, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
 }

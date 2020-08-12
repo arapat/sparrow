@@ -109,7 +109,6 @@ impl StratifiedStorage {
     /// updates its weight, sends it to right stratum, and updates `Shared Weight Table` accordingly.
     pub fn new(
         init_model: Model,
-        init_model_sig: String,
         num_examples: usize,
         sample_capacity: usize,
         feature_size: usize,
@@ -119,7 +118,7 @@ impl StratifiedStorage {
         sample_mode: SampleMode,
         num_assigners: usize,
         num_samplers: usize,
-        models: Receiver<(Model, String)>,
+        models: Receiver<Model>,
         channel_size: usize,
         sampler_state: Arc<RwLock<bool>>,
         debug_mode: bool,
@@ -149,15 +148,15 @@ impl StratifiedStorage {
         let strata = Arc::new(RwLock::new(strata));
 
         // Start assigners, samplers, and gatherers
-        let model = Arc::new(RwLock::new((init_model, init_model_sig)));
+        let model = Arc::new(RwLock::new(init_model));
         {
             let model = model.clone();
             spawn(move || {
-                while let Some((new_model, model_sig)) = models.recv() {
+                while let Some(new_model) = models.recv() {
                     let model_len = new_model.size();
                     {
                         let mut model = model.write().unwrap();
-                        *model = (new_model, model_sig);
+                        *model = new_model;
                     }
                     debug!("stratified, model updated, {}", model_len);
                 }

@@ -29,8 +29,6 @@ const SHRINK: f32 = 1.0;
 const THRESHOLD_FACTOR: f32 = 1.0;
 const ALMOST_ZERO: f32 = 1e-8;
 
-pub const INIT_MODEL_PREFIX: &str = "init";
-
 // Boosting related
 
 #[inline]

@@ -20,8 +20,8 @@ use commons::performance_monitor::PerformanceMonitor;
 use commons::Model;
 
 
-// (sample_version, new_sample, model, model_sig);
-pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model, String);
+// (sample_version, new_sample, model);
+pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model);
 // pub type ModelPack = (Model, String, f32);
 // LockedBuffer is set to None once it is read by the receiver
 pub type LockedBuffer = Arc<RwLock<Option<VersionedSampleModel>>>;
@@ -45,13 +45,12 @@ fn get_sample_local_filename(exp_name: &str) -> String {
 pub fn write_sample_local(
     new_sample: Vec<ExampleWithScore>,
     model: Model,
-    model_sig: String,
     version: usize,
     exp_name: &str,
 ) {
     let base_filename = get_sample_local_filename(exp_name);
     let temp_filename = base_filename.clone() + "_WRITING";
-    let data: VersionedSampleModel = (version, new_sample, model, model_sig);
+    let data: VersionedSampleModel = (version, new_sample, model);
     write_all(&temp_filename, &serialize(&data).unwrap())
         .expect("Failed to write the sample set to file");
     rename(temp_filename, base_filename.to_string()).unwrap();
@@ -61,11 +60,10 @@ pub fn write_sample_local(
 pub fn write_sample_s3(
     new_sample: Vec<ExampleWithScore>,
     model: Model,
-    model_sig: String,
     version: usize,
     exp_name: &str,
 ) {
-    let data: VersionedSampleModel = (version, new_sample, model, model_sig);
+    let data: VersionedSampleModel = (version, new_sample, model);
     debug!("sampler, start, write new sample to s3, {}", version);
     let s3_path = format!("{}/{}", exp_name, S3_PATH_SAMPLE);
     io_write_s3(REGION, BUCKET, s3_path.as_str(), SAMPLE_FILENAME, &serialize(&data).unwrap());
@@ -98,10 +96,10 @@ pub fn load_sample_local(exp_name: &str) -> Option<VersionedSampleModel> {
     let base_filename = get_sample_local_filename(exp_name);
     let temp_filename = base_filename.clone() + "_READING";
     if rename(base_filename, temp_filename.clone()).is_ok() {
-        let (version, sample, model, model_sig): VersionedSampleModel =
+        let (version, sample, model): VersionedSampleModel =
             deserialize(read_all(&temp_filename).as_ref()).unwrap();
         remove_file(temp_filename).unwrap();
-        return Some((version, sample, model, model_sig));
+        return Some((version, sample, model));
     }
     None
 }
@@ -117,8 +115,8 @@ pub fn load_sample_s3(exp_name: &str) -> Option<VersionedSampleModel> {
     }
     let (data, code) = ret.unwrap();
     if code == 200 {
-        let (version, sample, model, model_sig) = deserialize(&data).unwrap();
-        return Some((version, sample, model, model_sig));
+        let (version, sample, model) = deserialize(&data).unwrap();
+        return Some((version, sample, model));
     } else {
         debug!("scanner, failed, download sample from s3, err {}", code);
     }

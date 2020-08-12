@@ -9,7 +9,6 @@ use std::sync::mpsc::Sender;
 use commons::channel::Receiver;
 use commons::Model;
 use commons::bins::Bins;
-use commons::INIT_MODEL_PREFIX;
 use config::Config;
 use config::SampleMode;
 
@@ -22,17 +21,15 @@ pub fn start_sampler_async(
     sample_mode: &SampleMode,
     bins: &Vec<Bins>,
     init_tree: &Model,
-    next_model_recv: Receiver<(Model, String)>,
+    next_model_recv: Receiver<Model>,
     packet_sender: Sender<(Option<String>, TaskPacket)>,
 ) -> Arc<RwLock<bool>> {
     debug!("Starting Sampler");
     let sampler_state = Arc::new(RwLock::new(true));
     debug!("Starting the stratified structure.");
-    let init_model_name = INIT_MODEL_PREFIX.to_string();
     // start the sampling process in the stratified storage
     let stratified_structure = StratifiedStorage::new(
         init_tree.clone(),
-        init_model_name.clone(),
         config.num_examples,
         config.buffer_size,
         config.num_features,

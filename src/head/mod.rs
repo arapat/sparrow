@@ -72,6 +72,10 @@ pub fn start_head(
             let (gamma, assigns) = scheduler.handle_packet(
                 &from_addr, &mut packet, &mut model, capacity);
 
+            // update the sampler
+            sampler_model_s.send(model.model.clone());
+
+            // update the scanners
             let mut task_packet = TaskPacket::new();
             task_packet.set_model(model.model);
             task_packet.set_gamma(gamma);

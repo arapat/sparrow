@@ -49,10 +49,10 @@ impl Loader {
                 loop {
                     let sample = load_sample(load_func, exp_name.as_str());
                     if sample.is_some() {
-                        let (version, new_sample, new_model, model_sig) = sample.unwrap();
+                        let (version, new_sample, new_model) = sample.unwrap();
                         if version >= incoming_version {
                             let new_buffer = buffer.write();
-                            *(new_buffer.unwrap()) = Some((version, new_sample, new_model, model_sig));
+                            *(new_buffer.unwrap()) = Some((version, new_sample, new_model));
                             break;
                         }
                     }

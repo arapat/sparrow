@@ -35,7 +35,6 @@ pub struct BufferLoader {
 
     examples: Vec<ExampleInSampleSet>,
     pub base_model: Model,
-    pub base_model_sig: String,
     pub current_version: usize,
     pub new_buffer: LockedBuffer,
     loader: Loader,
@@ -78,7 +77,6 @@ impl BufferLoader {
 
             examples: vec![],
             base_model: Model::new(1),
-            base_model_sig: "default".to_string(),
             current_version: 0,
             new_buffer: new_buffer,
             loader: loader,
@@ -154,14 +152,13 @@ impl BufferLoader {
             return false;
         }
 
-        let (new_version, new_examples, new_model, model_sig): VersionedSampleModel =
+        let (new_version, new_examples, new_model): VersionedSampleModel =
             new_buffer.take().unwrap();
         drop(new_buffer);
         let old_version = self.current_version;
         self.current_version = new_version;
         self.examples = set_init_weight(new_examples);
         self.base_model = new_model;
-        self.base_model_sig = model_sig;
         self.curr_example = 0;
 
         self.update_ess();
@@ -182,9 +179,8 @@ impl BufferLoader {
         while self.ess < self._min_ess && !self.try_switch() {
             if timer.get_duration() - last_report_time > 10.0 {
                 last_report_time = timer.get_duration();
-                debug!("loader, blocking, {}, {}, {}, {}, {}",
-                        last_report_time, self.ess, self._min_ess, self.base_model_sig,
-                        self.current_version);
+                debug!("loader, blocking, {}, {}, {}, {}",
+                        last_report_time, self.ess, self._min_ess, self.current_version);
             }
             sleep(Duration::from_secs(2));
         }
