@@ -1,58 +1,25 @@
-use std::sync::mpsc;
-
-// TODO: replace network
-/* #[cfg(not(test))] use tmsn::network::start_network_only_recv;
-// #[cfg(test)] */ use commons::test_helper::start_network_only_recv;
-
-use commons::Model;
-use commons::bins::Bins;
-use commons::channel::Sender;
 use commons::packet::UpdatePacket;
 use commons::packet::UpdatePacketType;
 use commons::performance_monitor::PerformanceMonitor;
 
-use commons::io::write_all;
 use commons::persistent_io::write_model;
-
 use head::model_with_version::ModelWithVersion;
 
 
-pub struct ModelSync {
+pub struct ModelManager {
     model: ModelWithVersion,
     model_ts: f32,
-    num_trees: usize,
-    exp_name: String,
-    min_ess: f32,
-
-    next_model_sender: Sender<(Model, String)>,
 
     _performance_mon: PerformanceMonitor,
     _last_logging_ts: f32,
 }
 
 
-impl ModelSync {
-    pub fn new(
-        init_tree: &Model,
-        num_trees: usize,
-        exp_name: &String,
-        min_ess: f32,
-        next_model_sender: Sender<(Model, String)>,
-        bins: &Vec<Bins>,
-        num_scanners: usize,
-    ) -> ModelSync {
-        let mut model = ModelWithVersion::new(init_tree.clone(), "Sampler".to_string());
-        ModelSync {
-            model: model,
+impl ModelManager {
+    pub fn new(init_tree: &ModelWithVersion) -> ModelManager {
+        ModelManager {
+            model: init_tree.clone(),
             model_ts: 0.0,
-
-            // Configurations
-            num_trees: num_trees,
-            exp_name: exp_name.clone(),
-            min_ess: min_ess,
-
-            // Shared variables
-            next_model_sender: next_model_sender,
 
             _performance_mon: PerformanceMonitor::new(),
             _last_logging_ts: 0.0,
@@ -70,21 +37,11 @@ impl ModelSync {
         self.model.clone()
     }
 
-
-    fn continue_training(&self) -> bool {
-        // TODO: model.tree_size should not consider the tree nodes added by kd-tree
-        self.num_trees <= 0 || self.model.model.tree_size < self.num_trees
-    }
-
-
     fn broadcast_model(&mut self, is_model_updated: bool) {
         // callback TODO: fix upload model
         // let is_upload_success = upload_model(
         //     &self.model.model, &self.model.model_sig, self.gamma.gamma, &self.exp_name);
         if is_model_updated {
-            // callback TODO: next_model_sender
-            // self.next_model_sender.send(
-            //     (self.model.model.clone(), self.model.model_sig.clone()));
             write_model(&self.model.model, self.model_ts, true);
         }
         // debug!("model_manager, upload model, {}, {}",

@@ -52,8 +52,3 @@ impl ModelWithVersion {
                 self.gamma_version);
     }
 }
-
-
-fn get_model_sig(prefix: &String, gamma_version: usize) -> String {
-    format!("{}_{}", prefix, gamma_version)
-}

@@ -3,7 +3,6 @@ use std::fs::remove_file;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::sync::mpsc::Receiver;
 
 use REGION;
 use BUCKET;
@@ -23,15 +22,15 @@ use commons::Model;
 
 // (sample_version, new_sample, model, model_sig);
 pub type VersionedSampleModel = (usize, Vec<ExampleWithScore>, Model, String);
-pub type ModelPack = (Model, String, f32);
+// pub type ModelPack = (Model, String, f32);
 // LockedBuffer is set to None once it is read by the receiver
 pub type LockedBuffer = Arc<RwLock<Option<VersionedSampleModel>>>;
 
 
 const S3_PATH_SAMPLE:  &str = "sparrow-samples/";
 const SAMPLE_FILENAME: &str = "sample.bin";
-const S3_PATH_ASSIGNS: &str = "sparrow-assigns/";
-const ASSIGN_FILENAME: &str = "assign.bin";
+// const S3_PATH_ASSIGNS: &str = "sparrow-assigns/";
+// const ASSIGN_FILENAME: &str = "assign.bin";
 const S3_PATH_BINS:    &str = "sparrow-bins/";
 const BINS_FILENAME:   &str = "bins.json";
 
@@ -197,6 +196,7 @@ pub fn read_model() -> (f32, usize, Model) {
 // }
 
 
+/*
 // Read/write assignments
 
 #[cfg(not(test))]
@@ -230,6 +230,7 @@ pub fn download_assignments(exp_name: &String) -> Option<Vec<Option<usize>>> {
         None
     }
 }
+*/
 
 
 // Read/write bins

@@ -28,8 +28,6 @@ pub struct Boosting {
 
     init_packet: TaskPacket,
     model: Model,
-    expand_node: usize,
-    gamma: f32,
 
     max_sample_size: usize,
     save_process: bool,
@@ -64,8 +62,6 @@ impl Boosting {
 
             init_packet: init_packet,
             model: model,
-            expand_node: expand_node,
-            gamma: gamma,
 
             max_sample_size: config.max_sample_size,
             save_process: config.save_process,

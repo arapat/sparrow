@@ -85,7 +85,7 @@ impl ADTree {
     }
 
     // TODO: allow update root
-    pub fn add_root(&mut self, pred_value: f32, gamma: f32) -> usize {
+    pub fn add_root(&mut self, pred_value: f32, _gamma: f32) -> usize {
         assert_eq!(self.tree_size, 0);
 
         self.parent.push(0);
@@ -114,7 +114,7 @@ impl ADTree {
 
     fn add_node(
         &mut self, parent: usize,
-        feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, gamma: f32,
+        feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, _gamma: f32,
         always_new_node: bool,
     ) -> usize {
         let depth = self.depth[parent] + 1;

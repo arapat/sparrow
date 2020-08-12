@@ -118,6 +118,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
     for (packet_id, mut new_updates) in new_updates_receiver.iter().enumerate() {
         new_updates.set_packet_id(packet_id);
         let updates_json = serde_json::to_string(&new_updates).unwrap();
+        info!("scanner packet, {}", updates_json);
         network.send(None, updates_json).unwrap();
     }
 }

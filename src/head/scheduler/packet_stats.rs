@@ -1,7 +1,6 @@
 use std::cmp::max;
 use std::collections::HashMap;
 
-use commons::packet::UpdatePacket;
 use commons::packet::UpdatePacketType;
 
 
@@ -62,9 +61,7 @@ impl PacketStats {
         }
     }
 
-    pub fn handle_new_packet(
-        &mut self, source_ip: &String, packet: &UpdatePacket, packet_type: &UpdatePacketType,
-    ) {
+    pub fn handle_new_packet(&mut self, source_ip: &String, packet_type: &UpdatePacketType) {
         self.total_packets += 1;
         let num_packs = self.num_packs.entry(source_ip.clone()).or_insert(0);
         *num_packs += 1;

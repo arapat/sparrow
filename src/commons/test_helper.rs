@@ -3,7 +3,6 @@ use rand;
 use rand::Rng;
 
 use TFeature;
-use commons::Model;
 use commons::ExampleWithScore;
 use commons::labeled_data::LabeledData;
 use commons::packet::TaskPacket;
@@ -29,14 +28,13 @@ pub fn get_n_random_examples(n: usize, num_features: usize) -> Vec<ExampleWithSc
 
 
 pub fn get_mock_packet(
-    machine_id: usize, node_id: usize, gamma: f32, packet_size: usize,
+    _machine_id: usize, _node_id: usize, _gamma: f32, packet_size: usize,
 ) -> UpdatePacket {
     let ess = 0.5;
     let mut update_list = UpdateList::new();
     for _ in 0..packet_size {
         update_list.add(0, 0, 0 as TFeature, false, 0.0, vec![], true);
     }
-    let models = Model::new(packet_size);
     let task_packet = TaskPacket::new();
     UpdatePacket::new(update_list, task_packet, 0, ess)
 }

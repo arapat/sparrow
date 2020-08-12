@@ -10,8 +10,7 @@ pub mod persistent_io;
 // The class of the weak learner, namely a decision stump.
 pub mod tree;
 // helper function for testing
-// #[cfg(test)] pub mod test_helper;
-pub mod test_helper;
+#[cfg(test)] pub mod test_helper;
 
 use rayon::prelude::*;
 use std::f32::INFINITY;

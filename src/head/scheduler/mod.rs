@@ -2,16 +2,9 @@ pub mod gamma;
 pub mod kdtree;
 pub mod packet_stats;
 
-use rand::Rng;
-use rand::thread_rng;
-
 use commons::packet::UpdatePacket;
 use commons::packet::UpdatePacketType;
-use commons::persistent_io::VersionedSampleModel;
-use commons::persistent_io::load_sample_s3;
-use commons::persistent_io::upload_assignments;
 use config::Config;
-use Example;
 use head::model_with_version::ModelWithVersion;
 use self::gamma::Gamma;
 // use self::kdtree::Grid;
@@ -21,14 +14,12 @@ use self::packet_stats::PacketStats;
 
 
 pub struct Scheduler {
-    exp_name: String,
-    num_machines: usize,
-    min_grid_size: usize,
+    _num_machines: usize,
+    _min_grid_size: usize,
 
     scanner_addr: Vec<String>,
     scanner_task: Vec<Option<usize>>,  // None for idle, otherwise Some(node_id)
-    // availability: Vec<Option<usize>>,
-    last_gamma: Vec<f32>,
+    _last_gamma: Vec<f32>,
 
     gamma: Gamma,
     packet_stats: PacketStats,
@@ -40,26 +31,19 @@ pub struct Scheduler {
 
 
 impl Scheduler {
-    pub fn new(
-        num_machines: usize,
-        exp_name: &String,
-        min_grid_size: usize,
-        config: &Config,
-    ) -> Scheduler {
+    pub fn new(num_machines: usize, min_grid_size: usize, config: &Config) -> Scheduler {
         let gamma = Gamma::new(config.default_gamma, config.min_gamma);
-        let mut scheduler = Scheduler {
-            exp_name: exp_name.clone(),
-            num_machines: num_machines.clone(),
-            min_grid_size: min_grid_size,
+        Scheduler {
+            _num_machines: num_machines.clone(),
+            _min_grid_size: min_grid_size,
 
             scanner_addr: vec![],
             scanner_task: vec![],
-            last_gamma: vec![1.0],     // ditto
+            _last_gamma: vec![1.0],     // ditto
 
             gamma: gamma,
             packet_stats: PacketStats::new(num_machines),
-        };
-        scheduler
+        }
     }
 
     pub fn add_scanner(&mut self, addr: String) {
@@ -92,7 +76,7 @@ impl Scheduler {
     fn assign(
         &mut self,
         idle_scanners: Vec<usize>,
-        model: &mut ModelWithVersion,
+        _model: &mut ModelWithVersion,
         gamma: f32,
         capacity: usize,
     ) -> Vec<(String, usize)> {
@@ -101,7 +85,6 @@ impl Scheduler {
                          .map(|scanner_id| (scanner_id, self.get_new_grid(scanner_id, gamma)))
                          .take(capacity)
                          .collect();
-        let update_size = assignments.len();
         assignments.iter().for_each(|(scanner_id, node_index)| {
             self.scanner_task[*scanner_id] = Some(*node_index);
             debug!("model-manager, assign, {}, {}", scanner_id, node_index);
@@ -120,7 +103,7 @@ impl Scheduler {
         capacity: usize,
     ) -> (f32, Vec<(String, usize)>) {
         let packet_type = packet.get_packet_type();
-        self.packet_stats.handle_new_packet(source_ip, packet, &packet_type);
+        self.packet_stats.handle_new_packet(source_ip, &packet_type);
         match packet_type {
             UpdatePacketType::Empty => {
                 self.handle_empty(packet);
@@ -142,6 +125,7 @@ impl Scheduler {
 
     fn handle_accept(&mut self, packet: &UpdatePacket) -> bool {
         // self.get_grid_node_ids(packet).is_some()
+        debug!("head, scheduler, empty, {}", packet.packet_id);
         true
     }
 
@@ -151,7 +135,7 @@ impl Scheduler {
         //     return false;
         // }
         // let (grid_index, node_id) = grid_node_ids.unwrap();
-        // debug!("model_manager, scheduler, handle empty, {}", node_id);
+        debug!("head, scheduler, empty, {}", packet.packet_id);
         // self.release_grid(grid_index);
         // callback TODO:
         // self.last_gamma[grid_index] = packet.gamma;
@@ -204,7 +188,7 @@ impl Scheduler {
     }
     */
 
-    fn get_new_grid(&mut self, scanner_id: usize, gamma: f32) -> usize {
+    fn get_new_grid(&mut self, _scanner_id: usize, _gamma: f32) -> usize {
         // let mut grid_index = 0;
         // while grid_index < self.curr_grids.len() {
         //     if self.availability[grid_index].is_none() && self.last_gamma[grid_index] > gamma {
