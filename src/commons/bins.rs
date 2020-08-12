@@ -149,12 +149,16 @@ pub fn load_bins(mode: &str, config: Option<&Config>) -> Vec<Bins> {
         let bins = create_bins(
             config.max_sample_size, config.max_bin_size, config.num_features,
             &mut serial_training_loader);
+        debug!("head node generated bins");
         write_bins_disk(&bins);
         write_bins_s3(&bins, &config.exp_name);
+        debug!("head node uploaded bins");
         bins
     } else if mode == "scanner" {
         let config = config.unwrap();
-        read_bins_s3(&config.exp_name)
+        let bins = read_bins_s3(&config.exp_name);
+        debug!("scanner downloaded bins");
+        bins
     } else {  // if mode == "testing"
         read_bins_disk()
     }
