@@ -29,3 +29,4 @@ num_selectors: 2
 network: []
 port: 8888
 local_name: local_worker
+min_grid_size: 1000

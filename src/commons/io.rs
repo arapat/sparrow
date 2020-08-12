@@ -99,13 +99,16 @@ fn parse_libsvm_one_line<TFeature, TLabel>(
     missing_val: TFeature,
     size: usize,
     positive: &String,
-) -> LabeledData<TFeature, TLabel>
+) -> Option<LabeledData<TFeature, TLabel>>
 where
     TFeature: FromStr + Clone + Send + Sync,
     TFeature::Err: Debug,
     TLabel: FromStr + Send + Sync,
     TLabel::Err: Debug
 {
+    if raw_string.trim().is_empty() {
+        return None;
+    }
     let mut numbers = raw_string.split_whitespace();
     let label: TLabel = {
         if numbers.next().unwrap() == *positive {
@@ -130,7 +133,7 @@ where
     }).for_each(|(index, value): (usize, TFeature)| {
         feature[index] = value;
     });
-    LabeledData::new(feature, label)
+    Some(LabeledData::new(feature, label))
 }
 
 
@@ -222,6 +225,8 @@ where
 {
     raw_strings.par_iter()
                .map(|s| parse_libsvm_one_line(&s, missing_val.clone(), size, positive))
+               .filter(|val| val.is_some())
+               .map(|val| val.unwrap())
                .collect()
 }
 
