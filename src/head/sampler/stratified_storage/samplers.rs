@@ -235,7 +235,7 @@ fn sampler(
             let step3 = pm3.get_duration() / s3_total;
             let step4 = pm4.get_duration() / s3_total;
             let others = 1.0 - step1 - step2 - step3 - step4;
-            debug!("sample-perf-breakdown, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}",
+            trace!("sample-perf-breakdown, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}",
                    (num_updated as f32) / total, (num_sampled as f32) / total, s3_total / total,
                    step1, step2, step3, step4, others);
             pm_total.reset();

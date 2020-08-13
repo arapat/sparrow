@@ -61,7 +61,7 @@ pub fn start_scanner(config: Config, sample_mode: SampleMode, bins: Vec<Bins>) {
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
                 sampler_signal_sender.send(new_version).unwrap();
                 drop(sampler_signal_sender);
-            } else if curr_packet.is_some() && !curr_packet.as_ref().unwrap().equals(&packet) {
+            } else if curr_packet.is_none() || !curr_packet.as_ref().unwrap().equals(&packet) {
                 debug!("Stopping existing booster");
                 let mut is_booster_stopped = false;
                 while !is_booster_stopped {
