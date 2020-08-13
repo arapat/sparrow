@@ -228,6 +228,7 @@ fn reset_scores(data: &mut [ExampleInSampleSet], base_model: &Model) {
 }
 
 
+/*
 #[cfg(test)]
 mod tests {
     use std::thread::sleep;
@@ -250,7 +251,7 @@ mod tests {
         {
             let examples = (0..100).map(|_| get_example(vec![0, 1, 2], -1, 1.0)).collect();
             let mut write_buffer = buffer_loader.new_buffer.write().unwrap();
-            *write_buffer = Some((1, examples, Model::new(1), "mock_model".to_string()));
+            *write_buffer = Some((1, examples, Model::new(1)));
         }
         while !buffer_loader.try_switch() {
             sleep(Duration::from_millis(1000));
@@ -266,7 +267,7 @@ mod tests {
         {
             let examples = (0..100).map(|_| get_example(vec![0, 1, 2], 1, 2.0)).collect();
             let mut write_buffer = buffer_loader.new_buffer.write().unwrap();
-            *write_buffer = Some((2, examples, Model::new(1), "mock_model".to_string()));
+            *write_buffer = Some((2, examples, Model::new(1)));
         }
         while !buffer_loader.try_switch() {
             sleep(Duration::from_millis(1000));
@@ -286,3 +287,4 @@ mod tests {
         (example, (score, 0))
     }
 }
+*/

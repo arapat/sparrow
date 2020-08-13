@@ -106,6 +106,7 @@ fn get_median(numbers: &mut Vec<TFeature>) -> TFeature {
 }
 
 
+/*
 #[cfg(test)]
 mod tests {
     use Example;
@@ -148,3 +149,4 @@ mod tests {
         }
     }
 }
+*/

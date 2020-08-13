@@ -121,7 +121,6 @@ impl StratifiedStorage {
         models: Receiver<Model>,
         channel_size: usize,
         sampler_state: Arc<RwLock<bool>>,
-        debug_mode: bool,
         resume_training: bool,
         exp_name: String,
         packet_sender: mpsc::Sender<(Option<String>, TaskPacket)>,
@@ -139,8 +138,7 @@ impl StratifiedStorage {
         let ser_strata = None;
         // Maintains weight tables
         let stats_update_s = start_update_weights_table(
-            counts_table_r.clone(), counts_table_w, weights_table_r.clone(), weights_table_w,
-            debug_mode);
+            counts_table_r.clone(), counts_table_w, weights_table_r.clone(), weights_table_w);
         // Maintains all example on disk and in memory
         let strata = Strata::new(
             num_examples, feature_size, num_examples_per_block, disk_buffer_filename,
@@ -248,7 +246,7 @@ impl StratifiedStorage {
 fn start_update_weights_table(
     counts_table_r: CountTableRead, counts_table_w: CountTableWrite,
     weights_table_r: WeightTableRead, weights_table_w: WeightTableWrite,
-    debug_mode: bool) -> Sender<(i8, (i32, f64))> {
+) -> Sender<(i8, (i32, f64))> {
     let (stats_update_s, stats_update_r) = channel::bounded(5000000, "stats");
     // Updating
     {
@@ -272,35 +270,34 @@ fn start_update_weights_table(
     }
 
     // Monitor the distribution of strata
-    if debug_mode {
-        let counts_table_r = counts_table_r.clone();
-        let weights_table_r = weights_table_r.clone();
-        spawn(move || {
-            loop {
-                sleep(Duration::from_millis(5000));
-                let mut p: Vec<(i8, f64)> =
-                    weights_table_r.map_into(|a: &i8, b: &[Box<F64>]| (a.clone(), b[0].val));
-                p.sort_by(|a, b| (a.0).cmp(&b.0));
-                let mut c: Vec<(i8, i32)> = counts_table_r.map_into(|a, b| (a.clone(), b[0]));
-                c.sort_by(|a, b| (a.0).cmp(&b.0));
-                let mut sump: f64 = p.iter().map(|t| t.1).sum();
-                if get_sign(sump) == 0 {
-                    sump = 1.0;
-                }
-                let ps: Vec<String> = p.into_iter()
-                                        .map(|(idx, w)| (idx, 100.0 * w / sump))
-                                        .map(|(idx, w)| format!("({}, {:.2})", idx, w))
-                                        .collect();
-                trace!("strata weights distr, {}, {}", ps.join(", "), sump);
-                let sumc: i32 = max(c.iter().map(|t| t.1).sum(), 1);
-                let cs: Vec<String> = c.into_iter()
-                                        .map(|(idx, c)| (idx, 100.0 * c as f32 / (sumc as f32)))
-                                        .map(|(idx, c)| format!("({}, {:.2})", idx, c))
-                                        .collect();
-                trace!("strata counts distr, {}, {}", cs.join(", "), sumc);
+    let counts_table_r = counts_table_r.clone();
+    let weights_table_r = weights_table_r.clone();
+    spawn(move || {
+        loop {
+            sleep(Duration::from_millis(5000));
+            let mut p: Vec<(i8, f64)> =
+                weights_table_r.map_into(|a: &i8, b: &[Box<F64>]| (a.clone(), b[0].val));
+            p.sort_by(|a, b| (a.0).cmp(&b.0));
+            let mut c: Vec<(i8, i32)> = counts_table_r.map_into(|a, b| (a.clone(), b[0]));
+            c.sort_by(|a, b| (a.0).cmp(&b.0));
+            let mut sump: f64 = p.iter().map(|t| t.1).sum();
+            if get_sign(sump) == 0 {
+                sump = 1.0;
             }
-        });
-    }
+            let ps: Vec<String> = p.into_iter()
+                                    .map(|(idx, w)| (idx, 100.0 * w / sump))
+                                    .map(|(idx, w)| format!("({}, {:.2})", idx, w))
+                                    .collect();
+            trace!("strata weights distr, {}, {}", ps.join(", "), sump);
+            let sumc: i32 = max(c.iter().map(|t| t.1).sum(), 1);
+            let cs: Vec<String> = c.into_iter()
+                                    .map(|(idx, c)| (idx, 100.0 * c as f32 / (sumc as f32)))
+                                    .map(|(idx, c)| format!("({}, {:.2})", idx, c))
+                                    .collect();
+            trace!("strata counts distr, {}, {}", cs.join(", "), sumc);
+        }
+    });
+
     stats_update_s
 }
 
@@ -363,6 +360,7 @@ fn sample_weights_table(weights_table_r: &WeightTableRead) -> Option<i8> {
 }
 
 
+/*
 #[cfg(test)]
 mod tests {
     extern crate env_logger;
@@ -406,7 +404,6 @@ mod tests {
             models_recv,  // models: Receiver<(Model, String)>,
             10,  // channel_size: usize,
             sampler_state,  // sampler_state: Arc<RwLock<bool>>,
-            false,  // debug_mode: bool,
             false,  // resume_training: bool,
             exp_name.to_string(),  // exp_name: String,
         );
@@ -478,3 +475,4 @@ mod tests {
         (example, (score, 0))
     }
 }
+*/

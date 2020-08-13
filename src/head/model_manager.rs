@@ -72,9 +72,10 @@ impl ModelManager {
 }
 
 
+/*
 #[cfg(test)]
 mod tests {
-    use super::ModelSync;
+    use super::ModelManager;
     use commons::Model;
     use commons::channel::Receiver;
 
@@ -136,3 +137,4 @@ mod tests {
         None
     }
 }
+*/

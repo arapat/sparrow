@@ -263,6 +263,7 @@ fn get_new_grids(min_size: usize, exp_name: &str) -> Option<Grids> {
 */
 
 
+/*
 #[cfg(test)]
 mod tests {
     use super::Scheduler;
@@ -329,6 +330,7 @@ mod tests {
         assert!(scheduler.get_assignment()[test_machine_id].is_some());
     }
 }
+*/
 
 // let curr_acc_rate = model_sync.packet_stats.as_ref().unwrap().avg_accept_rate;
 // let new_acc_rate = model_sync.packet_stats.as_ref().unwrap().avg_accept_rate;

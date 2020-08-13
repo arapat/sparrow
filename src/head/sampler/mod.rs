@@ -42,7 +42,6 @@ pub fn start_sampler_async(
         next_model_recv,
         config.channel_size,
         sampler_state.clone(),
-        config.debug_mode,
         config.resume_training,
         config.exp_name.clone(),
         packet_sender,

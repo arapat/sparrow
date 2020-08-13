@@ -119,22 +119,3 @@ pub fn start_head(
     // let final_model = write_model(&self.model.model, self.model_ts, false);
     // debug!("model_manager, final model, {}", final_model);
 }
-
-/*
-// Monitor running state, exit if state is false
-loop {
-    // Check if termination is manually requested
-    let filename = "status.txt".to_string();
-    if Path::new(&filename).exists() && raw_read_all(&filename).trim() == "0".to_string() {
-        debug!("sampler state, false, change in the status.txt has been detected");
-        *(sampler_state.write().unwrap()) = false;
-        break;
-    }
-    sleep(Duration::from_secs(20));
-}
-debug!("State has been set to false. Main process to exit in 120 seconds.");
-sleep(Duration::from_secs(120));
-if std::fs::remove_file("status.txt").is_ok() {
-    debug!("removed `status.txt`");
-}
-*/

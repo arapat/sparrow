@@ -47,6 +47,7 @@ use commons::bins::Bins;
 use commons::tree::ADTree as Tree;
 
 use scanner::start_scanner;
+use scanner::handle_network_send;
 use head::start_head;
 use testing::validate;
 
@@ -78,7 +79,12 @@ fn prep_training(config_filepath: &String) -> (Config, SampleMode, Vec<Bins>) {
     }
 
     debug!("Loading bins.");
-    let bins = load_bins(config.sampler_scanner.as_str(), Some(&config));
+    let bins =
+        if config.debug_mode {
+            load_bins("testing", Some(&config))
+        } else {
+            load_bins(config.sampler_scanner.as_str(), Some(&config))
+        };
     (config, sample_mode, bins)
 }
 
@@ -89,23 +95,24 @@ fn prep_training(config_filepath: &String) -> (Config, SampleMode, Vec<Bins>) {
 /// * config_filepath: the filepath to the configuration file
 pub fn training(config_filepath: &String) {
     let (config, sample_mode, bins) = prep_training(config_filepath);
-    let init_tree: Model = {
-        if config.resume_training && config.sampler_scanner == "sampler" {
-            // Resuming from an earlier training
-            debug!("resume_training is enabled");
-            let (_, _, mut model) = read_model();
-            model.base_version = 0;
-            debug!("Loaded an existing tree");
-            model
-        } else {
-            debug!("Created a new tree");
-            // TODO: extend for the cases that more than 4 nodes were used for creating grids
-            Tree::new(config.num_trees * (4 + config.num_splits + 1) + 10)
-        }
-    };
     if config.sampler_scanner == "scanner" {
-        start_scanner(config, sample_mode, bins);
+        let (mut network, new_updates_receiver) = start_scanner(config, sample_mode, bins);
+        handle_network_send(&mut network, new_updates_receiver);
     } else { // if config.sampler_scanner == "sampler"
+        let init_tree: Model = {
+            if config.resume_training && config.sampler_scanner == "sampler" {
+                // Resuming from an earlier training
+                debug!("resume_training is enabled");
+                let (_, _, mut model) = read_model();
+                model.base_version = 0;
+                debug!("Loaded an existing tree");
+                model
+            } else {
+                debug!("Created a new tree");
+                // TODO: extend for the cases that more than 4 nodes were used for creating grids
+                Tree::new(config.num_trees * (4 + config.num_splits + 1) + 10)
+            }
+        };
         start_head(config, sample_mode, bins, init_tree);
     }
 }
