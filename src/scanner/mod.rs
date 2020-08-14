@@ -146,13 +146,43 @@ fn get_packet(model: &Model, task: TaskPacket, buffer_loader: &BufferLoader) -> 
 mod test {
     use prep_training;
     use scanner::start_scanner;
-    use scanner::handle_network_send;
+    use std::io::Write;
+    use time::get_time;
 
     #[test]
     fn test_scanner() {
-        let config_path = "./examples/config_splice.yaml".to_string();
+        init_env_logger();
+
+        let config_path = "./examples/config_splice_debug.yaml".to_string();
         let (config, sample_mode, bins) = prep_training(&config_path);
         let (mut network, new_updates_receiver) = start_scanner(config, sample_mode, bins);
-        // handle_network_send(&mut network, new_updates_receiver);
+
+        let source = "source".to_string();
+        let target = "target".to_string();
+        let packet1 = r#"{"packet_id":0,"model":{"tree_size":0,"parent":[],"children":[],"split_feature":[],"threshold":[],"evaluation":[],"predicts":[],"is_active":[],"depth":[],"base_version":0,"model_updates":{"size":0,"parent":[],"feature":[],"threshold":[],"evaluation":[],"predicts":[],"condition":[],"is_new":[]}},"gamma":0.25,"expand_node":0,"new_sample_version":null}"#;
+        let packet2 = r#"{"packet_id":1,"model":null,"gamma":null,"expand_node":null,"new_sample_version":1}"#;
+        let packet3 = r#"{"packet_id":2,"model":{"tree_size":1,"parent":[0],"children":[[]],"split_feature":[0],"threshold":[0],"evaluation":[false],"predicts":[-2.9748201],"is_active":[],"depth":[0],"base_version":1,"model_updates":{"size":1,"parent":[-1],"feature":[0],"threshold":[0],"evaluation":[false],"predicts":[-2.9748201],"condition":[[]],"is_new":[true]}},"gamma":0.25,"expand_node":null,"new_sample_version":null}"#;
+
+        network.mock_send(&source, &target, Some(packet1.to_string()));
+        network.mock_send(&source, &target, Some(packet2.to_string()));
+        network.mock_send(&source, &target, Some(packet3.to_string()));
+
+        for (packet_id, new_updates) in new_updates_receiver.iter().enumerate() {
+            println!("debug scanner, {}, {:?}", packet_id, new_updates);
+        }
+    }
+
+    fn init_env_logger() {
+        let curr_time = get_time().sec;
+        env_logger::Builder::from_default_env()
+            .format(move |buf, record| {
+                let timestamp = get_time();
+                let formatted_ts = format!("{}.{}", timestamp.sec - curr_time, timestamp.nsec);
+                writeln!(
+                    buf, "{}, {}, {}, {}",
+                    record.level(), formatted_ts, record.module_path().unwrap(), record.args()
+                )
+            })
+            .init();
     }
 }

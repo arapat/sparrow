@@ -76,6 +76,7 @@ impl Boosting {
     /// Start training the boosting algorithm.
     pub fn training(&mut self) {
         if self.model.tree_size == 0 {
+            debug!("Start setting the root tree.");
             self.set_root_tree();
             return;
         }

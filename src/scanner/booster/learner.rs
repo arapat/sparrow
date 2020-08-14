@@ -20,7 +20,8 @@ TODO: re-use ScoreBoard space of the generated rules to reduce the memory footpr
       (just adding a mapping from the index here to the index in the tree should do the job)
 
 ScoreBoard structure:
-Feature index -> split value index -> candidate splitting node index (removed) -> prediction types
+(candidate splitting node index) -> (3-level Scoreboard)
+(3-level ScoreBoard): Feature index -> split value index -> prediction types
 
 Each split corresponds to 2 types of predictions,
     1. Left +1, Right -1;
@@ -143,16 +144,17 @@ impl Learner {
             weight_positive:  vec![],
             weight_negative:  vec![],
         };
-        let new_scoreboard = |size| vec![vec![[0.0; NUM_RULES]; size]; num_splits];
-        let new_scoreboard1 = |size| vec![vec![0.0; size]; num_splits];
-        for i in 0..num_features {
-            let size = learner.bins[i].len();
-            learner.weak_rules_score.push(new_scoreboard(size));
-            learner.sum_c_squared.push(new_scoreboard(size));
-            learner.num_positive.push(new_scoreboard1(size));
-            learner.num_negative.push(new_scoreboard1(size));
-            learner.weight_positive.push(new_scoreboard1(size));
-            learner.weight_negative.push(new_scoreboard1(size));
+        let bin_size: Vec<usize> = learner.bins.iter().map(|bin| bin.len()).collect();
+        let new_scoreboard =
+            || bin_size.iter().map(|size| vec![[0.0; NUM_RULES]; *size]).collect();
+        let new_scoreboard1 = || bin_size.iter().map(|size| vec![0.0; *size]).collect();
+        for _ in 0..num_splits {
+            learner.weak_rules_score.push(new_scoreboard());
+            learner.sum_c_squared.push(new_scoreboard());
+            learner.num_positive.push(new_scoreboard1());
+            learner.num_negative.push(new_scoreboard1());
+            learner.weight_positive.push(new_scoreboard1());
+            learner.weight_negative.push(new_scoreboard1());
         }
         learner
     }
