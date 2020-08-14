@@ -34,7 +34,7 @@ network: []
 port: 8888
 local_name: local_worker
 save_process: true
-debug_mode: true
+debug_mode: false
 models_table_filename: ./models_table.txt
 incremental_testing: true
 testing_scores_only: false
@@ -44,3 +44,4 @@ sampler_scanner: sampler
 sleep_duration: 5
 exp_name: five-scanner
 resume_training: false
+min_grid_size: 1000
