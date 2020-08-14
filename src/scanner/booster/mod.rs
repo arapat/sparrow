@@ -42,7 +42,7 @@ impl Boosting {
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
-        init_packet: TaskPacket,
+        init_packet: &TaskPacket,
         booster_state: Arc<RwLock<BoosterState>>,
         training_loader: BufferLoader,
         bins: Vec<Bins>,
@@ -60,7 +60,7 @@ impl Boosting {
             training_loader: training_loader,
             learner: learner,
 
-            init_packet: init_packet,
+            init_packet: init_packet.clone(),
             model: model,
 
             max_sample_size: config.max_sample_size,

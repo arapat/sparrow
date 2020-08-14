@@ -68,6 +68,8 @@ pub fn start_scanner(
                 drop(sampler_signal_sender);
             } else if curr_packet.is_none() && packet.expand_node.is_some() ||
                       !curr_packet.as_ref().unwrap().equals(&packet) {
+                curr_packet = Some(packet.clone_with_expand(&curr_packet));
+
                 debug!("Stopping existing booster");
                 let mut is_booster_stopped = false;
                 while !is_booster_stopped {
@@ -86,7 +88,7 @@ pub fn start_scanner(
                 drop(buffer_loader);
                 let ro_booster_state = booster_state.clone();
                 let mut booster = Boosting::new(
-                    packet.clone_with_expand(&curr_packet),
+                    curr_packet.as_ref().unwrap(),
                     ro_booster_state,
                     training_loader,
                     bins.clone(),
@@ -110,8 +112,6 @@ pub fn start_scanner(
                 let mut booster_state = booster_state.write().unwrap();
                 *booster_state = BoosterState::IDLE;
                 drop(booster_state);
-
-                curr_packet = Some(packet);
             } else {
                 info!("Package is ignored, {}", packet.packet_id);
             }
