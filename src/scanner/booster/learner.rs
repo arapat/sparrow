@@ -205,7 +205,20 @@ impl Learner {
         }
 
         let (t, i, j, k) = rule_id;
-        learner_helpers::gen_tree_node(t, i, j, k, actual_ratio)
+        let mut tree_node = learner_helpers::gen_tree_node(t, i, j, k, actual_ratio);
+        let weak_rules_score = self.weak_rules_score[t][i][j][k];
+        let gamma = self.rho_gamma;
+        tree_node.raw_martingale  = weak_rules_score;
+        tree_node.sum_c           = weak_rules_score - 2.0 * gamma * self.total_weight;
+        tree_node.sum_c_squared   = self.sum_c_squared[t][i][j][k]
+                                    + 4.0 * gamma * gamma * self.total_weight_sq;
+        tree_node.bound           = self.total_weight;
+        tree_node.num_scanned     = self.total_count;
+        tree_node.positive        = self.num_positive[t][i][j] as usize;
+        tree_node.negative        = self.num_negative[t][i][j] as usize;
+        tree_node.positive_weight = self.weight_positive[t][i][j];
+        tree_node.negative_weight = self.weight_negative[t][i][j];
+        tree_node
     }
 
     /// Update the statistics of all candidate weak rules using current batch of
