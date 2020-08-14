@@ -35,7 +35,8 @@ pub fn start_scanner(
     debug!("Starting the buffered loader.");
     // sending signals to the sample loader
     let (sampler_signal_sender, sampler_signal_receiver) = mpsc::channel();
-    sampler_signal_sender.send(0).unwrap();
+    // TODO: make sure first sample signal is guaranteed to arrive after the network setup
+    // sampler_signal_sender.send(0).unwrap();
     let buffer_loader = BufferLoader::new(
         config.buffer_size,
         config.batch_size,

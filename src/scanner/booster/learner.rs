@@ -219,7 +219,7 @@ impl Learner {
         self.total_count       += data.len();
         self.total_weight      += data.par_iter().map(|t| (t.1).0).sum::<f32>();
         self.total_weight_sq   += data.par_iter().map(|t| ((t.1).0) * ((t.1).0)).sum::<f32>();
-        self.num_candid         = tree.tree_size;
+        // self.num_candid         = tree.tree_size;
 
         let expand_node = self.expand_node;
         let rho_gamma = self.rho_gamma;
