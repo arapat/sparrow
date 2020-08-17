@@ -3,7 +3,7 @@ use commons::Example;
 
 use commons::is_zero;
 
-type DimScaleType = u16;
+type DimScaleType = usize;
 
 
 /*
@@ -41,7 +41,8 @@ impl Clone for Tree {
 
 impl Tree {
     pub fn new(num_splits: usize) -> Tree {
-        let max_leaves = ((num_splits + 1) * 2) as u16;
+        let max_leaves = (num_splits + 1) * 2;
+        let max_nodes = max_leaves * 2;
         let mut tree = Tree {
             max_leaves:     max_leaves,
             num_leaves:     0,
@@ -72,7 +73,7 @@ impl Tree {
     pub fn split(
         &mut self, parent: usize, feature: usize, threshold: TFeature,
         left_predict: f32, right_predict: f32,
-    ) -> (u16, u16) {
+    ) -> (usize, usize) {
         let predict = self.predicts[parent];
         let parent_depth = self.leaf_depth[parent];
 

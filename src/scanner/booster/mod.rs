@@ -82,13 +82,14 @@ impl Boosting {
         global_timer.start();
         let mut last_logging_ts = global_timer.get_duration();
 
-        let mut tree = Tree::new(self.num_splits as u16 + 1);
+        let mut tree = Tree::new(self.num_splits + 1);
         let mut is_booster_running = true;
         let mut data_scanned = 0;
-        let mut new_rule = None;
         self.verbose = false;
         while is_booster_running && !tree.is_full_tree() {
-            while is_booster_running && data_scanned < self.training_loader.size {
+            let mut new_rule = None;
+            while is_booster_running && new_rule.is_none() &&
+                data_scanned < self.training_loader.size {
                 // Logging for the status check
                 if global_timer.get_duration() - last_logging_ts >= 10.0 {
                     self.print_log(data_scanned);
@@ -106,14 +107,9 @@ impl Boosting {
 
                     (new_rule, data.len(), switched)
                 };
+                new_rule = rule;
                 data_scanned += batch_size;
                 global_timer.update(batch_size);
-
-                // Try to find new rule
-                if rule.is_some() {
-                    new_rule = rule;
-                    break;
-                }
 
                 global_timer.write_log("boosting-overall");
                 learner_timer.write_log("boosting-learning");
@@ -134,6 +130,7 @@ impl Boosting {
             info!("scanner, added new rule, {}, {}, {}, {}, {}", self.curr_model.size(),
                 rule.num_scanned, data_scanned, left_index, right_index);
         }
+        self.curr_model.append(tree);
         write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
         info!("Training is finished. Model length: {}.", self.curr_model.size());
     }
