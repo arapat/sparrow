@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use Example;
 use TFeature;
 use commons::ExampleInSampleSet;
-use commons::model::Model;
+use commons::tree::Tree;
 use commons::bins::Bins;
 
 use commons::is_zero;
@@ -225,7 +225,7 @@ impl Learner {
     /// training examples.
     pub fn update(
         &mut self,
-        tree: &Model,
+        tree: &Tree,
         data: &[ExampleInSampleSet],
     ) -> Option<TreeNode> {
         // update global stats
@@ -234,12 +234,11 @@ impl Learner {
         self.total_weight_sq   += data.par_iter().map(|t| ((t.1).0) * ((t.1).0)).sum::<f32>();
         // self.num_candid         = tree.tree_size;
 
-        let expand_node = self.expand_node;
         let rho_gamma = self.rho_gamma;
 
         // preprocess examples - Complexity: O(Examples * NumRules)
         let data: Vec<(usize, f32, (&Example, RuleStats))> = learner_helpers::preprocess_data(
-            data, tree, expand_node, rho_gamma);
+            data, tree, rho_gamma);
 
         // Put examples into bins by where they fall on the tree - Complexity: O(Examples)
         let mut data_by_node: HashMap<usize, Vec<(f32, (&Example, RuleStats))>> = HashMap::new();

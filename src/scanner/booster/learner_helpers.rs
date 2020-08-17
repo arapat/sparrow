@@ -3,9 +3,8 @@ use rayon::prelude::*;
 use Example;
 use TFeature;
 use commons::ExampleInSampleSet;
-use commons::model::Model;
 use commons::bins::Bins;
-use scanner::buffer_loader::BufferLoader;
+use commons::tree::Tree;
 
 use commons::get_bound;
 
@@ -16,7 +15,7 @@ use super::learner::TreeNode;
 
 
 pub fn preprocess_data<'a>(
-    data: &'a[ExampleInSampleSet], tree: &Model, expand_node: usize, rho_gamma: f32,
+    data: &'a[ExampleInSampleSet], tree: &Tree, rho_gamma: f32,
 ) -> Vec<(usize, f32, (&'a Example, RuleStats))> {
     data.par_iter().map(|(example, (weight, _, _, _))| {
         let labeled_weight = weight * (example.label as f32);
@@ -31,7 +30,7 @@ pub fn preprocess_data<'a>(
                 ci.1 * ci.1 - null_weight * null_weight
             );
         });
-        (tree.get_leaf_index_prediction(expand_node, example), *weight, (example, vals))
+        (tree.get_leaf_index_prediction(example).0, *weight, (example, vals))
     }).collect()
 }
 
@@ -39,7 +38,7 @@ pub fn preprocess_data<'a>(
 // is then among all 'specialists'.
 pub fn find_tree_node<'a>(
     data: &'a Vec<(f32, (&Example, RuleStats))>, feature_index: usize,
-    rho_gamma: f32, count: usize, total_weight: f32, total_weight_sq: f32, expand_node: usize,
+    rho_gamma: f32, count: usize, total_weight: f32, total_weight_sq: f32, parent_node: usize,
     bin: &'a Bins, weak_rules_score: &'a mut Vec<[f32; 2]>, sum_c_squared: &'a mut Vec<[f32; 2]>,
     debug_info: (((&'a mut Vec<f32>, &'a mut Vec<f32>), &'a mut Vec<f32>), &'a mut Vec<f32>),
 ) -> Option<TreeNode> {
@@ -126,7 +125,7 @@ pub fn find_tree_node<'a>(
                         (base_pred * PREDS[pred_idx].0, base_pred * PREDS[pred_idx].1);
                     valid_weak_rule = Some(
                         TreeNode {
-                            prt_index:      expand_node,
+                            prt_index:      parent_node,
                             feature:        feature_index,
                             threshold:      j as TFeature,
                             predict:        real_pred,
@@ -184,33 +183,4 @@ pub fn gen_tree_node(
         positive_weight: 0.0,
         negative_weight: 0.0,
     }
-}
-
-
-pub fn get_base_node(max_sample_size: usize, data_loader: &mut BufferLoader) -> (f32, f32, f32) {
-    let mut sample_size = max_sample_size;
-    let mut n_pos = 0;
-    let mut n_neg = 0;
-    while sample_size > 0 {
-        let (data, _) = data_loader.get_next_batch(true);
-        let (num_pos, num_neg) =
-            data.par_iter().fold(
-                || (0, 0),
-                |(num_pos, num_neg), (example, _)| {
-                    if example.label > 0 {
-                        (num_pos + 1, num_neg)
-                    } else {
-                        (num_pos, num_neg + 1)
-                    }
-                }
-            ).reduce(|| (0, 0), |(a1, a2), (b1, b2)| (a1 + b1, a2 + b2));
-        n_pos += num_pos;
-        n_neg += num_neg;
-        sample_size -= data.len();
-    }
-
-    let gamma = (0.5 - n_pos as f32 / (n_pos + n_neg) as f32).abs();
-    let prediction = 0.5 * (n_pos as f32 / n_neg as f32).ln();
-    info!("root-tree-info, {}, {}, {}, {}", 1, max_sample_size, gamma, gamma * gamma);
-    (gamma, prediction, gamma)
 }

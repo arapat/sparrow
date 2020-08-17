@@ -123,7 +123,7 @@ impl Scheduler {
         (self.gamma.gamma, assigns)
     }
 
-    fn handle_accept(&mut self, packet: &UpdatePacket, model: &mut ModelWithVersion) -> bool {
+    fn handle_accept(&mut self, packet: &UpdatePacket, _model: &mut ModelWithVersion) -> bool {
         // self.get_grid_node_ids(packet).is_some()
         debug!("head, scheduler, empty, {}", packet.packet_id);
         true

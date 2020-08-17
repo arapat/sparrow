@@ -6,10 +6,10 @@ use std::sync::RwLock;
 use std::fmt::Display;
 
 use commons::persistent_io::write_model;
-use self::learner_helpers::get_base_node;
 
 use config::Config;
 use commons::model::Model;
+use commons::tree::Tree;
 use scanner::buffer_loader::BufferLoader;
 use commons::bins::Bins;
 use commons::packet::TaskPacket;
@@ -25,11 +25,11 @@ pub struct Boosting {
     booster_state: Arc<RwLock<BoosterState>>,
     training_loader: BufferLoader,
     learner: Learner,
+    num_splits: usize,
 
     init_packet: TaskPacket,
-    model: Model,
+    curr_model: Model,
 
-    max_sample_size: usize,
     save_process: bool,
     verbose: bool,
 }
@@ -59,27 +59,22 @@ impl Boosting {
             booster_state: booster_state,
             training_loader: training_loader,
             learner: learner,
+            num_splits: config.num_splits,
 
             init_packet: init_packet.clone(),
-            model: model,
+            curr_model: model,
 
-            max_sample_size: config.max_sample_size,
             save_process: config.save_process,
             verbose: false,
         }
     }
 
     pub fn destroy(self) -> (TaskPacket, Model, BufferLoader) {
-        (self.init_packet, self.model, self.training_loader)
+        (self.init_packet, self.curr_model, self.training_loader)
     }
 
     /// Start training the boosting algorithm.
     pub fn training(&mut self) {
-        if self.model.size() == 0 {
-            debug!("Start setting the root tree.");
-            self.set_root_tree();
-            return;
-        }
         debug!("Start training.");
 
         let mut global_timer = PerformanceMonitor::new();
@@ -87,71 +82,66 @@ impl Boosting {
         global_timer.start();
         let mut last_logging_ts = global_timer.get_duration();
 
-        let mut booster_state: BoosterState = BoosterState::RUNNING;
+        let mut tree = Tree::new(self.num_splits as u16 + 1);
+        let mut is_booster_running = true;
         let mut data_scanned = 0;
         let mut new_rule = None;
         self.verbose = false;
-        while booster_state == BoosterState::RUNNING && data_scanned < self.training_loader.size {
-            // Logging for the status check
-            if global_timer.get_duration() - last_logging_ts >= 10.0 {
-                self.print_log(data_scanned);
-                last_logging_ts = global_timer.get_duration();
+        while is_booster_running && !tree.is_full_tree() {
+            while is_booster_running && data_scanned < self.training_loader.size {
+                // Logging for the status check
+                if global_timer.get_duration() - last_logging_ts >= 10.0 {
+                    self.print_log(data_scanned);
+                    last_logging_ts = global_timer.get_duration();
+                }
+
+                let (rule, batch_size, _switched) = {
+                    let (data, switched) =
+                        self.training_loader.get_next_batch_and_update(true, &self.curr_model);
+
+                    learner_timer.resume();
+                    let new_rule = self.learner.update(&tree, &data);
+                    learner_timer.update(data.len());
+                    learner_timer.pause();
+
+                    (new_rule, data.len(), switched)
+                };
+                data_scanned += batch_size;
+                global_timer.update(batch_size);
+
+                // Try to find new rule
+                if rule.is_some() {
+                    new_rule = rule;
+                    break;
+                }
+
+                global_timer.write_log("boosting-overall");
+                learner_timer.write_log("boosting-learning");
+
+                let booster_state = self.booster_state.read().unwrap();
+                is_booster_running = (*booster_state) == BoosterState::RUNNING;
+                drop(booster_state);
             }
-
-            let (rule, batch_size, _switched) = {
-                let (data, switched) =
-                    self.training_loader.get_next_batch_and_update(true, &self.model);
-
-                learner_timer.resume();
-                let new_rule = self.learner.update(&self.model, &data);
-                learner_timer.update(data.len());
-                learner_timer.pause();
-
-                (new_rule, data.len(), switched)
-            };
-            data_scanned += batch_size;
-            global_timer.update(batch_size);
-
-            // Try to find new rule
-            if rule.is_some() {
-                new_rule = rule;
-                break;
-            }
-
-            global_timer.write_log("boosting-overall");
-            learner_timer.write_log("boosting-learning");
-
-            let state = self.booster_state.read().unwrap();
-            booster_state = (*state).clone();
-            drop(state);
+            let rule = new_rule.unwrap_or(self.learner.get_max_empirical_ratio_tree_node());
+            rule.write_log();
+            let (left_index, right_index) = tree.split(
+                rule.prt_index,
+                rule.feature,
+                rule.threshold,
+                rule.predict.0,
+                rule.predict.1,
+            );
+            info!("scanner, added new rule, {}, {}, {}, {}, {}", self.curr_model.size(),
+                rule.num_scanned, data_scanned, left_index, right_index);
         }
-        let rule = new_rule.unwrap_or(self.learner.get_max_empirical_ratio_tree_node());
-        rule.write_log();
-        let (left_index, right_index) = self.model.add_nodes(
-            rule.prt_index,
-            rule.feature,
-            rule.threshold,
-            rule.predict,
-            rule.gamma,
-        );
-        info!("scanner, added new rule, {}, {}, {}, {}, {}",
-                self.model.size(), rule.num_scanned, data_scanned, left_index, right_index);
-        write_model(&self.model, global_timer.get_duration(), self.save_process);
-        info!("Training is finished. Model length: {}.", self.model.size());
-    }
-
-    fn set_root_tree(&mut self) {
-        let max_sample_size = self.max_sample_size;
-        let (_, base_pred, base_gamma) = get_base_node(max_sample_size, &mut self.training_loader);
-        self.model.add_root(base_pred, base_gamma);
-        info!("scanner, added new rule, {}, {}, {}, {}, {}",
-              self.model.size(), max_sample_size, max_sample_size, 0, 0);
+        write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
+        info!("Training is finished. Model length: {}.", self.curr_model.size());
     }
 
     fn print_log(&self, data_scanned: usize) {
         debug!("booster, status, {}",
                 vec![
-                    self.model.size().to_string(),
+                    self.curr_model.size().to_string(),
                     data_scanned.to_string(),
                     self.learner.rho_gamma.to_string(),
                 ].join(", ")
