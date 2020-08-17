@@ -1,5 +1,5 @@
-use commons::tree::UpdateList;
-use commons::Model;
+use commons::model::Model;
+use commons::tree::Tree;
 
 
 #[derive(Clone, PartialEq)]
@@ -78,7 +78,7 @@ impl TaskPacket {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdatePacket {
     pub packet_id: usize,
-    pub updates: UpdateList,
+    pub update_tree: Tree,
 
     pub task: TaskPacket,
     pub sample_version: usize,
@@ -88,14 +88,14 @@ pub struct UpdatePacket {
 
 impl UpdatePacket {
     pub fn new(
-        updates: UpdateList,
+        update_tree: Tree,
         task: TaskPacket,
         sample_version: usize,
         ess: f32,
     ) -> UpdatePacket {
         UpdatePacket {
             packet_id: 0,
-            updates: updates,
+            update_tree: update_tree,
             task: task,
             sample_version: sample_version,
             ess: ess,
@@ -107,7 +107,7 @@ impl UpdatePacket {
     }
 
     pub fn get_packet_type(&self) -> UpdatePacketType {
-        if self.updates.size == 0 {
+        if false { // TODO: define empty tree
             // Empty packets
             debug!("model_manager, packet, empty");
             UpdatePacketType::Empty

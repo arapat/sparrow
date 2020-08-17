@@ -15,7 +15,7 @@ use commons::persistent_io::VersionedSampleModel;
 use commons::performance_monitor::PerformanceMonitor;
 use commons::persistent_io::LockedBuffer;
 use commons::ExampleInSampleSet;
-use commons::Model;
+use commons::model::Model;
 use self::loader::Loader;
 
 
@@ -76,7 +76,7 @@ impl BufferLoader {
             num_batch: num_batch,
 
             examples: vec![],
-            base_model: Model::new(1),
+            base_model: Model::new(),
             current_version: 0,
             new_buffer: new_buffer,
             loader: loader,
@@ -206,24 +206,24 @@ impl BufferLoader {
 /// Update the scores of the examples using `model`
 fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
     data.par_iter_mut().for_each(|example| {
-        let (_curr_weight, curr_score, mut curr_version, mut base_version) = example.1;
-        if base_version != model.base_version {
-            curr_version = base_version;  // reset score
-            base_version = model.base_version;
+        let (_curr_weight, curr_score, mut curr_size, mut base_size) = example.1;
+        if base_size != model.base_size {
+            curr_size = base_size;  // reset score
+            base_size = model.base_size;
         }
-        let (new_score, (new_version, _)) = model.get_prediction(&example.0, curr_version);
+        let (new_score, (new_version, _)) = model.get_prediction(&example.0, curr_size);
         let updated_score = new_score + curr_score;
         (*example).1 = (
-            get_weight(&example.0, updated_score), updated_score, new_version, base_version);
+            get_weight(&example.0, updated_score), updated_score, new_version, base_size);
     });
 }
 
 
 /// Reset scores to the base model
 fn reset_scores(data: &mut [ExampleInSampleSet], base_model: &Model) {
-    let base_version = base_model.base_version;
+    let base_size = base_model.base_size;
     data.par_iter_mut().for_each(|example| {
-        (*example).1 = (get_weight(&example.0, 0.0), 0.0, base_version, base_version);
+        (*example).1 = (get_weight(&example.0, 0.0), 0.0, base_size, base_size);
     });
 }
 
@@ -236,7 +236,7 @@ mod tests {
 
     use std::time::Duration;
     use commons::ExampleWithScore;
-    use commons::Model;
+    use commons::model::Model;
     use config::SampleMode;
     use super::BufferLoader;
     use TFeature;

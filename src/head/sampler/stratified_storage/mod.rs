@@ -21,7 +21,7 @@ use commons::channel::Receiver;
 use commons::channel::Sender;
 use commons::get_sign;
 use commons::ExampleWithScore;
-use commons::Model;
+use commons::model::Model;
 use commons::labeled_data::LabeledData;
 use commons::packet::TaskPacket;
 
@@ -373,7 +373,7 @@ mod tests {
     use std::thread::spawn;
     use commons::labeled_data::LabeledData;
     use commons::ExampleWithScore;
-    use commons::Model;
+    use commons::model::Model;
     use commons::performance_monitor::PerformanceMonitor;
     use commons::persistent_io::load_sample_local;
     use super::StratifiedStorage;

@@ -7,7 +7,7 @@ use std::sync::RwLock;
 use std::sync::mpsc::Sender;
 
 use commons::channel::Receiver;
-use commons::Model;
+use commons::model::Model;
 use commons::bins::Bins;
 use config::Config;
 use config::SampleMode;

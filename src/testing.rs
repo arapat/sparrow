@@ -10,7 +10,7 @@ use commons::io::create_bufreader;
 use commons::io::create_bufwriter;
 use commons::io::raw_read_all;
 use commons::io::write_all;
-use commons::Model;
+use commons::model::Model;
 use head::sampler::stratified_storage::serial_storage::SerialStorage;
 use TLabel;
 
@@ -95,7 +95,7 @@ pub fn validate(
                                                                  .map(|t| t.to_string())
                                                                  .collect();
                 let meta_info = vec![
-                    filepath.clone(), ts.to_string(), model.tree_size.to_string(),
+                    filepath.clone(), ts.to_string(), model.size().to_string(),
                     model.size().to_string()];
                 let output = format!("{},{}\n", meta_info.join(","), performance_scores.join(","));
                 out.write(output.as_bytes())

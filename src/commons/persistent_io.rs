@@ -17,7 +17,7 @@ use commons::io::raw_read_all;
 use commons::io::load_s3 as io_load_s3;
 use commons::io::write_s3 as io_write_s3;
 use commons::performance_monitor::PerformanceMonitor;
-use commons::Model;
+use commons::model::Model;
 
 
 // (sample_version, new_sample, model);

@@ -3,7 +3,7 @@ use rayon::prelude::*;
 use Example;
 use TFeature;
 use commons::ExampleInSampleSet;
-use commons::Model;
+use commons::model::Model;
 use commons::bins::Bins;
 use scanner::buffer_loader::BufferLoader;
 

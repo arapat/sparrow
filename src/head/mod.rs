@@ -14,7 +14,7 @@ use std::sync::Mutex;
 use config::Config;
 use config::SampleMode;
 use commons::bins::Bins;
-use commons::Model;
+use commons::model::Model;
 
 use commons::channel;
 use commons::packet::TaskPacket;
@@ -114,7 +114,7 @@ pub fn start_head(
     }
 
     // TODO: when to stop?
-    //     self.num_trees <= 0 || self.model.model.tree_size < self.num_trees
+    //     self.num_trees <= 0 || self.model.model.size() < self.num_trees
     info!("Head node quits.");
     // let final_model = write_model(&self.model.model, self.model_ts, false);
     // debug!("model_manager, final model, {}", final_model);

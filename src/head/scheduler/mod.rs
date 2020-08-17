@@ -109,7 +109,7 @@ impl Scheduler {
                 self.handle_empty(packet);
             },
             UpdatePacketType::Accept => {
-                self.handle_accept(packet);
+                self.handle_accept(packet, model);
             },
         }
 
@@ -123,7 +123,7 @@ impl Scheduler {
         (self.gamma.gamma, assigns)
     }
 
-    fn handle_accept(&mut self, packet: &UpdatePacket) -> bool {
+    fn handle_accept(&mut self, packet: &UpdatePacket, model: &mut ModelWithVersion) -> bool {
         // self.get_grid_node_ids(packet).is_some()
         debug!("head, scheduler, empty, {}", packet.packet_id);
         true
@@ -269,7 +269,7 @@ mod tests {
     use super::Scheduler;
     use super::ModelWithVersion;
 
-    use commons::Model;
+    use commons::model::Model;
     use commons::test_helper::get_mock_packet;
 
     #[test]

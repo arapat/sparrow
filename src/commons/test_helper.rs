@@ -7,7 +7,7 @@ use commons::ExampleWithScore;
 use commons::labeled_data::LabeledData;
 use commons::packet::TaskPacket;
 use commons::packet::UpdatePacket;
-use commons::tree::UpdateList;
+use commons::tree::Tree;
 
 
 pub fn get_synthetic_example(features: Vec<TFeature>, label: i8, score: f32) -> ExampleWithScore {
@@ -31,12 +31,12 @@ pub fn get_mock_packet(
     _machine_id: usize, _node_id: usize, _gamma: f32, packet_size: usize,
 ) -> UpdatePacket {
     let ess = 0.5;
-    let mut update_list = UpdateList::new();
+    let mut update_tree = Tree::new();
     for _ in 0..packet_size {
-        update_list.add(0, 0, 0 as TFeature, false, 0.0, vec![], true);
+        update_tree.add(0, 0, 0 as TFeature, false, 0.0, vec![], true);
     }
     let task_packet = TaskPacket::new();
-    UpdatePacket::new(update_list, task_packet, 0, ess)
+    UpdatePacket::new(update_tree, task_packet, 0, ess)
 }
 
 

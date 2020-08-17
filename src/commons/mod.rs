@@ -1,6 +1,7 @@
 pub mod bins;
 pub mod channel;
 pub mod io;
+pub mod model;
 // The class of the training examples.
 pub mod labeled_data;
 pub mod packet;
@@ -15,14 +16,11 @@ pub mod tree;
 use rayon::prelude::*;
 use std::f32::INFINITY;
 
-use commons::tree::ADTree as Tree;
-
 use super::Example;
 
 // current score and size, base model and size
 pub type ExampleInSampleSet = (Example, (f32, f32, usize, usize));  // weight, score, new_ver, base_ver
 pub type ExampleWithScore = (Example, (f32, usize));
-pub type Model = Tree;
 
 const DELTA: f32  = 0.000001;
 const SHRINK: f32 = 1.0;

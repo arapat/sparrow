@@ -1,15 +1,10 @@
-use rayon::prelude::*;
-use std::ops::Range;
-use std::collections::VecDeque;
-
-use Example;
 use TFeature;
+use commons::Example;
+
 use commons::is_zero;
-use head::scheduler::kdtree::Grid;
 
+type DimScaleType = u16;
 
-// split_feature, threshold, evaluation
-type Condition = (usize, TFeature, bool);
 
 /*
 Why JSON but not binary?
@@ -18,283 +13,129 @@ Why JSON but not binary?
     - BufReader-friendly by using newline as separator
 */
 #[derive(Serialize, Deserialize, Debug)]
-pub struct ADTree {
-    pub tree_size:       usize,
-    pub parent:         Vec<usize>,
-    pub children:       Vec<Vec<usize>>,
-    split_feature:  Vec<usize>,
+pub struct Tree {
+    max_leaves:     DimScaleType,
+    pub num_leaves: usize,
+    // left_child[i] is the left child of the node i
+    left_child:     Vec<DimScaleType>,
+    right_child:    Vec<DimScaleType>,
+    split_feature:  Vec<Option<DimScaleType>>,
     threshold:      Vec<TFeature>,
-    evaluation:     Vec<bool>,
     predicts:       Vec<f32>,
-    is_active:      Vec<bool>,
-    pub depth:      Vec<usize>,
-    pub base_version:   usize,
-    pub model_updates:  UpdateList,
+    leaf_depth:     Vec<DimScaleType>
+    // leaf_parent:    Vec<DimScaleType>,
+    // leaf_count:     Vec<DimScaleType>,
+    // internal_value: Vec<DimScaleType>,
+    // internal_count: Vec<DimScaleType>,
 }
 
-impl Clone for ADTree {
-    fn clone(&self) -> ADTree {
-        ADTree {
-            tree_size:      self.tree_size,
-            parent:         self.parent.clone(),
-            children:       self.children.clone(),
+impl Clone for Tree {
+    fn clone(&self) -> Tree {
+        Tree {
+            max_leaves:     self.max_leaves,
+            num_leaves:     self.num_leaves,
+            left_child:     self.left_child.clone(),
+            right_child:    self.right_child.clone(),
             split_feature:  self.split_feature.clone(),
             threshold:      self.threshold.clone(),
-            evaluation:     self.evaluation.clone(),
             predicts:       self.predicts.clone(),
-            depth:          self.depth.clone(),
-            is_active:      self.is_active.clone(),
-            base_version:   self.base_version,
-            model_updates:  self.model_updates.clone(),
+            leaf_depth:     self.leaf_depth.clone()
         }
     }
 }
 
-// TODO: remove the queue-like accessing if we no longer use the AD-tree structure
-impl ADTree {
-    pub fn new(max_nodes: usize) -> ADTree {
-        ADTree {
-            tree_size:      0,
-            parent:         Vec::with_capacity(max_nodes),
-            children:       Vec::with_capacity(max_nodes),
-            split_feature:  Vec::with_capacity(max_nodes),
-            threshold:      Vec::with_capacity(max_nodes),
-            evaluation:     Vec::with_capacity(max_nodes),
-            predicts:       Vec::with_capacity(max_nodes),
-            depth:          Vec::with_capacity(max_nodes),
-            is_active:      Vec::with_capacity(max_nodes),
-            base_version:   0,
-            model_updates:  UpdateList::new(),
-        }
-    }
-
-    pub fn size(&self) -> usize {
-        self.model_updates.size
-    }
-
-    pub fn add_nodes(
-        &mut self, parent: usize,
-        feature: usize, threshold: TFeature, pred_value: (f32, f32), gamma: f32,
-    ) -> (usize, usize) {
-        // TODO: set always add new a parameter
-        let always_new_node = true;
-        (
-            self.add_node(parent, feature, threshold, true, pred_value.0, gamma, always_new_node),
-            self.add_node(parent, feature, threshold, false, pred_value.1, gamma, always_new_node)
-        )
-    }
-
-    // TODO: allow update root
-    pub fn add_root(&mut self, pred_value: f32, _gamma: f32) -> usize {
-        assert_eq!(self.tree_size, 0);
-
-        self.parent.push(0);
-        self.children.push(vec![]);
-        self.split_feature.push(0);
-        self.threshold.push(0 as TFeature);
-        self.evaluation.push(false);
-        self.predicts.push(pred_value);
-        self.depth.push(0);
-        self.tree_size += 1;
-
-        self.model_updates.add(-1, 0, 0, false, pred_value, vec![], true);
-
-        debug!("new-tree-node, 0, true, 0, 0, 0, 0, false, {}", pred_value);
-        0
-    }
-
-    pub fn add_grid(&mut self, grid: Grid) -> usize {
-        let mut curr_node_id = 0;
-        for (dim, thr, condition) in grid {
-            curr_node_id = self.add_node(curr_node_id,
-                dim, thr, condition, 0.0, 0.0, false);
-        }
-        curr_node_id
-    }
-
-    fn add_node(
-        &mut self, parent: usize,
-        feature: usize, threshold: TFeature, evaluation: bool, pred_value: f32, _gamma: f32,
-        always_new_node: bool,
-    ) -> usize {
-        let depth = self.depth[parent] + 1;
-        let node =
-            if always_new_node { None } else {
-                self.find_child_node(parent, feature, threshold, evaluation)
-            };
-        let (new_index, is_new) = {
-            if let Some(index) = node {
-                self.predicts[index] += pred_value;
-                (index, false)
-            } else {
-                self.parent.push(parent);
-                self.children.push(vec![]);
-                self.split_feature.push(feature);
-                self.threshold.push(threshold);
-                self.evaluation.push(evaluation);
-                self.predicts.push(pred_value);
-                self.depth.push(depth);
-                let index = self.tree_size;
-                self.children[parent].push(index);
-                self.tree_size += 1;
-                (index, true)
-            }
+impl Tree {
+    pub fn new(max_leaves: DimScaleType) -> Tree {
+        let max_nodes = max_leaves * 2;
+        let mut tree = Tree {
+            max_leaves:     max_leaves,
+            num_leaves:     0,
+            left_child:     Vec::with_capacity(max_nodes as usize),
+            right_child:    Vec::with_capacity(max_nodes as usize),
+            split_feature:  Vec::with_capacity(max_nodes as usize),
+            threshold:      Vec::with_capacity(max_nodes as usize),
+            predicts:       Vec::with_capacity(max_nodes as usize),
+            leaf_depth:     Vec::with_capacity(max_nodes as usize)
+            // leaf_parent:    Vec::with_capacity(max_leaves),
+            // leaf_count:     Vec::with_capacity(max_leaves),
+            // internal_value: Vec::with_capacity(max_leaves as usize),
+            // internal_count: Vec::with_capacity(max_leaves),
         };
-        let condition = self.get_conditions(new_index);
-        self.model_updates.add(
-            parent as i32, feature, threshold, evaluation, pred_value, condition, is_new);
-        debug!("new-tree-node, {}, {}, {}, {}, {}, {}, {}, {}",
-               new_index, is_new, parent, depth, feature, threshold, evaluation, pred_value);
-        new_index
+        tree.add_new_node(0.0, 0);
+        tree
     }
 
-    fn find_child_node(
-        &self, parent: usize, feature: usize, threshold: TFeature, evaluation: bool,
-    ) -> Option<usize> {
-        let mut ret = None;
-        self.children[parent].iter().for_each(|index| {
-            if self.split_feature[*index] == feature &&
-                is_zero((self.threshold[*index] as f32 - threshold as f32).into()) &&
-                self.evaluation[*index] == evaluation {
-                    ret = Some(*index);
-            }
-        });
-        ret
+    pub fn release(&mut self) {
+        self.left_child.shrink_to_fit();
+        self.right_child.shrink_to_fit();
+        self.split_feature.shrink_to_fit();
+        self.threshold.shrink_to_fit();
+        self.predicts.shrink_to_fit();
+        self.leaf_depth.shrink_to_fit();
     }
 
-    #[allow(dead_code)]
-    pub fn get_prediction_tree(&self, data: &Example) -> f32 {
-        if self.tree_size <= 0 {
-            return 0.0;
-        }
+    pub fn split(
+        &mut self, leaf: usize, feature: usize, threshold: TFeature,
+        left_predict: f32, right_predict: f32,
+    ) -> (u16, u16) {
+        let predict = self.predicts[leaf];
+        let leaf_depth = self.leaf_depth[leaf];
+
+        self.split_feature[leaf] = Some(feature as DimScaleType);
+        self.threshold[leaf] = threshold;
+        self.left_child[leaf] = self.num_leaves as DimScaleType;
+        self.add_new_node(predict + left_predict, leaf_depth + 1);
+        self.right_child[leaf] = self.num_leaves as DimScaleType;
+        self.add_new_node(predict + right_predict, leaf_depth + 1);
+        (self.left_child[leaf], self.right_child[leaf])
+    }
+
+    /*
+    pub fn add_prediction_to_score(
+            &self, data: &Vec<Example>, score: &mut Vec<f32>) {
+        score.par_iter_mut()
+             .zip(
+                 data.par_iter()
+                     .map(|ex| self.get_leaf_prediction(ex)))
+             .for_each(|(accum, update)| *accum += update)
+    }
+    */
+
+    pub fn get_leaf_index_prediction(&self, data: &Example) -> (usize, f32) {
+        let mut node: usize = 0;
         let feature = &(data.feature);
-        let mut queue = VecDeque::new();
-        queue.push_back(0);
-        let mut prediction = 0.0;
-        while !queue.is_empty() {
-            let node = queue.pop_front().unwrap();
-            prediction += self.predicts[node];
-            self.children[node].iter().filter(|child| {
-                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                    self.evaluation[**child]
-            }).for_each(|t| {
-                queue.push_back(*t);
-            });
-        }
-        prediction
-    }
-
-    #[allow(dead_code)]
-    pub fn visit_tree(&self, data: &Example, counter: &mut Vec<u32>) {
-        if self.tree_size <= 0 {
-            return;
-        }
-        let feature = &(data.feature);
-        let mut queue = VecDeque::new();
-        queue.push_back(0);
-        while !queue.is_empty() {
-            let node = queue.pop_front().unwrap();
-            counter[node] += 1;
-            self.children[node].iter().filter(|child| {
-                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                    self.evaluation[**child]
-            }).for_each(|t| {
-                queue.push_back(*t);
-            });
-        }
-    }
-
-    pub fn get_prediction(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
-        self.model_updates.get_prediction_ul(data, version)
-    }
-
-    #[allow(dead_code)]
-    pub fn is_visited(&self, data: &Example, target: usize) -> bool {
-        if self.tree_size <= 0 {
-            return false;
-        }
-        let feature = &(data.feature);
-        let mut queue = VecDeque::new();
-        queue.push_back(0);
-        while !queue.is_empty() {
-            let node = queue.pop_front().unwrap();
-            if node == target {
-                return true;
-            }
-            self.children[node].iter().filter(|child| {
-                (feature[self.split_feature[**child]] <= self.threshold[**child]) ==
-                    self.evaluation[**child]
-            }).for_each(|t| {
-                queue.push_back(*t);
-            });
-        }
-        false
-    }
-
-    pub fn get_leaf_index_prediction(&self, starting_index: usize, data: &Example) -> usize {
-        let mut node: usize = starting_index;
-        let feature = &(data.feature);
-        while self.children[node].len() > 0 {
-            let mut child_index = 0;
-            while child_index < self.children[node].len() {
-                let child = self.children[node][child_index];
-                if (feature[self.split_feature[child]] <= self.threshold[child]) ==
-                    self.evaluation[child] {
-                    node = child;
-                    break;
-                }
-                child_index += 1;
-            }
-        }
-        node
-    }
-
-    // return the indices of the added nodes and whether they are new nodes
-    pub fn append_patch(
-        &mut self, patch: &UpdateList, always_new_node: bool,
-    ) -> Vec<(usize, bool)> {
-        let prev_tree_size = self.tree_size;
-        let mut node_indices = vec![];
-        for i in 0..patch.size {
-            if patch.parent[i] < 0 {
-                node_indices.push(self.add_root(patch.predicts[i], 0.0));
+        while let Some(split_feature) = self.split_feature[node] {
+            node = if feature[split_feature as usize] <= self.threshold[node] {
+                self.left_child[node]
             } else {
-                node_indices.push(self.add_node(
-                    patch.parent[i] as usize, patch.feature[i], patch.threshold[i],
-                    patch.evaluation[i], patch.predicts[i], 0.0, always_new_node,
-                ));
-            }
+                self.right_child[node]
+            } as usize;
         }
-        self.base_version = self.model_updates.size;
-        node_indices.iter()
-                    .map(|t| (*t, (*t) >= prev_tree_size))  // newly added indices
-                    .collect()
+        (node, self.predicts[node])
     }
 
-    pub fn get_conditions(&self, node_index: usize) -> Vec<Condition> {
-        let mut ret = vec![];
-        // split_feature, threshold, evaluation
-        let mut index = node_index;
-        while index > 0 {
-            ret.push((
-                self.split_feature[index],
-                self.threshold[index],
-                self.evaluation[index],
-            ));
-            index = self.parent[index];
-        }
-        ret.reverse();
-        ret
+    pub fn get_leaf_prediction(&self, data: &Example) -> f32 {
+        self.get_leaf_index_prediction(data).1
+    }
+
+    fn add_new_node(&mut self, predict: f32, depth: DimScaleType) {
+        self.num_leaves += 1;
+        self.left_child.push(0);
+        self.right_child.push(0);
+        self.split_feature.push(None);
+        self.threshold.push(0);
+        self.predicts.push(predict);
+        self.leaf_depth.push(depth);
     }
 }
 
-impl PartialEq for ADTree {
-    fn eq(&self, other: &ADTree) -> bool {
-        let k = self.tree_size;
-        if k == other.tree_size &&
+impl PartialEq for Tree {
+    fn eq(&self, other: &Tree) -> bool {
+        let k = self.num_leaves;
+        if k == other.num_leaves &&
            self.split_feature[0..k] == other.split_feature[0..k] &&
-           self.parent[0..k] == other.parent[0..k] &&
-           self.children[0..k] == other.children[0..k] {
+           self.left_child[0..k] == other.left_child[0..k] &&
+           self.right_child[0..k] == other.right_child[0..k] {
                for i in 0..k {
                    if self.threshold[i] != other.threshold[i] ||
                       !is_zero(self.predicts[i] - other.predicts[i]) {
@@ -308,104 +149,4 @@ impl PartialEq for ADTree {
 }
 
 
-impl Eq for ADTree {}
-
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct UpdateList {
-    pub size:   usize,
-    pub parent:     Vec<i32>,
-    pub feature:    Vec<usize>,
-    pub threshold:  Vec<TFeature>,
-    pub evaluation: Vec<bool>,
-    pub predicts:   Vec<f32>,
-    condition:  Vec<Vec<Condition>>,
-    // debug info
-    pub is_new:     Vec<bool>,
-}
-
-
-impl UpdateList {
-    pub fn new() -> UpdateList {
-        UpdateList {
-            size: 0,
-            parent:     vec![],
-            feature:    vec![],
-            threshold:  vec![],
-            evaluation: vec![],
-            predicts:   vec![],
-            condition:  vec![],
-            is_new:     vec![],
-        }
-    }
-
-    pub fn get_prediction_ul(&self, data: &Example, version: usize) -> (f32, (usize, usize)) {
-        let feature = &(data.feature);
-        let pred: f32 = self.predicts[version..self.size].par_iter().zip(
-            self.condition[version..self.size].par_iter()
-        ).map(|(predict, conditions)| {
-            let mut valid = true;
-            for (split_feature, threshold, evaluation) in conditions {
-                if (feature[*split_feature] <= *threshold) != *evaluation {
-                    valid = false;
-                    break;
-                }
-            }
-            if valid {
-                *predict
-            } else {
-                0.0
-            }
-        }).sum();
-        (pred, (self.size, version))
-    }
-
-    pub fn add(
-        &mut self,
-        parent: i32,
-        feature: usize,
-        threshold: TFeature,
-        evaluation: bool,
-        predict: f32,
-        conditions: Vec<Condition>,
-        is_new: bool,
-    ) {
-        self.parent.push(parent);
-        self.feature.push(feature);
-        self.threshold.push(threshold);
-        self.evaluation.push(evaluation);
-        self.predicts.push(predict);
-        self.condition.push(conditions);
-        self.is_new.push(is_new);
-        self.size += 1;
-    }
-
-    pub fn create_slice(&self, index_range: Range<usize>) -> UpdateList {
-        UpdateList {
-            size:          index_range.end - index_range.start,
-            parent:        self.parent[index_range.clone()].to_vec(),
-            feature:       self.feature[index_range.clone()].to_vec(),
-            threshold:     self.threshold[index_range.clone()].to_vec(),
-            evaluation:    self.evaluation[index_range.clone()].to_vec(),
-            predicts:      self.predicts[index_range.clone()].to_vec(),
-            condition:     vec![],
-            is_new:        self.is_new[index_range.clone()].to_vec(),
-        }
-    }
-}
-
-
-impl Clone for UpdateList {
-    fn clone(&self) -> UpdateList {
-        UpdateList {
-            size:       self.size,
-            parent:     self.parent.clone(),
-            feature:    self.feature.clone(),
-            threshold:  self.threshold.clone(),
-            evaluation: self.evaluation.clone(),
-            predicts:   self.predicts.clone(),
-            condition:  self.condition.clone(),
-            is_new:     self.is_new.clone(),
-        }
-    }
-}
+impl Eq for Tree {}

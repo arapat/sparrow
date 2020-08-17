@@ -42,9 +42,8 @@ pub mod scanner;
 
 use config::Config;
 use config::SampleMode;
-use commons::Model;
+use commons::model::Model;
 use commons::bins::Bins;
-use commons::tree::ADTree as Tree;
 
 use scanner::start_scanner;
 use scanner::handle_network_send;
@@ -104,13 +103,12 @@ pub fn training(config_filepath: &String) {
                 // Resuming from an earlier training
                 debug!("resume_training is enabled");
                 let (_, _, mut model) = read_model();
-                model.base_version = 0;
-                debug!("Loaded an existing tree");
+                model.base_size = 0;
+                debug!("Loaded an existing model");
                 model
             } else {
-                debug!("Created a new tree");
-                // TODO: extend for the cases that more than 4 nodes were used for creating grids
-                Tree::new(config.num_trees * (4 + config.num_splits + 1) + 10)
+                debug!("Created a new model");
+                Model::new()
             }
         };
         start_head(config, sample_mode, bins, init_tree);

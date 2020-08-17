@@ -10,7 +10,7 @@ use bincode::serialize;
 
 use SampleMode;
 use commons::channel::Receiver;
-use commons::Model;
+use commons::model::Model;
 use commons::io::write_all;
 use commons::ExampleWithScore;
 use commons::packet::TaskPacket;
@@ -153,7 +153,7 @@ mod tests {
 
     use commons::channel;
     use commons::ExampleWithScore;
-    use commons::Model;
+    use commons::model::Model;
     use commons::labeled_data::LabeledData;
     use commons::persistent_io::load_sample_local;
     use super::Gatherer;

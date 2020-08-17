@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use Example;
 use TFeature;
 use commons::ExampleInSampleSet;
-use commons::Model;
+use commons::model::Model;
 use commons::bins::Bins;
 
 use commons::is_zero;

@@ -49,17 +49,10 @@ impl ModelManager {
     }
 
 
-    fn update_model(&mut self, last_update_from: &String, packet: &UpdatePacket) -> Vec<usize> {
-        assert!(packet.updates.size > 0);
-        let (new_node_indices, count_new, count_updates) =
-            self.model.update(&packet.updates, last_update_from);
+    fn update_model(&mut self, last_update_from: &String, packet: &UpdatePacket) {
+        self.model.update(packet.update_tree.clone(), last_update_from);
         self.broadcast_model(true);
-        debug!("model_manager, new updates, {}, {}, {}, {}, {}",
-                self.model.model.tree_size,
-                self.model.model.size(),
-                packet.updates.size,
-                count_new, count_updates);
-        new_node_indices
+        debug!("model_manager, new updates, {}", self.model.size());
     }
 
 
@@ -76,7 +69,7 @@ impl ModelManager {
 #[cfg(test)]
 mod tests {
     use super::ModelManager;
-    use commons::Model;
+    use commons::model::Model;
     use commons::channel::Receiver;
 
     use commons::channel;

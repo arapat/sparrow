@@ -9,7 +9,7 @@ use commons::bins::Bins;
 use commons::packet::BoosterState;
 use commons::packet::TaskPacket;
 use commons::packet::UpdatePacket;
-use commons::Model;
+use commons::model::Model;
 use config::Config;
 use config::SampleMode;
 
@@ -67,7 +67,8 @@ pub fn start_scanner(
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
                 sampler_signal_sender.send(new_version).unwrap();
                 drop(sampler_signal_sender);
-            } else if curr_packet.is_none() && packet.expand_node.is_some() ||
+            } else if curr_packet.is_none() &&
+                      packet.expand_node.is_some() && packet.expand_node != Some(0) ||
                       !curr_packet.as_ref().unwrap().equals(&packet) {
                 curr_packet = Some(packet.clone_with_expand(&curr_packet));
 
@@ -138,8 +139,8 @@ pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver
 
 fn get_packet(model: &Model, task: TaskPacket, buffer_loader: &BufferLoader) -> UpdatePacket {
     let base_model_size = task.model.as_ref().unwrap().size();
-    let tree_slice = model.model_updates.create_slice(base_model_size..model.size());
-    UpdatePacket::new(tree_slice, task, buffer_loader.current_version, buffer_loader.ess)
+    let tree = model.get_last_tree();
+    UpdatePacket::new(tree, task, buffer_loader.current_version, buffer_loader.ess)
 }
 
 

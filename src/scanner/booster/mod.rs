@@ -9,7 +9,7 @@ use commons::persistent_io::write_model;
 use self::learner_helpers::get_base_node;
 
 use config::Config;
-use commons::Model;
+use commons::model::Model;
 use scanner::buffer_loader::BufferLoader;
 use commons::bins::Bins;
 use commons::packet::TaskPacket;
@@ -75,7 +75,7 @@ impl Boosting {
 
     /// Start training the boosting algorithm.
     pub fn training(&mut self) {
-        if self.model.tree_size == 0 {
+        if self.model.size() == 0 {
             debug!("Start setting the root tree.");
             self.set_root_tree();
             return;
