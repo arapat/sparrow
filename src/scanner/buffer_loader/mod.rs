@@ -41,7 +41,7 @@ pub struct BufferLoader {
     pub sample_mode: SampleMode,
 
     pub ess: f32,
-    _min_ess: f32,
+    min_ess: f32,
     curr_example: usize,
     sampling_pm: PerformanceMonitor,
 }
@@ -83,7 +83,7 @@ impl BufferLoader {
             sample_mode: sample_mode.clone(),
 
             ess: 0.0,
-            _min_ess: min_ess,
+            min_ess: min_ess,
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
         };
@@ -171,16 +171,15 @@ impl BufferLoader {
     // ESS and others
 
     // Check ess, if it is too small, block the thread until a new sample is received
-    #[allow(dead_code)]
-    pub fn check_ess_blocking(&mut self) {
+    fn check_ess_blocking(&mut self) {
         let mut timer = PerformanceMonitor::new();
         let mut last_report_time = 0.0;
         timer.start();
-        while self.ess < self._min_ess && !self.try_switch() {
+        while self.ess < self.min_ess && !self.try_switch() {
             if timer.get_duration() - last_report_time > 10.0 {
                 last_report_time = timer.get_duration();
                 debug!("loader, blocking, {}, {}, {}, {}",
-                        last_report_time, self.ess, self._min_ess, self.current_version);
+                        last_report_time, self.ess, self.min_ess, self.current_version);
             }
             sleep(Duration::from_secs(2));
         }
@@ -194,6 +193,7 @@ impl BufferLoader {
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
         debug!("loader-reset, {}", self.ess);
+        self.check_ess_blocking();
     }
 
     pub fn reset_scores(&mut self) {

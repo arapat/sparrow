@@ -67,8 +67,7 @@ pub fn start_scanner(
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
                 sampler_signal_sender.send(new_version).unwrap();
                 drop(sampler_signal_sender);
-            } else if curr_packet.is_none() &&
-                      packet.expand_node.is_some() && packet.expand_node != Some(0) ||
+            } else if curr_packet.is_none() && packet.expand_node.is_some() ||
                       !curr_packet.as_ref().unwrap().equals(&packet) {
                 curr_packet = Some(packet.clone_with_expand(&curr_packet));
 
@@ -88,6 +87,9 @@ pub fn start_scanner(
                 let mut buffer_loader = buffer_loader_m.lock().unwrap();
                 let training_loader = buffer_loader.take().unwrap();
                 drop(buffer_loader);
+                let mut w_booster_state = booster_state.write().unwrap();
+                *w_booster_state = BoosterState::RUNNING;
+                drop(w_booster_state);
                 let ro_booster_state = booster_state.clone();
                 let mut booster = Boosting::new(
                     curr_packet.as_ref().unwrap(),
