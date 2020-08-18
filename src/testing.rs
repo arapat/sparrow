@@ -67,6 +67,7 @@ pub fn validate(
         let mut index = 0;
         while index < num_examples {
             let batch = data.read(batch_size);
+            let end = std::cmp::min(index + batch.len(), num_examples);
             batch.par_iter()
                  .zip(scores[index..index+batch.len()].par_iter_mut())
                  .for_each(|(example, score)| {

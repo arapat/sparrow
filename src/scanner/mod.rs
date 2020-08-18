@@ -65,7 +65,7 @@ pub fn start_scanner(
                 debug!("Packet is a new sample signal");
                 let sampler_signal_sender = sampler_signal_sender.lock().unwrap();
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
-                sampler_signal_sender.send(new_version).unwrap();
+                // sampler_signal_sender.send(new_version).unwrap();
                 drop(sampler_signal_sender);
             } else if curr_packet.is_none() && packet.expand_node.is_some() ||
                       !curr_packet.as_ref().unwrap().equals(&packet) {
