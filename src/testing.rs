@@ -69,12 +69,12 @@ pub fn validate(
             let batch = data.read(batch_size);
             let end = std::cmp::min(index + batch.len(), num_examples);
             batch.par_iter()
-                 .zip(scores[index..index+batch.len()].par_iter_mut())
+                 .zip(scores[index..end].par_iter_mut())
                  .for_each(|(example, score)| {
                      *score += model.get_prediction(example, last_model_length).0;
                  });
             batch.par_iter()
-                    .zip(labels[index..index+batch.len()].par_iter_mut())
+                    .zip(labels[index..end].par_iter_mut())
                     .for_each(|(example, label)| {
                         *label = example.label;
                     });

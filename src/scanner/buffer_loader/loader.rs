@@ -45,23 +45,23 @@ impl Loader {
         };
         info!("Starting non-blocking loader");
         spawn(move || {
-            // for incoming_version in sampler_signal_receiver.iter() {
-            let mut curr_version = 0;
+            for incoming_version in sampler_signal_receiver.iter() {
+            // let mut curr_version = 0;
                 loop {
                     let sample = load_sample(load_func, exp_name.as_str());
                     if sample.is_some() {
                         let (version, new_sample, new_model) = sample.unwrap();
-                        // if version >= incoming_version {
-                        if version > curr_version {
+                        if version >= incoming_version {
+                        // if version > curr_version {
                             let new_buffer = buffer.write();
                             *(new_buffer.unwrap()) = Some((version, new_sample, new_model));
-                            curr_version = version;
-                            // break;
+                            // curr_version = version;
+                            break;
                         }
                     }
                     sleep(Duration::from_secs(sleep_duration));
                 }
-            // }
+            }
         });
     }
 }
