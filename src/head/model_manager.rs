@@ -48,13 +48,11 @@ impl ModelManager {
         //         is_upload_success, self.model.model_sig);
     }
 
-
     fn update_model(&mut self, last_update_from: &String, packet: &UpdatePacket) {
         self.model.update(packet.update_tree.clone(), last_update_from);
         self.broadcast_model(true);
         debug!("model_manager, new updates, {}", self.model.size());
     }
-
 
     fn print_log(&mut self) {
         if self._performance_mon.get_duration() - self._last_logging_ts >= 10.0 {

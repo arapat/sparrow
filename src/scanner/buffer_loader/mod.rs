@@ -161,10 +161,10 @@ impl BufferLoader {
         self.base_model = new_model;
         self.curr_example = 0;
 
+        self.sampling_pm.pause();
         self.update_ess();
         debug!("scanner, switched-buffer, {}, {}, {}",
                 old_version, self.current_version, self.examples.len());
-        self.sampling_pm.pause();
         true
     }
 

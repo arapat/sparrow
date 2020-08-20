@@ -14,6 +14,7 @@ maintains the current score function.
 #[macro_use] extern crate lazy_static;
 #[macro_use] extern crate log;
 #[macro_use] extern crate serde_derive;
+extern crate awscreds;
 extern crate bincode;
 extern crate bufstream;
 extern crate evmap;

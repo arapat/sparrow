@@ -130,13 +130,13 @@ fn gather<F>(
     debug!("sampler, finished, generate sample, {}, {}, {}, {}, {}, {}",
            total_scanned, new_sample.len(), num_total_positive, num_unique, num_unique_positive,
            model.size());
+    // Send the sample to the broadcast handler
+    broadcast_handler(new_sample.clone(), model.clone(), version, exp_name);
     // Create a snapshot for continous training
     let filename = "latest_sample.bin".to_string() + "_WRITING";
-    write_all(&filename, &serialize(&(version, new_sample.clone(), &model)).unwrap())
+    write_all(&filename, &serialize(&(version, new_sample, &model)).unwrap())
         .expect("Failed to write the sample set to file for snapshot");
     rename(filename, "latest_sample.bin".to_string()).unwrap();
-    // Send the sample to the broadcast handler
-    broadcast_handler(new_sample, model, version, exp_name);
     let duration = pm.get_duration();
     debug!("sample-gatherer, {}, {}", duration, new_sample_capacity as f32 / duration);
 }

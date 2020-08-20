@@ -2,11 +2,11 @@
 training_filename: ./training.libsvm
 training_is_binary: false
 training_bytes_per_example: 0
-testing_filename: ./testing.libsvm
+testing_filename: ./training-1p.libsvm
 testing_is_binary: false
 testing_bytes_per_example: 574
 num_examples: 50000000
-num_testing_examples: 4627840
+num_testing_examples: 500000
 num_features: 565
 positive: 1
 max_sample_size: 200000
@@ -35,7 +35,7 @@ port: 8888
 local_name: local_worker
 save_process: true
 debug_mode: true
-models_table_filename: ./models_table.txt
+models_table_filename: ./models/models_table.txt
 incremental_testing: true
 testing_scores_only: false
 save_interval: 1

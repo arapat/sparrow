@@ -2,7 +2,7 @@ use bincode::serialize;
 use bincode::deserialize;
 use rayon::prelude::*;
 use s3::bucket::Bucket;
-use s3::credentials::Credentials;
+use awscreds::Credentials;
 
 use std::str::FromStr;
 use std::fmt::Debug;
@@ -140,15 +140,15 @@ where
 // Return data and return_code
 pub fn load_s3(
     region: &str, bucket: &str, s3_path: &str, filename: &str,
-) -> Option<(Vec<u8>, u32)> {
+) -> Option<(Vec<u8>, u16)> {
     // TODO: Add support to read credentials from the config file
     // Read credentials from the environment variables
-    let credentials = Credentials::default();
+    let credentials = Credentials::default_blocking().unwrap();
     let bucket = Bucket::new(bucket, region.parse().unwrap(), credentials).unwrap();
     let mut filepath = s3_path.to_string();
     filepath.push_str(filename);
 
-    let ret = bucket.get_object(&filepath);
+    let ret = bucket.get_object_blocking(&filepath);
     if ret.is_err() {
         None
     } else {
@@ -163,7 +163,7 @@ pub fn write_s3(
 ) -> bool {
     // TODO: Add support to read credentials from the config file
     // Read credentials from the environment variables
-    let credentials = Credentials::default();
+    let credentials = Credentials::default_blocking().unwrap();
     let bucket = Bucket::new(bucket, region.parse().unwrap(), credentials).unwrap();
     let mut filepath = s3_path.to_string();
     filepath.push_str(filename);
@@ -172,7 +172,7 @@ pub fn write_s3(
     // let (_, _) = bucket.delete(&filename).unwrap();
     let mut code = 0;
     for i in 0..3 {
-        let ret = bucket.put_object(&filepath, data, "application/octet-stream");
+        let ret = bucket.put_object_blocking(&filepath, data, "application/octet-stream");
         if ret.is_ok() {
             code = ret.unwrap().1;
             debug!("Uploaded `{}` to S3, return code {}", filename, code);
@@ -180,7 +180,7 @@ pub fn write_s3(
                 break;
             }
         } else {
-            error!("Uploading `{}` to S3 trial {} failed.", filename, (i + 1));
+            error!("Uploading `{}` to S3 trial {} failed.\nError: {:?}", filename, i + 1, ret);
         }
     }
     if code != 200 {
@@ -199,14 +199,14 @@ pub fn write_s3(
 
 pub fn clear_s3_bucket(region: &str, bucket: &str, exp_name: &str) {
     let region = region.parse().unwrap();
-    let credentials = Credentials::default();
+    let credentials = Credentials::default_blocking().unwrap();
     let bucket = Bucket::new(bucket, region, credentials).unwrap();
 
     // List out contents of directory and delete all objects
-    let results = bucket.list(exp_name, None).unwrap();
+    let results = bucket.list_blocking(exp_name.to_string(), None).unwrap();
     for (list, _) in results {
         for obj in list.contents {
-            bucket.delete_object(&obj.key).unwrap();
+            bucket.delete_object_blocking(&obj.key).unwrap();
         }
     }
 }
