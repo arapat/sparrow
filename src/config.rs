@@ -1,7 +1,7 @@
 use commons::io::create_bufreader;
 
 /// Configuration for training and testing with Sparrow
-#[derive(Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Config {
     /// File path to the training data
     pub training_filename: String,

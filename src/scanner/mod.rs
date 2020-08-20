@@ -22,6 +22,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::sync::Mutex;
 use std::thread::sleep;
+use std::thread::spawn;
 use std::time::Duration;
 
 use tmsn::Network;
@@ -51,10 +52,10 @@ pub fn start_scanner(
     // sending signals to the scanner
     let debug_mode = config.debug_mode;
     let (new_updates_sender, new_updates_receiver) = mpsc::channel();
-    let new_updates_sender = Mutex::new(new_updates_sender);
+    let new_updates_sender = Arc::new(Mutex::new(new_updates_sender));
     let booster_state = Arc::new(RwLock::new(BoosterState::IDLE));
     let sampler_signal_sender = Mutex::new(sampler_signal_sender);
-    let buffer_loader_m = Mutex::new(Some(buffer_loader));
+    let buffer_loader = Arc::new(Mutex::new(Some(buffer_loader)));
     let mut curr_packet: Option<TaskPacket> = None;
 
     let network = Network::new(config.port, &vec![],
@@ -70,52 +71,12 @@ pub fn start_scanner(
             } else if curr_packet.is_none() && packet.expand_node.is_some() ||
                       !curr_packet.as_ref().unwrap().equals(&packet) {
                 curr_packet = Some(packet.clone_with_expand(&curr_packet));
-
-                debug!("Stopping existing booster");
-                let mut is_booster_stopped = false;
-                while !is_booster_stopped {
-                    let mut booster_state = booster_state.write().unwrap();
-                    is_booster_stopped = *booster_state == BoosterState::IDLE;
-                    if !is_booster_stopped {
-                        *booster_state = BoosterState::STOPPING;
-                    }
-                    drop(booster_state);
-                    sleep(Duration::from_millis(500));
-                }
-
-                debug!("Starting the booster.");
-                let mut buffer_loader = buffer_loader_m.lock().unwrap();
-                let training_loader = buffer_loader.take().unwrap();
-                drop(buffer_loader);
-                let mut w_booster_state = booster_state.write().unwrap();
-                *w_booster_state = BoosterState::RUNNING;
-                drop(w_booster_state);
-                let ro_booster_state = booster_state.clone();
-                let mut booster = Boosting::new(
-                    curr_packet.as_ref().unwrap(),
-                    ro_booster_state,
-                    training_loader,
-                    bins.clone(),
-                    &config,
-                );
-                debug!("Booster ready to train");
-                booster.training();
-
-                let (prev_packet, model, mut buffer_loader) = booster.destroy();
-                // send out updates
-                let updates_packet = get_packet(&model, prev_packet, &buffer_loader);
-                let new_updates_sender = new_updates_sender.lock().unwrap();
-                new_updates_sender.send(updates_packet).unwrap();
-                drop(new_updates_sender);
-                // reset buffer scores
-                buffer_loader.reset_scores();
-                let mut b = buffer_loader_m.lock().unwrap();
-                *b = Some(buffer_loader);
-                drop(b);
-                // mark booster as idle
-                let mut booster_state = booster_state.write().unwrap();
-                *booster_state = BoosterState::IDLE;
-                drop(booster_state);
+                let (packet, booster_state, buffer_loader, new_updates_sender, bins, config) =
+                    (curr_packet.as_ref().unwrap().clone(), booster_state.clone(),
+                     buffer_loader.clone(), new_updates_sender.clone(), bins.clone(),
+                     config.clone());
+                spawn(move || start_booster(
+                    packet, booster_state, buffer_loader, new_updates_sender, bins, config));
             } else {
                 info!("Package is ignored, {}", packet.packet_id);
             }
@@ -126,6 +87,60 @@ pub fn start_scanner(
     (network, new_updates_receiver)
 }
 
+fn start_booster(
+    packet: TaskPacket,
+    booster_state: Arc<RwLock<BoosterState>>,
+    buffer_loader: Arc<Mutex<Option<BufferLoader>>>,
+    new_updates_sender: Arc<Mutex<mpsc::Sender<UpdatePacket>>>,
+    bins: Vec<Bins>,
+    config: Config,
+) {
+    debug!("Stopping existing booster");
+    let mut is_booster_stopped = false;
+    while !is_booster_stopped {
+        let mut booster_state = booster_state.write().unwrap();
+        is_booster_stopped = *booster_state == BoosterState::IDLE;
+        if !is_booster_stopped {
+            *booster_state = BoosterState::STOPPING;
+        }
+        drop(booster_state);
+        sleep(Duration::from_millis(500));
+    }
+
+    debug!("Starting the booster.");
+    let mut read_loader = buffer_loader.lock().unwrap();
+    let training_loader = read_loader.take().unwrap();
+    drop(read_loader);
+    let mut w_booster_state = booster_state.write().unwrap();
+    *w_booster_state = BoosterState::RUNNING;
+    drop(w_booster_state);
+    let ro_booster_state = booster_state.clone();
+    let mut booster = Boosting::new(
+        packet,
+        ro_booster_state,
+        training_loader,
+        bins,
+        config,
+    );
+    debug!("Booster ready to train");
+    booster.training();
+
+    let (prev_packet, model, mut loader) = booster.destroy();
+    // send out updates
+    let updates_packet = get_packet(&model, prev_packet, &loader);
+    let new_updates_sender = new_updates_sender.lock().unwrap();
+    new_updates_sender.send(updates_packet).unwrap();
+    drop(new_updates_sender);
+    // reset buffer scores
+    loader.reset_scores();
+    let mut write_loader = buffer_loader.lock().unwrap();
+    *write_loader = Some(loader);
+    drop(write_loader);
+    // mark booster as idle
+    let mut booster_state = booster_state.write().unwrap();
+    *booster_state = BoosterState::IDLE;
+    drop(booster_state);
+}
 
 /// Sending out the messages generated by the scanner over tmsn, this function will block.
 pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver<UpdatePacket>) {

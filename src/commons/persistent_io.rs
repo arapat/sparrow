@@ -254,10 +254,13 @@ pub fn read_bins_disk() -> Vec<Bins> {
 
 pub fn read_bins_s3(exp_name: &String) -> Vec<Bins> {
     let s3_path = format!("{}/{}", exp_name, S3_PATH_BINS);
-    let mut ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME);
-    while ret.is_none() {
-        ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME);
+    loop {
+        let ret = io_load_s3(REGION, BUCKET, s3_path.as_str(), BINS_FILENAME);
+        if ret.is_some() {
+            let (vals, ret_code) = ret.unwrap();
+            if ret_code == 200 {
+                return deserialize(&vals).unwrap();
+            }
+        }
     }
-    let (bins, _) = ret.unwrap();
-    deserialize(&bins).unwrap()
 }

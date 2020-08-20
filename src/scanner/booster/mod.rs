@@ -42,11 +42,11 @@ impl Boosting {
     /// * `max_sample_size`: the number of examples to scan for determining the percentiles for the features.
     /// * `default_gamma`: the initial value of the edge `gamma` of the candidate valid weak rules.
     pub fn new(
-        init_packet: &TaskPacket,
+        init_packet: TaskPacket,
         booster_state: Arc<RwLock<BoosterState>>,
         training_loader: BufferLoader,
         bins: Vec<Bins>,
-        config: &Config,
+        config: Config,
     ) -> Boosting {
         // TODO: make num_cadid a paramter
         let packet = init_packet.clone();
@@ -61,7 +61,7 @@ impl Boosting {
             learner: learner,
             num_splits: config.num_splits,
 
-            init_packet: init_packet.clone(),
+            init_packet: init_packet,
             curr_model: model,
 
             save_process: config.save_process,
