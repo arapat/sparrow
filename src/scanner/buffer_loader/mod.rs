@@ -40,7 +40,7 @@ pub struct BufferLoader {
     loader: Loader,
     pub sample_mode: SampleMode,
 
-    pub ess: f32,
+    pub ess: Option<f32>,
     min_ess: f32,
     curr_example: usize,
     sampling_pm: PerformanceMonitor,
@@ -82,7 +82,7 @@ impl BufferLoader {
             loader: loader,
             sample_mode: sample_mode.clone(),
 
-            ess: 0.0,
+            ess: None,
             min_ess: min_ess,
             curr_example: 0,
             sampling_pm: PerformanceMonitor::new(),
@@ -162,24 +162,31 @@ impl BufferLoader {
         self.curr_example = 0;
 
         self.sampling_pm.pause();
-        self.update_ess();
+        self.ess = None;
         debug!("scanner, switched-buffer, {}, {}, {}",
                 old_version, self.current_version, self.examples.len());
         true
     }
 
     // ESS and others
+    pub fn is_ess_valid(&self) -> bool {
+        self.ess.is_some() && self.ess.as_ref().unwrap() >= &self.min_ess
+    }
 
     // Check ess, if it is too small, block the thread until a new sample is received
     fn check_ess_blocking(&mut self) {
         let mut timer = PerformanceMonitor::new();
         let mut last_report_time = 0.0;
+        if self.ess.is_none() || self.ess.as_ref().unwrap() >= &self.min_ess {
+            return;
+        }
         timer.start();
-        while self.ess < self.min_ess && !self.try_switch() {
+        while !self.try_switch() {
             if timer.get_duration() - last_report_time > 10.0 {
                 last_report_time = timer.get_duration();
                 debug!("loader, blocking, {}, {}, {}, {}",
-                        last_report_time, self.ess, self.min_ess, self.current_version);
+                        last_report_time, self.ess.as_ref().unwrap_or(&-1.0), self.min_ess,
+                        self.current_version);
             }
             sleep(Duration::from_secs(2));
         }
@@ -192,8 +199,8 @@ impl BufferLoader {
                          .map(|(_, (w, _, _, _))| { (*w as f64, (*w as f64) * (*w as f64)) })
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         let ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f64);
-        self.ess = ess as f32;
-        debug!("loader-reset, {}", self.ess);
+        self.ess = Some(ess as f32);
+        debug!("loader-reset, {}", ess);
         self.check_ess_blocking();
     }
 

@@ -89,7 +89,7 @@ impl Boosting {
         while is_booster_running && !tree.is_full_tree() {
             let mut new_rule = None;
             while is_booster_running && new_rule.is_none() &&
-                data_scanned < self.training_loader.size {
+                data_scanned < self.training_loader.size && self.training_loader.is_ess_valid() {
                 // Logging for the status check
                 if global_timer.get_duration() - last_logging_ts >= 10.0 {
                     self.print_log(data_scanned);

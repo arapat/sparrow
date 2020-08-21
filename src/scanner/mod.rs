@@ -154,7 +154,12 @@ pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver
 
 fn get_packet(model: &Model, task: TaskPacket, buffer_loader: &BufferLoader) -> UpdatePacket {
     let tree = model.get_last_tree();
-    UpdatePacket::new(tree, task, buffer_loader.current_version, buffer_loader.ess)
+    let ess = if buffer_loader.ess.is_some() {
+        buffer_loader.ess.as_ref().unwrap().clone()
+    } else {
+        -1.0
+    };
+    UpdatePacket::new(tree, task, buffer_loader.current_version, ess)
 }
 
 
