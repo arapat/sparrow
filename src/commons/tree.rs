@@ -103,7 +103,7 @@ impl Tree {
     }
 
     pub fn is_full_tree(&self) -> bool {
-        debug!("is-full-tree, {}, {}", self.num_nodes, self.max_nodes);
+        trace!("is-full-tree, {}, {}", self.num_nodes, self.max_nodes);
         self.num_nodes >= self.max_nodes
     }
 
