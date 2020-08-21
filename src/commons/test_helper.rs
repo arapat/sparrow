@@ -32,9 +32,6 @@ pub fn get_mock_packet(
 ) -> UpdatePacket {
     let ess = 0.5;
     let mut update_tree = Tree::new(1);
-    for _ in 0..packet_size {
-        update_tree.add(0, 0, 0 as TFeature, false, 0.0, vec![], true);
-    }
     let task_packet = TaskPacket::new();
     UpdatePacket::new(update_tree, task_packet, 0, ess)
 }

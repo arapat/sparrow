@@ -82,7 +82,7 @@ impl Boosting {
         global_timer.start();
         let mut last_logging_ts = global_timer.get_duration();
 
-        let mut tree = Tree::new(self.num_splits + 1);
+        let mut tree = Tree::new(self.num_splits);
         let mut is_booster_running = true;
         let mut data_scanned = 0;
         self.verbose = false;

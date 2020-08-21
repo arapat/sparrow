@@ -175,15 +175,17 @@ mod test {
 
         let source = "source".to_string();
         let target = "target".to_string();
-        let packet1 = r#"{"packet_id":0,"model":{"tree_size":0,"parent":[],"children":[],"split_feature":[],"threshold":[],"evaluation":[],"predicts":[],"is_active":[],"depth":[],"base_version":0,"model_updates":{"size":0,"parent":[],"feature":[],"threshold":[],"evaluation":[],"predicts":[],"condition":[],"is_new":[]}},"gamma":0.25,"expand_node":0,"new_sample_version":null}"#;
+        let packet1 = r#"{"packet_id":0,"model":{"models":[],"base_size":0},"gamma":0.25,"expand_node":0,"new_sample_version":null}"#;
         let packet2 = r#"{"packet_id":1,"model":null,"gamma":null,"expand_node":null,"new_sample_version":1}"#;
-        let packet3 = r#"{"packet_id":2,"model":{"tree_size":1,"parent":[0],"children":[[]],"split_feature":[0],"threshold":[0],"evaluation":[false],"predicts":[-2.9748201],"is_active":[],"depth":[0],"base_version":1,"model_updates":{"size":1,"parent":[-1],"feature":[0],"threshold":[0],"evaluation":[false],"predicts":[-2.9748201],"condition":[[]],"is_new":[true]}},"gamma":0.25,"expand_node":null,"new_sample_version":null}"#;
-        let packet4 = r#"{"packet_id":3,"model":{"tree_size":3,"parent":[0,0,0],"children":[[1,2],[],[]],"split_feature":[0,329,329],"threshold":[0,0,0],"evaluation":[false,true,false],"predicts":[-2.886624,-1.0294012,1.0294012],"is_active":[],"depth":[0,1,1],"base_version":3,"model_updates":{"size":3,"parent":[-1,0,0],"feature":[0,329,329],"threshold":[0,0,0],"evaluation":[false,true,false],"predicts":[-2.886624,-1.0294012,1.0294012],"condition":[[],[[329,0,true]],[[329,0,false]]],"is_new":[true,true,true]}},"gamma":0.25,"expand_node":null,"new_sample_version":null}"#;
-        let packs = vec![packet3, packet4];
 
         network.mock_send(&source, &target, Some(packet1.to_string()));
         network.mock_send(&source, &target, Some(packet2.to_string()));
 
+        loop {
+        }
+
+        /*
+        let packs = vec![packet3, packet4];
         for (packet_id, new_updates) in new_updates_receiver.iter().enumerate() {
             println!("debug scanner, {}, {:?}", packet_id, new_updates);
             if packet_id >= packs.len() {
@@ -191,6 +193,7 @@ mod test {
             }
             network.mock_send(&source, &target, Some(packs[packet_id].to_string()));
         }
+        */
     }
 
     fn init_env_logger() {

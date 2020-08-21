@@ -127,7 +127,7 @@ pub fn load_sample_s3(exp_name: &str) -> Option<VersionedSampleModel> {
 #[cfg(test)]
 pub fn load_sample_s3(_exp_name: &str) -> Option<VersionedSampleModel> {
     use commons::test_helper::get_n_random_examples;
-    let model = Model::new(1);
+    let model = Model::new();
     let examples = get_n_random_examples(1000, 20);
     Some((0, examples, model))
 }

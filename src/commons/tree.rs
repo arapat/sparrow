@@ -14,8 +14,8 @@ Why JSON but not binary?
 */
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Tree {
-    max_leaves:     DimScaleType,
-    pub num_leaves: DimScaleType,
+    max_nodes:     DimScaleType,
+    pub num_nodes: DimScaleType,
     left_child:     Vec<DimScaleType>,
     right_child:    Vec<DimScaleType>,
     split_feature:  Vec<Option<DimScaleType>>,
@@ -27,8 +27,8 @@ pub struct Tree {
 impl Clone for Tree {
     fn clone(&self) -> Tree {
         Tree {
-            max_leaves:     self.max_leaves,
-            num_leaves:     self.num_leaves,
+            max_nodes:      self.max_nodes,
+            num_nodes:     self.num_nodes,
             left_child:     self.left_child.clone(),
             right_child:    self.right_child.clone(),
             split_feature:  self.split_feature.clone(),
@@ -41,11 +41,10 @@ impl Clone for Tree {
 
 impl Tree {
     pub fn new(num_splits: usize) -> Tree {
-        let max_leaves = (num_splits + 1) * 2;
-        let max_nodes = max_leaves * 2;
+        let max_nodes = (num_splits + 1) * 2 - 1;
         let mut tree = Tree {
-            max_leaves:     max_leaves,
-            num_leaves:     0,
+            max_nodes:      max_nodes,
+            num_nodes:      0,
             left_child:     Vec::with_capacity(max_nodes as usize),
             right_child:    Vec::with_capacity(max_nodes as usize),
             split_feature:  Vec::with_capacity(max_nodes as usize),
@@ -79,9 +78,9 @@ impl Tree {
 
         self.split_feature[parent] = Some(feature as DimScaleType);
         self.threshold[parent] = threshold;
-        self.left_child[parent] = self.num_leaves as DimScaleType;
+        self.left_child[parent] = self.num_nodes as DimScaleType;
         self.add_new_node(predict + left_predict, parent_depth + 1);
-        self.right_child[parent] = self.num_leaves as DimScaleType;
+        self.right_child[parent] = self.num_nodes as DimScaleType;
         self.add_new_node(predict + right_predict, parent_depth + 1);
         (self.left_child[parent], self.right_child[parent])
     }
@@ -104,11 +103,12 @@ impl Tree {
     }
 
     pub fn is_full_tree(&self) -> bool {
-        self.num_leaves >= self.max_leaves
+        debug!("is-full-tree, {}, {}", self.num_nodes, self.max_nodes);
+        self.num_nodes >= self.max_nodes
     }
 
     fn add_new_node(&mut self, predict: f32, depth: DimScaleType) {
-        self.num_leaves += 1;
+        self.num_nodes += 1;
         self.left_child.push(0);
         self.right_child.push(0);
         self.split_feature.push(None);
@@ -120,8 +120,8 @@ impl Tree {
 
 impl PartialEq for Tree {
     fn eq(&self, other: &Tree) -> bool {
-        let k = self.num_leaves;
-        if k == other.num_leaves &&
+        let k = self.num_nodes;
+        if k == other.num_nodes &&
            self.split_feature[0..k] == other.split_feature[0..k] &&
            self.left_child[0..k] == other.left_child[0..k] &&
            self.right_child[0..k] == other.right_child[0..k] {

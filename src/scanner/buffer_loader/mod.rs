@@ -187,11 +187,12 @@ impl BufferLoader {
 
     /// Get the estimate of the effective sample size of the current sample set.
     fn update_ess(&mut self) {
-        let (sum_weights, sum_weight_squared): (f32, f32) =
+        let (sum_weights, sum_weight_squared): (f64, f64) =
             self.examples.iter()
-                         .map(|(_, (w, _, _, _))| { (w, w * w) })
+                         .map(|(_, (w, _, _, _))| { (*w as f64, (*w as f64) * (*w as f64)) })
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
-        self.ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f32);
+        let ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f64);
+        self.ess = ess as f32;
         debug!("loader-reset, {}", self.ess);
         self.check_ess_blocking();
     }
