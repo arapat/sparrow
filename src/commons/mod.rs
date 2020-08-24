@@ -67,6 +67,20 @@ pub fn get_bound(sum_c: f32, sum_c_squared: f32) -> f32 {
 /// Set initial weights to the samples
 #[inline]
 pub fn set_init_weight(examples: Vec<ExampleWithScore>) -> Vec<ExampleInSampleSet> {
+    let model_size = (examples[0].1).1;
+    let (model_size_l, model_size_r) = examples.iter()
+                                               .map(|v| (v.1).1)
+                                               .fold((model_size, model_size), |acc, x| {
+                                                   let (mut ms_l, mut ms_r) = acc;
+                                                   if ms_l > x {
+                                                       ms_l = x;
+                                                   }
+                                                   if ms_r < x {
+                                                       ms_r = x;
+                                                   }
+                                                   (ms_l, ms_r)
+                                               });
+    debug!("buffer loader, model size range, {}, {}", model_size_l, model_size_r);
     examples.into_iter()
             .map(|t| {
                 let (example, (_score, model_size)) = t;

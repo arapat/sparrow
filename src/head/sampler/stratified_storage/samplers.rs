@@ -114,16 +114,8 @@ fn sampler(
 
     let mut grids: HashMap<i8, f32> = HashMap::new();
 
-    let mut pm_total = PerformanceMonitor::new();
-    let mut pm3_total = PerformanceMonitor::new();
-    let mut pm1 = PerformanceMonitor::new();
-    let mut pm2 = PerformanceMonitor::new();
-    let mut pm3 = PerformanceMonitor::new();
-    let mut pm4 = PerformanceMonitor::new();
     let mut num_scanned = 0;
-    let mut num_updated = 0;
-    let mut num_sampled = 0;
-    pm_total.start();
+    let mut _num_sampled = 0;
 
     loop {
         pm_update.write_log("sampler-update");
@@ -162,11 +154,11 @@ fn sampler(
         let grid = grids.entry(index).or_insert(rand::random::<f32>() * grid_size);
         let mut sampled_example = None;
         let mut sampled_trials = 0;
-        pm3_total.resume();
-        let mut last_error_timer = pm3_total.get_duration();
+        let mut retrieve_pm = PerformanceMonitor::new();
+        let mut last_error_timer = retrieve_pm.get_duration();
+        retrieve_pm.start();
         while sampled_example.is_none() {
             sampled_trials += 1;
-            pm1.resume();
             let recv = {
                 let mut failed_recv = 0;
                 let mut recv = receiver.try_recv();
@@ -177,20 +169,13 @@ fn sampler(
                 }
                 recv
             };
-            pm1.pause();
             if recv.is_none() {
                 break;
             }
             let (example, (score, version)) = recv.unwrap();
             let (updated_score, model_size) = {
-                pm2.resume();
                 let latest_model = &model.read().unwrap();
-                pm2.pause();
-                pm3.resume();
-                pm3.pause();
-                pm4.resume();
                 let (inc_score, (model_size, _)) = latest_model.get_prediction(&example, version);
-                pm4.pause();
                 (score + inc_score, model_size)
             };
             let updated_weight = get_weight(&example, updated_score);
@@ -203,15 +188,13 @@ fn sampler(
             num_scanned += 1;
             stats_update_s.send((index, (-1, -get_weight(&example, score) as f64)));
             updated_examples.send((example, (updated_score, model_size)));
-            num_updated += 1;
             pm_update.update(1);
-            if pm3_total.get_duration() - last_error_timer >= 10.0 {
+            if retrieve_pm.get_duration() - last_error_timer >= 10.0 {
                 debug!("sampler, rejection high in one stratum, {}, {}, {}, {}",
                             index, *grid, grid_size, sampled_trials);
-                last_error_timer = pm3_total.get_duration();
+                last_error_timer = retrieve_pm.get_duration();
             }
         }
-        pm3_total.pause();
         // STEP 4: Send the sampled example to the buffer loader
         if sampled_example.is_none() {
             debug!("Sampling the stratum {} failed because it has too few examples", index);
@@ -222,31 +205,9 @@ fn sampler(
         if sample_count > 0 {
             sampled_examples.send(((sampled_example, sample_count), num_scanned));
             *grid -= grid_size * (sample_count as f32);
-            num_sampled += sample_count;
+            _num_sampled += sample_count;
             num_scanned = 0;
             pm_sample.update(sample_count as usize);
-        }
-
-        if pm_total.get_duration() > 5.0 {
-            let total = pm_total.get_duration();
-            let s3_total = pm3_total.get_duration();
-            let step1 = pm1.get_duration() / s3_total;
-            let step2 = pm2.get_duration() / s3_total;
-            let step3 = pm3.get_duration() / s3_total;
-            let step4 = pm4.get_duration() / s3_total;
-            let others = 1.0 - step1 - step2 - step3 - step4;
-            trace!("sample-perf-breakdown, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}, {:.3}",
-                   (num_updated as f32) / total, (num_sampled as f32) / total, s3_total / total,
-                   step1, step2, step3, step4, others);
-            pm_total.reset();
-            pm3_total.reset();
-            pm1.reset();
-            pm2.reset();
-            pm3.reset();
-            pm4.reset();
-            num_updated = 0;
-            num_sampled = 0;
-            pm_total.start();
         }
 
         // terminate if sampler is stopping
