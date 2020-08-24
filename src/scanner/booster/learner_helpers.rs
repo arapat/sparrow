@@ -84,6 +84,15 @@ pub fn find_tree_node<'a>(
     // Now update each splitting values of the bin
     let mut valid_weak_rule = None;
     (0..bin.len()).for_each(|j| {
+        let num_positive = &mut num_positive[j];
+        let num_negative = &mut num_negative[j];
+        let weight_positive = &mut weight_positive[j];
+        let weight_negative = &mut weight_negative[j];
+        *num_positive       += counts[0] as f32;
+        *num_negative       += counts[1] as f32;
+        *weight_positive    += weights[0];
+        *weight_negative    += weights[1];
+
         for pred_idx in 0..NUM_PREDS { // Types of rule
             // Move examples from the right to the left child
             for it in 0..accum_left[pred_idx].len() {
@@ -93,25 +102,17 @@ pub fn find_tree_node<'a>(
                     bin_accum_vals[j][pred_idx][it].1;
             }
             let accum: Vec<f32> = accum_left[pred_idx].iter()
-                                                        .zip(accum_right[pred_idx].iter())
-                                                        .map(|(a, b)| *a + *b)
-                                                        .collect();
+                                                      .zip(accum_right[pred_idx].iter())
+                                                      .map(|(a, b)| *a + *b)
+                                                      .collect();
             {
                 let rule_idx = pred_idx;
                 let weak_rules_score =
                     &mut weak_rules_score[j][rule_idx];
                 let sum_c_squared    = &mut sum_c_squared[j][rule_idx];
-                let num_positive = &mut num_positive[j];
-                let num_negative = &mut num_negative[j];
-                let weight_positive = &mut weight_positive[j];
-                let weight_negative = &mut weight_negative[j];
-
                 *weak_rules_score   += accum[0];
                 *sum_c_squared      += accum[1];
-                *num_positive       += counts[0] as f32;
-                *num_negative       += counts[1] as f32;
-                *weight_positive    += weights[0];
-                *weight_negative    += weights[1];
+
                 // Check stopping rule
                 let sum_c = *weak_rules_score - 2.0 * rho_gamma * total_weight;
                 let sum_c_squared = *sum_c_squared +

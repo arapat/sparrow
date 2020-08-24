@@ -84,19 +84,19 @@ impl Boosting {
 
         let mut tree = Tree::new(self.num_splits);
         let mut is_booster_running = true;
-        let mut data_scanned = 0;
         self.verbose = false;
         while is_booster_running && !tree.is_full_tree() {
             let mut new_rule = None;
             while is_booster_running && new_rule.is_none() &&
-                (data_scanned < self.training_loader.size || !self.training_loader.is_ess_valid()) {
+                (self.learner.total_count < self.training_loader.size
+                    || !self.training_loader.is_ess_valid()) {
                 // Logging for the status check
                 if global_timer.get_duration() - last_logging_ts >= 10.0 {
-                    self.print_log(data_scanned);
+                    self.print_log(self.learner.total_count);
                     last_logging_ts = global_timer.get_duration();
                 }
 
-                let (rule, batch_size, _switched) = {
+                let (rule, batch_size, switched) = {
                     let (data, switched) =
                         self.training_loader.get_next_batch_and_update(true, &self.curr_model);
 
@@ -107,8 +107,12 @@ impl Boosting {
 
                     (new_rule, data.len(), switched)
                 };
+                if switched {
+                    // Learner needs to be reset because the current stats might be collected
+                    // on a invalid sample (low ess), thus can lead to overfit
+                    self.learner.reset();
+                }
                 new_rule = rule;
-                data_scanned += batch_size;
                 global_timer.update(batch_size);
 
                 global_timer.write_log("boosting-overall");
@@ -128,7 +132,7 @@ impl Boosting {
                 rule.predict.1,
             );
             info!("scanner, added new rule, {}, {}, {}, {}, {}", self.curr_model.size(),
-                rule.num_scanned, data_scanned, left_index, right_index);
+                rule.num_scanned, self.learner.total_count, left_index, right_index);
         }
         self.curr_model.append(tree);
         write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
