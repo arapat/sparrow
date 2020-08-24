@@ -130,7 +130,7 @@ impl BufferLoader {
         }
         self.curr_example += self.batch_size;
         if self.curr_example >= self.size {
-            self.update_ess();
+            switched = self.update_ess();
             self.curr_example = 0;
         }
 
@@ -174,11 +174,11 @@ impl BufferLoader {
     }
 
     // Check ess, if it is too small, block the thread until a new sample is received
-    fn check_ess_blocking(&mut self) {
+    fn check_ess_blocking(&mut self) -> bool {
         let mut timer = PerformanceMonitor::new();
         let mut last_report_time = 0.0;
         if self.ess.is_none() || self.ess.as_ref().unwrap() >= &self.min_ess {
-            return;
+            return false;
         }
         timer.start();
         while !self.try_switch() {
@@ -190,10 +190,11 @@ impl BufferLoader {
             }
             sleep(Duration::from_secs(2));
         }
+        true
     }
 
     /// Get the estimate of the effective sample size of the current sample set.
-    fn update_ess(&mut self) {
+    fn update_ess(&mut self) -> bool {
         let (sum_weights, sum_weight_squared): (f64, f64) =
             self.examples.iter()
                          .map(|(_, (w, _, _, _))| { (*w as f64, (*w as f64) * (*w as f64)) })
@@ -201,7 +202,7 @@ impl BufferLoader {
         let ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f64);
         self.ess = Some(ess as f32);
         debug!("loader-reset, {}", ess);
-        self.check_ess_blocking();
+        self.check_ess_blocking()
     }
 
     pub fn reset_scores(&mut self) {
