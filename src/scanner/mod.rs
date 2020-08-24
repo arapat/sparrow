@@ -54,7 +54,7 @@ pub fn start_scanner(
     let booster_state = Arc::new(RwLock::new(BoosterState::IDLE));
     let sampler_signal_sender = Mutex::new(sampler_signal_sender);
     let buffer_loader = Arc::new(Mutex::new(Some(buffer_loader)));
-    let mut curr_packet: Option<TaskPacket> = None;
+    let mut curr_packet: TaskPacket = TaskPacket::new();
 
     let network = Network::new(config.port, &vec![],
         Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
@@ -64,13 +64,19 @@ pub fn start_scanner(
                 debug!("Packet is a new sample signal");
                 let sampler_signal_sender = sampler_signal_sender.lock().unwrap();
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
-                sampler_signal_sender.send(new_version).unwrap();
+                sampler_signal_sender.send(new_version.clone()).unwrap();
                 drop(sampler_signal_sender);
-            } else if curr_packet.is_none() && packet.expand_node.is_some() ||
-                      !curr_packet.as_ref().unwrap().equals(&packet) {
-                curr_packet = Some(packet.clone_with_expand(&curr_packet));
+                curr_packet.new_sample_version = Some(new_version);
                 let (packet, booster_state, buffer_loader, new_updates_sender, bins, config) =
-                    (curr_packet.as_ref().unwrap().clone(), booster_state.clone(),
+                    (curr_packet.clone(), booster_state.clone(),
+                     buffer_loader.clone(), new_updates_sender.clone(), bins.clone(),
+                     config.clone());
+                spawn(move || start_booster(
+                    packet, booster_state, buffer_loader, new_updates_sender, bins, config));
+            } else if !curr_packet.equals(&packet) {
+                curr_packet = packet.clone_with_expand(&curr_packet);
+                let (packet, booster_state, buffer_loader, new_updates_sender, bins, config) =
+                    (curr_packet.clone(), booster_state.clone(),
                      buffer_loader.clone(), new_updates_sender.clone(), bins.clone(),
                      config.clone());
                 spawn(move || start_booster(
@@ -93,6 +99,12 @@ fn start_booster(
     bins: Vec<Bins>,
     config: Config,
 ) {
+    if packet.new_sample_version.is_none() {
+        debug!("booster, sample version is none, booster is not starting");
+        return;
+    }
+    let sample_version = packet.new_sample_version.clone().unwrap();
+
     debug!("Stopping existing booster");
     let mut is_booster_stopped = false;
     while !is_booster_stopped {
@@ -107,8 +119,13 @@ fn start_booster(
 
     debug!("Starting the booster.");
     let mut read_loader = buffer_loader.lock().unwrap();
-    let training_loader = read_loader.take().unwrap();
+    let mut training_loader = read_loader.take().unwrap();
     drop(read_loader);
+    if training_loader.current_version < sample_version {
+        debug!("start booster, sample version low, {}, {}",
+            training_loader.current_version, sample_version);
+        training_loader.switch_blocking();
+    }
     let mut w_booster_state = booster_state.write().unwrap();
     *w_booster_state = BoosterState::RUNNING;
     drop(w_booster_state);

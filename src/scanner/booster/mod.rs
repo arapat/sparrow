@@ -110,7 +110,7 @@ impl Boosting {
                 if switched {
                     // Learner needs to be reset because the current stats might be collected
                     // on a invalid sample (low ess), thus can lead to overfit
-                    self.learner.reset();
+                    // self.learner.reset();
                 }
                 new_rule = rule;
                 global_timer.update(batch_size);

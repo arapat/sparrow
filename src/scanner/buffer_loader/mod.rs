@@ -168,6 +168,21 @@ impl BufferLoader {
         true
     }
 
+    pub fn switch_blocking(&mut self) {
+        let mut timer = PerformanceMonitor::new();
+        let mut last_report_time = 0.0;
+        timer.start();
+        while !self.try_switch() {
+            if timer.get_duration() - last_report_time > 10.0 {
+                last_report_time = timer.get_duration();
+                debug!("loader, blocking switch, {}, {}, {}, {}",
+                        last_report_time, self.ess.as_ref().unwrap_or(&-1.0), self.min_ess,
+                        self.current_version);
+            }
+            sleep(Duration::from_secs(2));
+        }
+    }
+
     // ESS and others
     pub fn is_ess_valid(&self) -> bool {
         self.ess.is_some() && self.ess.as_ref().unwrap() >= &self.min_ess
@@ -175,21 +190,10 @@ impl BufferLoader {
 
     // Check ess, if it is too small, block the thread until a new sample is received
     fn check_ess_blocking(&mut self) -> bool {
-        let mut timer = PerformanceMonitor::new();
-        let mut last_report_time = 0.0;
         if self.ess.is_none() || self.ess.as_ref().unwrap() >= &self.min_ess {
             return false;
         }
-        timer.start();
-        while !self.try_switch() {
-            if timer.get_duration() - last_report_time > 10.0 {
-                last_report_time = timer.get_duration();
-                debug!("loader, blocking, {}, {}, {}, {}",
-                        last_report_time, self.ess.as_ref().unwrap_or(&-1.0), self.min_ess,
-                        self.current_version);
-            }
-            sleep(Duration::from_secs(2));
-        }
+        self.switch_blocking();
         true
     }
 

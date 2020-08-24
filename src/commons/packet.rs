@@ -65,10 +65,10 @@ impl TaskPacket {
         )
     }
 
-    pub fn clone_with_expand(&self, other: &Option<TaskPacket>) -> TaskPacket {
+    pub fn clone_with_expand(&self, other: &TaskPacket) -> TaskPacket {
         let mut ret = self.clone();
-        if ret.expand_node.is_none() && other.is_some() {
-            ret.expand_node = other.as_ref().unwrap().expand_node.clone();
+        if ret.expand_node.is_none() {
+            ret.expand_node = other.expand_node.clone();
         }
         ret
     }
