@@ -10,6 +10,7 @@ use commons::packet::BoosterState;
 use commons::packet::TaskPacket;
 use commons::packet::UpdatePacket;
 use commons::model::Model;
+use commons::tree::Tree;
 use config::Config;
 use config::SampleMode;
 
@@ -66,6 +67,11 @@ pub fn start_scanner(
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
                 sampler_signal_sender.send(new_version).unwrap();
                 drop(sampler_signal_sender);
+            } else if packet.model.is_none() {
+                debug!("Packet is asking scanner to quit.");
+                let new_updates_sender = new_updates_sender.lock().unwrap();
+                new_updates_sender.send(UpdatePacket::new(Tree::new(1), packet, 0, 0.0)).unwrap();
+                drop(new_updates_sender);
             } else if curr_packet.is_none() && packet.expand_node.is_some() ||
                       !curr_packet.as_ref().unwrap().equals(&packet) {
                 curr_packet = Some(packet.clone_with_expand(&curr_packet));
@@ -144,6 +150,9 @@ fn start_booster(
 pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver<UpdatePacket>) {
     network.set_health_parameter(10);
     for (packet_id, mut new_updates) in new_updates_receiver.iter().enumerate() {
+        if new_updates.task.new_sample_version.is_none() && new_updates.task.model.is_none() {
+            break;
+        }
         new_updates.set_packet_id(packet_id);
         let updates_json = serde_json::to_string(&new_updates).unwrap();
         info!("scanner packet, {}", updates_json);
