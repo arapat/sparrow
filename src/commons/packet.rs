@@ -70,6 +70,9 @@ impl TaskPacket {
         if ret.expand_node.is_none() {
             ret.expand_node = other.expand_node.clone();
         }
+        if ret.new_sample_version.is_none() {
+            ret.new_sample_version = other.new_sample_version.clone();
+        }
         ret
     }
 }

@@ -118,9 +118,8 @@ fn start_booster(
     }
 
     debug!("Starting the booster.");
-    let mut read_loader = buffer_loader.lock().unwrap();
-    let mut training_loader = read_loader.take().unwrap();
-    drop(read_loader);
+    let mut buffer_loader = buffer_loader.lock().unwrap();
+    let mut training_loader = buffer_loader.take().unwrap();
     if training_loader.current_version < sample_version {
         debug!("start booster, sample version low, {}, {}",
             training_loader.current_version, sample_version);
@@ -148,9 +147,8 @@ fn start_booster(
     drop(new_updates_sender);
     // reset buffer scores
     loader.reset_scores();
-    let mut write_loader = buffer_loader.lock().unwrap();
-    *write_loader = Some(loader);
-    drop(write_loader);
+    *buffer_loader = Some(loader);
+    drop(buffer_loader);
     // mark booster as idle
     let mut booster_state = booster_state.write().unwrap();
     *booster_state = BoosterState::IDLE;
