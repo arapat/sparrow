@@ -92,7 +92,7 @@ impl Boosting {
                     || !self.training_loader.is_ess_valid()) {
                 // Logging for the status check
                 if global_timer.get_duration() - last_logging_ts >= 10.0 {
-                    self.print_log(self.learner.total_count);
+                    self.print_log();
                     last_logging_ts = global_timer.get_duration();
                 }
 
@@ -139,11 +139,11 @@ impl Boosting {
         info!("Training is finished. Model length: {}.", self.curr_model.size());
     }
 
-    fn print_log(&self, data_scanned: usize) {
+    fn print_log(&self) {
         debug!("booster, status, {}",
                 vec![
                     self.curr_model.size().to_string(),
-                    data_scanned.to_string(),
+                    self.learner.total_count.to_string(),
                     self.learner.rho_gamma.to_string(),
                 ].join(", ")
         );

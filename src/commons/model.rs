@@ -37,4 +37,8 @@ impl Model {
     pub fn get_last_tree(&self) -> Tree {
         self.models.last().unwrap().clone()
     }
+
+    pub fn set_base_size(&mut self) {
+        self.base_size = self.size();
+    }
 }

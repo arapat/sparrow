@@ -102,15 +102,20 @@ impl Scheduler {
         model: &mut ModelWithVersion,
         capacity: usize,
     ) -> (f32, Vec<(String, usize)>) {
-        let packet_type = packet.get_packet_type();
-        self.packet_stats.handle_new_packet(source_ip, &packet_type);
-        match packet_type {
+        self.packet_stats.handle_new_packet(source_ip, &packet.packet_type);
+        match packet.packet_type {
+            UpdatePacketType::BaseVersionMismatch => {
+                // TODO: do something about mismatch
+            },
             UpdatePacketType::Empty => {
                 self.handle_empty(packet);
             },
             UpdatePacketType::Accept => {
                 self.handle_accept(packet, model);
             },
+            UpdatePacketType::Unset => {
+                error!("scheduler, packet type unset");
+            }
         }
 
         // refresh kdtree when gamma is too small

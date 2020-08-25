@@ -33,7 +33,7 @@ pub fn get_mock_packet(
     let ess = 0.5;
     let mut update_tree = Tree::new(1);
     let task_packet = TaskPacket::new();
-    UpdatePacket::new(update_tree, task_packet, 0, ess)
+    UpdatePacket::new(update_tree, 0, task_packet, 0, ess)
 }
 
 

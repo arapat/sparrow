@@ -29,12 +29,27 @@ impl ModelManager {
     pub fn handle_packet(
         &mut self, source_ip: &String, packet: &mut UpdatePacket,
     ) -> ModelWithVersion {
-        if packet.get_packet_type() == UpdatePacketType::Accept {
-            self.model_ts = self._performance_mon.get_duration();
-            self.update_model(&source_ip, &packet);
-            self.print_log();
+        match packet.packet_type {
+            UpdatePacketType::Accept => {
+                self.model_ts = self._performance_mon.get_duration();
+                self.update_model(&source_ip, &packet);
+                self.print_log();
+            },
+            UpdatePacketType::BaseVersionMismatch => {
+                // TODO: handle base version mismatch
+            },
+            UpdatePacketType::Empty => {
+                // TODO: handle empty packets
+            },
+            UpdatePacketType::Unset => {
+                error!("model manager, packet type unset");
+            }
         }
         self.model.clone()
+    }
+
+    pub fn size(&self) -> usize {
+        self.model.size()
     }
 
     fn broadcast_model(&mut self, is_model_updated: bool) {

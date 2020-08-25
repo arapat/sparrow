@@ -10,10 +10,12 @@ pub enum BoosterState {
 }
 
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, PartialEq)]
 pub enum UpdatePacketType {
     Accept,
     Empty,
+    BaseVersionMismatch,
+    Unset,
 }
 
 
@@ -82,16 +84,20 @@ impl TaskPacket {
 pub struct UpdatePacket {
     pub packet_id: usize,
     pub update_tree: Tree,
+    pub base_size: usize,
 
     pub task: TaskPacket,
     pub sample_version: usize,
     pub ess: f32,
+
+    pub packet_type: UpdatePacketType,
 }
 
 
 impl UpdatePacket {
     pub fn new(
         update_tree: Tree,
+        base_size: usize,
         task: TaskPacket,
         sample_version: usize,
         ess: f32,
@@ -99,9 +105,11 @@ impl UpdatePacket {
         UpdatePacket {
             packet_id: 0,
             update_tree: update_tree,
+            base_size: base_size,
             task: task,
             sample_version: sample_version,
             ess: ess,
+            packet_type: UpdatePacketType::Unset,
         }
     }
 
@@ -109,14 +117,18 @@ impl UpdatePacket {
         self.packet_id = packet_id;
     }
 
-    pub fn get_packet_type(&self) -> UpdatePacketType {
-        if false { // TODO: define empty tree
-            // Empty packets
-            debug!("model_manager, packet, empty");
-            UpdatePacketType::Empty
-        } else {
-            debug!("model_manager, packet, accept");
-            UpdatePacketType::Accept
-        }
+    pub fn set_packet_type(&mut self, curr_model_size: usize) {
+        self.packet_type = {
+            if self.base_size != curr_model_size {
+                debug!("model_manager, packet, base version mismatch");
+                UpdatePacketType::BaseVersionMismatch
+            } else if false { // TODO: define empty tree
+                debug!("model_manager, packet, empty");
+                UpdatePacketType::Empty
+            } else {
+                debug!("model_manager, packet, accept");
+                UpdatePacketType::Accept
+            }
+        };
     }
 }

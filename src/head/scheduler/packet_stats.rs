@@ -76,6 +76,12 @@ impl PacketStats {
                 let num_empty_packs = self.num_empty_packs.entry(source_ip.clone()).or_insert(0);
                 *num_empty_packs   += 1;
             },
+            UpdatePacketType::BaseVersionMismatch => {
+                // TODO: Handle base version mismatch
+            }
+            UpdatePacketType::Unset => {
+                error!("packet stats, packet type unset");
+            }
         };
         self.update_condition();
     }

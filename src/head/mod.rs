@@ -67,6 +67,7 @@ pub fn start_head(
         Box::new(move |from_addr: String, _to_addr: String, update_packet: String| {
             let task_packet_sender = mutex_task_packet_sender.lock().unwrap();
             let mut packet: UpdatePacket = serde_json::from_str(&update_packet).unwrap();
+            packet.set_packet_type(model_sync.size());
             let mut model = model_sync.handle_packet(&from_addr, &mut packet);
             let (gamma, assigns) = scheduler.handle_packet(
                 &from_addr, &mut packet, &mut model, capacity);

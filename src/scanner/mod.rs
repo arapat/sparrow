@@ -174,7 +174,7 @@ fn get_packet(model: &Model, task: TaskPacket, buffer_loader: &BufferLoader) -> 
     } else {
         -1.0
     };
-    UpdatePacket::new(tree, task, buffer_loader.current_version, ess)
+    UpdatePacket::new(tree, model.base_size, task, buffer_loader.current_version, ess)
 }
 
 
