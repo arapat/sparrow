@@ -61,31 +61,37 @@ pub fn start_head(
     scheduler.set_assignments(&model, config.default_gamma, 1);
 
     let mutex_task_packet_sender = Mutex::new(task_packet_sender.clone());
+    let mutex_packet = Mutex::new(TaskPacket::new());
     // TODO: increase capacity
     let capacity = 1;
     let mut network = Network::new(config.port, &config.network,
         Box::new(move |from_addr: String, _to_addr: String, update_packet: String| {
-            let task_packet_sender = mutex_task_packet_sender.lock().unwrap();
             let mut packet: UpdatePacket = serde_json::from_str(&update_packet).unwrap();
             packet.set_packet_type(model_sync.size());
             let mut model = model_sync.handle_packet(&from_addr, &mut packet);
-            let (gamma, assigns) = scheduler.handle_packet(
+            let (gamma, _assigns) = scheduler.handle_packet(
                 &from_addr, &mut packet, &mut model, capacity);
 
             // update the sampler
             sampler_model_s.send(model.model.clone());
 
             // update the scanners
+            let task_packet_sender = mutex_task_packet_sender.lock().unwrap();
             let mut task_packet = TaskPacket::new();
             task_packet.set_model(model.model);
             task_packet.set_gamma(gamma);
-            assigns.into_iter().for_each(|(addr, task)| {
-                task_packet.set_expand_node(Some(task));
-                task_packet_sender.send((Some(addr), task_packet.clone())).unwrap();
-            });
+            // assigns.into_iter().for_each(|(addr, task)| {
+            //     task_packet.set_expand_node(Some(task));
+            //     task_packet_sender.send((Some(addr), task_packet.clone())).unwrap();
+            // });
             // other scanners also receive an update without updating their tasks
             task_packet.set_expand_node(None);
-            task_packet_sender.send((None, task_packet)).unwrap();
+            let mut curr_packet = mutex_packet.lock().unwrap();
+            if *curr_packet != task_packet {
+                task_packet_sender.send((None, task_packet.clone())).unwrap();
+                *curr_packet = task_packet;
+            }
+            drop(curr_packet);
             drop(task_packet_sender);
         }),
         false,

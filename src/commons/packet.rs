@@ -19,7 +19,7 @@ pub enum UpdatePacketType {
 }
 
 
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct TaskPacket {
     pub packet_id: usize,
     pub model: Option<Model>,
@@ -61,7 +61,6 @@ impl TaskPacket {
     }
 
     pub fn equals(&self, other: &TaskPacket) -> bool {
-        self.new_sample_version.is_some() && self.new_sample_version == other.new_sample_version ||
         self.model == other.model && self.gamma == other.gamma && (
             other.expand_node.is_none() || self.expand_node == other.expand_node
         )
