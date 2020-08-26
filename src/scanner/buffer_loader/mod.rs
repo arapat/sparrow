@@ -207,7 +207,7 @@ impl BufferLoader {
                          .fold((0.0, 0.0), |acc, x| (acc.0 + x.0, acc.1 + x.1));
         let ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f64);
         self.ess = Some(ess as f32);
-        debug!("loader-reset, {}", ess);
+        debug!("loader-reset, {}, {}", ess, sum_weights / (self.size as f64));
         // self.check_ess_blocking()
         false
     }
@@ -222,11 +222,7 @@ impl BufferLoader {
 /// Update the scores of the examples using `model`
 fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
     data.par_iter_mut().for_each(|example| {
-        let (_curr_weight, curr_score, mut curr_size, mut base_size) = example.1;
-        if base_size != model.base_size {
-            curr_size = base_size;  // reset score
-            base_size = model.base_size;
-        }
+        let (_curr_weight, curr_score, curr_size, base_size) = example.1;
         let (new_score, (new_version, _)) = model.get_prediction(&example.0, curr_size);
         let updated_score = new_score + curr_score;
         (*example).1 = (
