@@ -40,4 +40,8 @@ impl ModelWithVersion {
     pub fn size(&self) -> usize {
         self.model.size()
     }
+
+    pub fn set_base_size(&mut self) {
+        self.model.set_base_size();
+    }
 }

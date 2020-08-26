@@ -137,14 +137,18 @@ fn start_booster(
         config,
     );
     debug!("Booster ready to train");
-    booster.training();
+    let is_booster_ok = booster.training();
 
     let (prev_packet, model, mut loader) = booster.destroy();
-    // send out updates
-    let updates_packet = get_packet(&model, prev_packet, &loader);
-    let new_updates_sender = new_updates_sender.lock().unwrap();
-    new_updates_sender.send(updates_packet).unwrap();
-    drop(new_updates_sender);
+    if is_booster_ok {
+        // send out updates
+        let updates_packet = get_packet(&model, prev_packet, &loader);
+        let new_updates_sender = new_updates_sender.lock().unwrap();
+        new_updates_sender.send(updates_packet).unwrap();
+        drop(new_updates_sender);
+    } else {
+        info!("Booster failed.")
+    }
     // reset buffer scores
     loader.reset_scores();
     *buffer_loader = Some(loader);

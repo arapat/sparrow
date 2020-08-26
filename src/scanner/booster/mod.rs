@@ -76,7 +76,7 @@ impl Boosting {
     }
 
     /// Start training the boosting algorithm.
-    pub fn training(&mut self) {
+    pub fn training(&mut self) -> bool {
         debug!("Start training.");
 
         let mut global_timer = PerformanceMonitor::new();
@@ -89,9 +89,7 @@ impl Boosting {
         self.verbose = false;
         while is_booster_running && !tree.is_full_tree() {
             let mut new_rule = None;
-            while is_booster_running && new_rule.is_none() &&
-                (self.learner.total_count < self.training_loader.size
-                    || !self.training_loader.is_ess_valid()) {
+            while is_booster_running && new_rule.is_none() && self.training_loader.is_ess_valid() {
                 // Logging for the status check
                 if global_timer.get_duration() - last_logging_ts >= 10.0 {
                     self.print_log();
@@ -123,6 +121,16 @@ impl Boosting {
                 let booster_state = self.booster_state.read().unwrap();
                 is_booster_running = (*booster_state) == BoosterState::RUNNING;
                 drop(booster_state);
+
+                if self.learner.total_count >= self.training_loader.size &&
+                    self.training_loader.is_ess_large() {
+                        break;
+                }
+            }
+            if !self.training_loader.is_ess_valid() {
+                info!("Training is stopped because ess is too small, {:?}",
+                    self.training_loader.ess);
+                return false;
             }
             let rule = new_rule.unwrap_or(self.learner.get_max_empirical_ratio_tree_node());
             rule.write_log();
@@ -139,6 +147,7 @@ impl Boosting {
         self.curr_model.append(tree);
         write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
         info!("Training is finished. Model length: {}.", self.curr_model.size());
+        true
     }
 
     fn print_log(&self) {

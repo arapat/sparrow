@@ -65,6 +65,7 @@ impl ModelManager {
 
     fn update_model(&mut self, last_update_from: &String, packet: &UpdatePacket) {
         self.model.update(packet.update_tree.clone(), last_update_from);
+        self.model.set_base_size();
         self.broadcast_model(true);
         debug!("model_manager, new updates, {}", self.model.size());
     }

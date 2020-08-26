@@ -34,7 +34,6 @@ pub struct BufferLoader {
     num_batch: usize,
 
     examples: Vec<ExampleInSampleSet>,
-    pub base_model: Model,
     pub current_version: usize,
     pub new_buffer: LockedBuffer,
     loader: Loader,
@@ -76,7 +75,6 @@ impl BufferLoader {
             num_batch: num_batch,
 
             examples: vec![],
-            base_model: Model::new(),
             current_version: 0,
             new_buffer: new_buffer,
             loader: loader,
@@ -152,13 +150,12 @@ impl BufferLoader {
             return false;
         }
 
-        let (new_version, new_examples, new_model): VersionedSampleModel =
+        let (new_version, new_examples, _new_model): VersionedSampleModel =
             new_buffer.take().unwrap();
         drop(new_buffer);
         let old_version = self.current_version;
         self.current_version = new_version;
         self.examples = set_init_weight(new_examples);
-        self.base_model = new_model;
         self.curr_example = 0;
 
         self.sampling_pm.pause();
@@ -185,10 +182,15 @@ impl BufferLoader {
 
     // ESS and others
     pub fn is_ess_valid(&self) -> bool {
+        self.ess.is_none() || self.ess.as_ref().unwrap() >= &self.min_ess
+    }
+
+    pub fn is_ess_large(&self) -> bool {
         self.ess.is_some() && self.ess.as_ref().unwrap() >= &self.min_ess
     }
 
     // Check ess, if it is too small, block the thread until a new sample is received
+    #[allow(dead_code)]
     fn check_ess_blocking(&mut self) -> bool {
         if self.ess.is_none() || self.ess.as_ref().unwrap() >= &self.min_ess {
             return false;
@@ -206,12 +208,13 @@ impl BufferLoader {
         let ess = sum_weights.powi(2) / sum_weight_squared / (self.size as f64);
         self.ess = Some(ess as f32);
         debug!("loader-reset, {}", ess);
-        self.check_ess_blocking()
+        // self.check_ess_blocking()
+        false
     }
 
     pub fn reset_scores(&mut self) {
         debug!("buffer-loader, reset all examples");
-        reset_scores(&mut self.examples, &self.base_model);
+        reset_scores(&mut self.examples);
     }
 }
 
@@ -233,10 +236,11 @@ fn update_scores(data: &mut [ExampleInSampleSet], model: &Model) {
 
 
 /// Reset scores to the base model
-fn reset_scores(data: &mut [ExampleInSampleSet], base_model: &Model) {
-    let base_size = base_model.base_size;
+fn reset_scores(data: &mut [ExampleInSampleSet]) {
     data.par_iter_mut().for_each(|example| {
-        (*example).1 = (get_weight(&example.0, 0.0), 0.0, base_size, base_size);
+        let val = &example.0;
+        let base_size = (example.1).3;
+        (*example).1 = (get_weight(val, 0.0), 0.0, base_size, base_size);
     });
 }
 

@@ -104,7 +104,7 @@ pub fn training(config_filepath: &String) {
                 // Resuming from an earlier training
                 debug!("resume_training is enabled");
                 let (_, _, mut model) = read_model();
-                model.base_size = 0;
+                model.set_base_size();
                 debug!("Loaded an existing model");
                 model
             } else {
