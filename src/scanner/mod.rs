@@ -10,6 +10,7 @@ use commons::packet::BoosterState;
 use commons::packet::TaskPacket;
 use commons::packet::UpdatePacket;
 use commons::model::Model;
+use commons::tree::Tree;
 use config::Config;
 use config::SampleMode;
 
@@ -73,6 +74,13 @@ pub fn start_scanner(
                      config.clone());
                 spawn(move || start_booster(
                     packet, booster_state, buffer_loader, new_updates_sender, bins, config));
+            } else if packet.model.is_none() {
+                debug!("Packet is asking scanner to quit.");
+                let new_updates_sender = new_updates_sender.lock().unwrap();
+                // the empty packet will stop the for loop in `handle_network_send`
+                new_updates_sender.send(
+                    UpdatePacket::new(Tree::new(1), 0, packet, 0, 0.0)).unwrap();
+                drop(new_updates_sender);
             } else if !curr_packet.equals(&packet) {
                 curr_packet = packet.clone_with_expand(&curr_packet);
                 let (packet, booster_state, buffer_loader, new_updates_sender, bins, config) =
@@ -163,6 +171,9 @@ fn start_booster(
 pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver<UpdatePacket>) {
     network.set_health_parameter(10);
     for (packet_id, mut new_updates) in new_updates_receiver.iter().enumerate() {
+        if new_updates.task.new_sample_version.is_none() && new_updates.task.model.is_none() {
+            break;
+        }
         new_updates.set_packet_id(packet_id);
         let updates_json = serde_json::to_string(&new_updates).unwrap();
         info!("scanner packet, {}", updates_json);

@@ -110,6 +110,11 @@ pub fn start_head(
     let mut _current_sample_version = 0;
     network.set_health_parameter(10);
     for (packet_id, (dest, mut task)) in task_packet_receiver.iter().enumerate() {
+        if task.model.is_some() && task.model.as_ref().unwrap().size() >= config.num_trees {
+            task.new_sample_version = None;
+            task.model = None;
+        }
+
         task.set_packet_id(packet_id);
         if task.new_sample_version.is_some() {
             _current_sample_version = task.new_sample_version.as_ref().unwrap().clone();
@@ -118,6 +123,9 @@ pub fn start_head(
         let task_json = serde_json::to_string(&task).unwrap();
         info!("head packet, {:?}, {}", dest, task_json);
         network.send(dest, task_json).unwrap();
+        if task.new_sample_version.is_none() && task.model.is_none() {
+            break;
+        }
     }
 
     // TODO: when to stop?
