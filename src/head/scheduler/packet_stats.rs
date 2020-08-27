@@ -77,13 +77,14 @@ impl PacketStats {
                 *num_empty_packs   += 1;
             },
             UpdatePacketType::BaseVersionMismatch => {
-                // TODO: Handle base version mismatch
             }
             UpdatePacketType::Unset => {
                 error!("packet stats, packet type unset");
             }
         };
-        self.update_condition();
+        if self.empty_packets * 2 >= self.num_machines || self.total_packets >= 10 {
+            self.update_condition();
+        }
     }
 
     fn update_condition(&mut self) {

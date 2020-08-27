@@ -82,7 +82,7 @@ impl TaskPacket {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct UpdatePacket {
     pub packet_id: usize,
-    pub update_tree: Tree,
+    pub update_tree: Option<Tree>,
     pub base_size: usize,
 
     pub task: TaskPacket,
@@ -95,7 +95,7 @@ pub struct UpdatePacket {
 
 impl UpdatePacket {
     pub fn new(
-        update_tree: Tree,
+        update_tree: Option<Tree>,
         base_size: usize,
         task: TaskPacket,
         sample_version: usize,
@@ -121,7 +121,7 @@ impl UpdatePacket {
             if self.base_size != curr_model_size {
                 debug!("model_manager, packet, base version mismatch");
                 UpdatePacketType::BaseVersionMismatch
-            } else if false { // TODO: define empty tree
+            } else if self.update_tree.is_none() {
                 debug!("model_manager, packet, empty");
                 UpdatePacketType::Empty
             } else {

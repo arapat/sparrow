@@ -18,6 +18,12 @@ use self::learner::Learner;
 use super::BoosterState;
 
 
+pub enum BoostingResult {
+    Succeed,
+    FailedToTrigger,
+    LowESS,
+}
+
 
 /// The boosting algorithm. It contains two functions, one for starting
 /// the network communication, the other for starting the training procedure.
@@ -76,7 +82,7 @@ impl Boosting {
     }
 
     /// Start training the boosting algorithm.
-    pub fn training(&mut self) -> bool {
+    pub fn training(&mut self) -> BoostingResult {
         debug!("Start training.");
 
         let mut global_timer = PerformanceMonitor::new();
@@ -130,7 +136,11 @@ impl Boosting {
             if !self.training_loader.is_ess_valid() {
                 info!("Training is stopped because ess is too small, {:?}",
                     self.training_loader.ess);
-                return false;
+                return BoostingResult::LowESS;
+            }
+            if new_rule.is_none() {
+                info!("Training is stopped because stopping rule is failed to trigger.");
+                return BoostingResult::FailedToTrigger;
             }
             let rule = new_rule.unwrap_or(self.learner.get_max_empirical_ratio_tree_node());
             rule.write_log();
@@ -147,7 +157,7 @@ impl Boosting {
         self.curr_model.append(tree);
         write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
         info!("Training is finished. Model length: {}.", self.curr_model.size());
-        true
+        BoostingResult::Succeed
     }
 
     fn print_log(&self) {

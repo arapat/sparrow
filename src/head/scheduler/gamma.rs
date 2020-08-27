@@ -42,7 +42,7 @@ impl Gamma {
         if packet_stats.curr_condition != UpdateSpeed::Okay {
             // gamma is changed
             self.gamma_version += 1;
-            debug!("model_mamanger, gamma update, non-root, {}, {}, {}, {}, {}, {}",
+            debug!("model_mamanger, gamma update, {}, {}, {}, {}, {}, {}",
                     self.gamma_version, self.gamma, self.shrink_factor, model_size,
                     packet_stats.avg_accept_rate, packet_stats.last_accept_rate);
             true

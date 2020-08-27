@@ -10,7 +10,7 @@ pub struct ModelManager {
     model: ModelWithVersion,
     model_ts: f32,
 
-    _performance_mon: PerformanceMonitor,
+    perf_mon: PerformanceMonitor,
     _last_logging_ts: f32,
 }
 
@@ -21,7 +21,7 @@ impl ModelManager {
             model: init_tree.clone(),
             model_ts: 0.0,
 
-            _performance_mon: PerformanceMonitor::new(),
+            perf_mon: PerformanceMonitor::new(),
             _last_logging_ts: 0.0,
         }
     }
@@ -31,15 +31,13 @@ impl ModelManager {
     ) -> ModelWithVersion {
         match packet.packet_type {
             UpdatePacketType::Accept => {
-                self.model_ts = self._performance_mon.get_duration();
+                self.model_ts = self.perf_mon.get_duration();
                 self.update_model(&source_ip, &packet);
                 self.print_log();
             },
             UpdatePacketType::BaseVersionMismatch => {
-                // TODO: handle base version mismatch
             },
             UpdatePacketType::Empty => {
-                // TODO: handle empty packets
             },
             UpdatePacketType::Unset => {
                 error!("model manager, packet type unset");
@@ -64,16 +62,16 @@ impl ModelManager {
     }
 
     fn update_model(&mut self, last_update_from: &String, packet: &UpdatePacket) {
-        self.model.update(packet.update_tree.clone(), last_update_from);
+        self.model.update(packet.update_tree.as_ref().unwrap().clone(), last_update_from);
         self.model.set_base_size();
         self.broadcast_model(true);
         debug!("model_manager, new updates, {}", self.model.size());
     }
 
     fn print_log(&mut self) {
-        if self._performance_mon.get_duration() - self._last_logging_ts >= 10.0 {
+        if self.perf_mon.get_duration() - self._last_logging_ts >= 10.0 {
             self.model.print_log();
-            self._last_logging_ts = self._performance_mon.get_duration();
+            self._last_logging_ts = self.perf_mon.get_duration();
         }
     }
 }

@@ -34,8 +34,12 @@ impl Model {
         self.models.push(update_tree);
     }
 
-    pub fn get_last_tree(&self) -> Tree {
-        self.models.last().unwrap().clone()
+    pub fn get_last_new_tree(&self) -> Option<Tree> {
+        if self.size() <= self.base_size {
+            None
+        } else {
+            Some(self.models.last().unwrap().clone())
+        }
     }
 
     pub fn set_base_size(&mut self) {

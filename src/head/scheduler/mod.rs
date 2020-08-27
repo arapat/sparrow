@@ -105,13 +105,13 @@ impl Scheduler {
         self.packet_stats.handle_new_packet(source_ip, &packet.packet_type);
         match packet.packet_type {
             UpdatePacketType::BaseVersionMismatch => {
-                // TODO: do something about mismatch
+                debug!("head, scheduler, base version mismatch, {}", packet.packet_id);
             },
             UpdatePacketType::Empty => {
-                self.handle_empty(packet);
+                debug!("head, scheduler, empty, {}", packet.packet_id);
             },
             UpdatePacketType::Accept => {
-                self.handle_accept(packet, model);
+                debug!("head, scheduler, accept, {}", packet.packet_id);
             },
             UpdatePacketType::Unset => {
                 error!("scheduler, packet type unset");
@@ -128,31 +128,11 @@ impl Scheduler {
         (self.gamma.gamma, assigns)
     }
 
-    fn handle_accept(&mut self, packet: &UpdatePacket, _model: &mut ModelWithVersion) -> bool {
-        // self.get_grid_node_ids(packet).is_some()
-        debug!("head, scheduler, empty, {}", packet.packet_id);
-        true
-    }
-
-    fn handle_empty(&mut self, packet: &UpdatePacket) -> bool {
-        // let grid_node_ids = self.get_grid_node_ids(packet);
-        // if grid_node_ids.is_none() {
-        //     return false;
-        // }
-        // let (grid_index, node_id) = grid_node_ids.unwrap();
-        debug!("head, scheduler, empty, {}", packet.packet_id);
-        // self.release_grid(grid_index);
-        // callback TODO:
-        // self.last_gamma[grid_index] = packet.gamma;
-        true
-    }
-
     fn adjust_gamma(&mut self, model: &mut ModelWithVersion) {
         if self.packet_stats.got_sufficient_packages() {
+            self.packet_stats.print_log();
             if self.gamma.adjust(&self.packet_stats, model.model.size()) {
                 model.update_gamma(self.gamma.gamma_version);
-                // TODO: broadcast model
-                // self.broadcast_model(false);
             }
             self.packet_stats.reset();
         }

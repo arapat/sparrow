@@ -10,11 +10,11 @@ use commons::packet::BoosterState;
 use commons::packet::TaskPacket;
 use commons::packet::UpdatePacket;
 use commons::model::Model;
-use commons::tree::Tree;
 use config::Config;
 use config::SampleMode;
 
 use self::booster::Boosting;
+use self::booster::BoostingResult;
 use self::buffer_loader::BufferLoader;
 
 use std::sync::mpsc;
@@ -79,7 +79,7 @@ pub fn start_scanner(
                 let new_updates_sender = new_updates_sender.lock().unwrap();
                 // the empty packet will stop the for loop in `handle_network_send`
                 new_updates_sender.send(
-                    UpdatePacket::new(Tree::new(1), 0, packet, 0, 0.0)).unwrap();
+                    UpdatePacket::new(None, 0, packet, 0, 0.0)).unwrap();
                 drop(new_updates_sender);
             } else if !curr_packet.equals(&packet) {
                 curr_packet = packet.clone_with_expand(&curr_packet);
@@ -145,17 +145,27 @@ fn start_booster(
         config,
     );
     debug!("Booster ready to train");
-    let is_booster_ok = booster.training();
+    let booster_result = booster.training();
 
     let (prev_packet, model, mut loader) = booster.destroy();
-    if is_booster_ok {
-        // send out updates
-        let updates_packet = get_packet(&model, prev_packet, &loader);
-        let new_updates_sender = new_updates_sender.lock().unwrap();
-        new_updates_sender.send(updates_packet).unwrap();
-        drop(new_updates_sender);
-    } else {
-        info!("Booster failed.")
+    match booster_result {
+        BoostingResult::Succeed => {
+            // send out updates
+            let updates_packet = get_packet(&model, prev_packet, &loader);
+            let new_updates_sender = new_updates_sender.lock().unwrap();
+            new_updates_sender.send(updates_packet).unwrap();
+            drop(new_updates_sender);
+        },
+        BoostingResult::LowESS => {
+            info!("Booster failed, the effective sample size is too low");
+        },
+        BoostingResult::FailedToTrigger => {
+            info!("Booster failed, the stopping rule failed to trigger");
+            let updates_packet = get_packet(&model, prev_packet, &loader);
+            let new_updates_sender = new_updates_sender.lock().unwrap();
+            new_updates_sender.send(updates_packet).unwrap();
+            drop(new_updates_sender);
+        },
     }
     // reset buffer scores
     loader.reset_scores();
@@ -183,7 +193,7 @@ pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver
 
 
 fn get_packet(model: &Model, task: TaskPacket, buffer_loader: &BufferLoader) -> UpdatePacket {
-    let tree = model.get_last_tree();
+    let tree = model.get_last_new_tree();
     let ess = if buffer_loader.ess.is_some() {
         buffer_loader.ess.as_ref().unwrap().clone()
     } else {
