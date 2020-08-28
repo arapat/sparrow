@@ -4,6 +4,7 @@ pub mod packet_stats;
 
 use commons::packet::UpdatePacket;
 use commons::packet::UpdatePacketType;
+use commons::performance_monitor::PerformanceMonitor;
 use config::Config;
 use head::model_with_version::ModelWithVersion;
 use self::gamma::Gamma;
@@ -19,11 +20,12 @@ pub struct Scheduler {
 
     scanner_addr: Vec<String>,
     scanner_task: Vec<Option<usize>>,  // None for idle, otherwise Some(node_id)
-    _last_gamma: Vec<f32>,
 
     gamma: Gamma,
     packet_stats: PacketStats,
 
+    last_gamma_update_time: f32,
+    perf_mon: PerformanceMonitor,
     // pub grids_version: usize,
     // curr_grids: Grids,
     // next_grids: Option<Grids>,
@@ -33,16 +35,21 @@ pub struct Scheduler {
 impl Scheduler {
     pub fn new(num_machines: usize, min_grid_size: usize, config: &Config) -> Scheduler {
         let gamma = Gamma::new(config.default_gamma, config.min_gamma);
+        let mut perf_mon = PerformanceMonitor::new();
+        perf_mon.start();
         Scheduler {
             _num_machines: num_machines.clone(),
             _min_grid_size: min_grid_size,
 
             scanner_addr: vec![],
             scanner_task: vec![],
-            _last_gamma: vec![1.0],     // ditto
 
             gamma: gamma,
-            packet_stats: PacketStats::new(num_machines),
+            // TODO: make the history length of the pakcetstats a parameter
+            packet_stats: PacketStats::new(num_machines, 20),
+
+            last_gamma_update_time: perf_mon.get_duration(),
+            perf_mon: perf_mon,
         }
     }
 
@@ -129,12 +136,13 @@ impl Scheduler {
     }
 
     fn adjust_gamma(&mut self, model: &mut ModelWithVersion) {
-        if self.packet_stats.got_sufficient_packages() {
+        // TODO: set gamma update time a parameter
+        if self.perf_mon.get_duration() - self.last_gamma_update_time >= 10.0 {
+            self.last_gamma_update_time = self.perf_mon.get_duration();
+            self.packet_stats.update_condition();
             self.packet_stats.print_log();
-            if self.gamma.adjust(&self.packet_stats, model.model.size()) {
-                model.update_gamma(self.gamma.gamma_version);
-            }
-            self.packet_stats.reset();
+            self.gamma.adjust(&self.packet_stats, model.model.size());
+            model.update_gamma(self.gamma.gamma_version);
         }
     }
     

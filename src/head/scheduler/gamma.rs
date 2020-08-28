@@ -35,27 +35,18 @@ impl Gamma {
             self.shrink_factor = (1.0 + self.shrink_factor) / 2.0;
         }
         self.gamma = match packet_stats.curr_condition {
-            UpdateSpeed::TooFast => self.gamma / self.shrink_factor,  // increase gamma
-            UpdateSpeed::TooSlow => self.gamma * self.shrink_factor,  // decrease gamma
+            UpdateSpeed::TooFast => self.gamma / 0.9,  // self.shrink_factor,  // increase gamma
+            UpdateSpeed::TooSlow => self.gamma * 0.5,  // self.shrink_factor,  // decrease gamma
             UpdateSpeed::Okay    => self.gamma,
         };
         if packet_stats.curr_condition != UpdateSpeed::Okay {
             // gamma is changed
             self.gamma_version += 1;
-            debug!("model_mamanger, gamma update, {}, {}, {}, {}, {}, {}",
-                    self.gamma_version, self.gamma, self.shrink_factor, model_size,
-                    packet_stats.avg_accept_rate, packet_stats.last_accept_rate);
+            debug!("model_mamanger, gamma update, {}, {}, {}, {}",
+                    self.gamma_version, self.gamma, self.shrink_factor, model_size);
             true
         } else {
             false
         }
-    }
-
-    #[allow(dead_code)]
-    fn decrease_gamma(&mut self, model_size: usize) {
-        self.gamma *= self.shrink_factor;
-        self.gamma_version += 1;
-        debug!("model_manager, gamma update, forced non-root, {}, {}, {}, {}",
-                self.gamma_version, self.gamma, self.shrink_factor, model_size);
     }
 }

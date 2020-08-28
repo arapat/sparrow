@@ -10,7 +10,7 @@ pub enum BoosterState {
 }
 
 
-#[derive(Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub enum UpdatePacketType {
     Accept,
     Empty,

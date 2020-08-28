@@ -156,15 +156,15 @@ fn start_booster(
             new_updates_sender.send(updates_packet).unwrap();
             drop(new_updates_sender);
         },
-        BoostingResult::LowESS => {
-            info!("Booster failed, the effective sample size is too low");
-        },
         BoostingResult::FailedToTrigger => {
             info!("Booster failed, the stopping rule failed to trigger");
             let updates_packet = get_packet(&model, prev_packet, &loader);
             let new_updates_sender = new_updates_sender.lock().unwrap();
             new_updates_sender.send(updates_packet).unwrap();
             drop(new_updates_sender);
+        },
+        BoostingResult::LowESS => {
+            info!("Booster failed, the effective sample size is too low");
         },
     }
     // reset buffer scores
