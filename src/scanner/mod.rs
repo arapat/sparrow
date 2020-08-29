@@ -58,8 +58,8 @@ pub fn start_scanner(
     let mut curr_packet: TaskPacket = TaskPacket::new();
 
     let network = Network::new(config.port, &vec![],
-        Box::new(move |from_addr: String, to_addr: String, task_packet: String| {
-            debug!("Received a new packet from head, {}, {}, {}", from_addr, to_addr, task_packet);
+        Box::new(move |from_addr: String, task_packet: String| {
+            debug!("Received a new packet from head, {}, {}", from_addr, task_packet);
             let packet: TaskPacket = serde_json::from_str(&task_packet).unwrap();
             if packet.new_sample_version.is_some() {
                 debug!("Packet is a new sample signal");

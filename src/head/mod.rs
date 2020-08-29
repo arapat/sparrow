@@ -66,7 +66,7 @@ pub fn start_head(
     // TODO: increase capacity
     let capacity = 1;
     let mut network = Network::new(config.port, &config.network,
-        Box::new(move |from_addr: String, _to_addr: String, update_packet: String| {
+        Box::new(move |from_addr: String, update_packet: String| {
             let mut packet: UpdatePacket = serde_json::from_str(&update_packet).unwrap();
             debug!("received a packet, {}", packet.packet_id);
             packet.set_packet_type(model_sync.size());
