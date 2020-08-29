@@ -62,8 +62,9 @@ pub fn validate(
         line.clear();
         // validate model
         let (ts, _, model): (f32, usize, Model) =
-            serde_json::from_str(&raw_read_all(&filepath))
-                       .expect(&format!("Cannot parse the model in `{}`", filepath));
+            serde_json::from_str(
+                &raw_read_all(&filepath).expect(&format!("Cannot read `{}`", filepath))
+            ).expect(&format!("Cannot parse the model in `{}`", filepath));
         let mut index = 0;
         while index < num_examples {
             let batch = data.read(batch_size);

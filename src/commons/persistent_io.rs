@@ -169,7 +169,7 @@ pub fn write_model(model: &Model, timestamp: f32, _save_process: bool) -> String
 
 
 pub fn read_model() -> (f32, usize, Model) {
-    serde_json::from_str(&raw_read_all(&"model.json".to_string()))
+    serde_json::from_str(&raw_read_all(&"model.json".to_string()).expect("Read model.json failed"))
             .expect(&format!("Cannot parse the model in `model.json`"))
 }
 
@@ -247,8 +247,13 @@ pub fn write_bins_s3(bins: &Vec<Bins>, exp_name: &String) {
 
 
 pub fn read_bins_disk() -> Vec<Bins> {
-    serde_json::from_str(&raw_read_all(&"models/bins.json".to_string()))
-        .expect(&format!("Cannot parse the bins.json"))
+    let ret = raw_read_all(&"models/bins.json".to_string());
+    if ret.is_some() {
+        serde_json::from_str(ret.as_ref().unwrap()).expect(&format!("Cannot parse the bins.json"))
+    } else {
+        let ret = read_all(&"models/bins.json".to_string());
+        deserialize(&ret).expect(&format!("Failed to parse bins.json in both binary and in json"))
+    }
 }
 
 

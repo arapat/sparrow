@@ -29,12 +29,15 @@ pub fn create_bufwriter(filename: &String) -> BufWriter<File> {
     BufWriter::new(f)
 }
 
-pub fn raw_read_all(filename: &String) -> String {
+pub fn raw_read_all(filename: &String) -> Option<String> {
     let mut contents = String::new();
-    create_bufreader(filename)
-        .read_to_string(&mut contents)
-        .expect(&format!("Cannot read `{}`", filename));
-    contents
+    let ret = create_bufreader(filename).read_to_string(&mut contents);
+    if ret.is_err() {
+        error!("Cannot read `{}`", filename);
+        None
+    } else {
+        Some(contents)
+    }
 }
 
 pub fn read_all(filename: &String) -> Vec<u8> {
