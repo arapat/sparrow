@@ -129,7 +129,7 @@ impl Learner {
         let mut learner = Learner {
             bins: bins,
             num_features: num_features.clone(),
-            num_candid: 1,
+            num_candid: 0,
 
             rho_gamma:        gamma.clone(),
             expand_node:      0,
@@ -148,7 +148,8 @@ impl Learner {
         let new_scoreboard =
             || bin_size.iter().map(|size| vec![[0.0; NUM_RULES]; *size]).collect();
         let new_scoreboard1 = || bin_size.iter().map(|size| vec![0.0; *size]).collect();
-        for _ in 0..num_splits {
+        let num_nodes = (num_splits + 1) * 2 - 1;
+        for _ in 0..num_nodes {
             learner.weak_rules_score.push(new_scoreboard());
             learner.sum_c_squared.push(new_scoreboard());
             learner.num_positive.push(new_scoreboard1());
@@ -232,7 +233,7 @@ impl Learner {
         self.total_count       += data.len();
         self.total_weight      += data.par_iter().map(|t| (t.1).0).sum::<f32>();
         self.total_weight_sq   += data.par_iter().map(|t| ((t.1).0) * ((t.1).0)).sum::<f32>();
-        // self.num_candid         = tree.tree_size;
+        self.num_candid         = tree.num_nodes;
 
         let rho_gamma = self.rho_gamma;
 
