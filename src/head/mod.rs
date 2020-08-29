@@ -19,6 +19,7 @@ use commons::model::Model;
 use commons::channel;
 use commons::packet::TaskPacket;
 use commons::packet::UpdatePacket;
+use commons::packet::UpdatePacketType;
 use self::sampler::start_sampler_async;
 use self::scheduler::Scheduler;
 use self::model_manager::ModelManager;
@@ -67,6 +68,7 @@ pub fn start_head(
     let mut network = Network::new(config.port, &config.network,
         Box::new(move |from_addr: String, _to_addr: String, update_packet: String| {
             let mut packet: UpdatePacket = serde_json::from_str(&update_packet).unwrap();
+            debug!("received a packet, {}", packet.packet_id);
             packet.set_packet_type(model_sync.size());
             let mut model = model_sync.handle_packet(&from_addr, &mut packet);
             let (gamma, _assigns) = scheduler.handle_packet(
@@ -90,6 +92,9 @@ pub fn start_head(
             if *curr_packet != task_packet {
                 task_packet_sender.send((None, task_packet.clone())).unwrap();
                 *curr_packet = task_packet;
+            } else if packet.packet_type == UpdatePacketType::Empty {
+                task_packet.set_dest(&from_addr);
+                task_packet_sender.send((Some(from_addr), task_packet.clone())).unwrap();
             }
             drop(curr_packet);
             drop(task_packet_sender);

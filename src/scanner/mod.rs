@@ -81,7 +81,7 @@ pub fn start_scanner(
                 new_updates_sender.send(
                     UpdatePacket::new(None, 0, packet, 0, 0.0)).unwrap();
                 drop(new_updates_sender);
-            } else if !curr_packet.equals(&packet) {
+            } else if !curr_packet.equals(&packet) || packet.dest.is_some() {
                 curr_packet = packet.clone_with_expand(&curr_packet);
                 let (packet, booster_state, buffer_loader, new_updates_sender, bins, config) =
                     (curr_packet.clone(), booster_state.clone(),

@@ -22,6 +22,7 @@ pub enum UpdatePacketType {
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq)]
 pub struct TaskPacket {
     pub packet_id: usize,
+    pub dest: Option<String>,
     pub model: Option<Model>,
     pub gamma: Option<f32>,
     pub expand_node: Option<usize>,
@@ -33,11 +34,16 @@ impl TaskPacket {
     pub fn new() -> TaskPacket {
         TaskPacket {
             packet_id: 0,
+            dest: None,
             model: None,
             gamma: None,
             expand_node: None,
             new_sample_version: None,
         }
+    }
+
+    pub fn set_dest(&mut self, dest: &String) {
+        self.dest = Some(dest.clone());
     }
 
     pub fn set_model(&mut self, model: Model) {
