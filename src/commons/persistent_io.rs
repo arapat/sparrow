@@ -3,6 +3,7 @@ use std::fs::remove_file;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::RwLock;
+use std::thread::spawn;
 
 use REGION;
 use BUCKET;
@@ -68,10 +69,13 @@ pub fn write_sample_s3(
     let s3_path = format!("{}/{}", exp_name, S3_PATH_SAMPLE);
     io_write_s3(REGION, BUCKET, s3_path.as_str(), SAMPLE_FILENAME, &serialize(&data).unwrap());
     debug!("sampler, finished, write new sample to s3, {}", version);
-    let filename = SAMPLE_FILENAME.to_string() + "_WRITING";
-    write_all(&filename, &serialize(&data).unwrap())
-        .expect(format!("Failed to write the sample set to file, {}", version).as_str());
-    rename(filename, format!("{}_{}", SAMPLE_FILENAME, version)).unwrap();
+    spawn(move || {
+        let backup_filename = format!("{}_{}", SAMPLE_FILENAME, version);
+        let filename = backup_filename.clone() + "_WRITING";
+        write_all(&filename, &serialize(&data).unwrap())
+            .expect(format!("Failed to write the sample set to file, {}", version).as_str());
+        rename(filename, backup_filename).unwrap();
+    });
 }
 
 
