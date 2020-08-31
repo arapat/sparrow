@@ -38,7 +38,7 @@ impl ModelManager {
                     source_ip, packet.packet_id, self.model.size());
             },
             UpdatePacketType::BaseVersionMismatch => {
-                debug!("model manager, bv mismatch, {}, {} {}",
+                debug!("model manager, bv mismatch, {}, {}, {}",
                     source_ip, packet.packet_id, self.model.size());
             },
             UpdatePacketType::Empty => {
