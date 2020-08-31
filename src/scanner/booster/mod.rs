@@ -102,7 +102,7 @@ impl Boosting {
                     last_logging_ts = global_timer.get_duration();
                 }
 
-                let (rule, batch_size, switched) = {
+                let (rule, batch_size, _switched) = {
                     let (data, switched) =
                         self.training_loader.get_next_batch_and_update(true, &self.curr_model);
 

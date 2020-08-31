@@ -94,6 +94,7 @@ fn prep_training(config_filepath: &String) -> (Config, SampleMode, Vec<Bins>) {
 ///
 /// * config_filepath: the filepath to the configuration file
 pub fn training(config_filepath: &String) {
+    // TODO: fix bug: bins might block the start of network
     let (config, sample_mode, bins) = prep_training(config_filepath);
     if config.sampler_scanner == "scanner" {
         let (mut network, new_updates_receiver) = start_scanner(config, sample_mode, bins);

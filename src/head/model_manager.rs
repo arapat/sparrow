@@ -34,13 +34,20 @@ impl ModelManager {
                 self.model_ts = self.perf_mon.get_duration();
                 self.update_model(&source_ip, &packet);
                 self.print_log();
+                debug!("model manager, accept, {}, {}, {}",
+                    source_ip, packet.packet_id, self.model.size());
             },
             UpdatePacketType::BaseVersionMismatch => {
+                debug!("model manager, bv mismatch, {}, {} {}",
+                    source_ip, packet.packet_id, self.model.size());
             },
             UpdatePacketType::Empty => {
+                debug!("model manager, empty, {}, {}, {}",
+                    source_ip, packet.packet_id, self.model.size());
             },
             UpdatePacketType::Unset => {
-                error!("model manager, packet type unset");
+                debug!("model manager, unset, {}, {}, {}",
+                    source_ip, packet.packet_id, self.model.size());
             }
         }
         self.model.clone()

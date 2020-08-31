@@ -108,8 +108,9 @@ pub fn start_head(
     task_packet.set_model(model.model);
     task_packet.set_gamma(config.default_gamma);
     task_packet.set_expand_node(Some(0));
-    let first_scanner = network.get_subscribers()[0].clone();
-    task_packet_sender.send((Some(first_scanner), task_packet.clone())).unwrap();
+    let _first_scanner = network.get_subscribers()[0].clone();
+    // task_packet_sender.send((Some(first_scanner), task_packet.clone())).unwrap();
+    task_packet_sender.send((None, task_packet.clone())).unwrap();
 
     // launch network send
     let mut _current_sample_version = 0;
