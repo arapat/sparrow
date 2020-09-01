@@ -94,11 +94,11 @@ impl TreeNode {
 #[derive(Serialize, Deserialize)]
 pub struct Learner {
     bins: Vec<Bins>,
-    num_features:   usize,
+    pub num_features:   usize,
     num_candid: usize,
 
     pub rho_gamma:        f32,
-    pub expand_node:      usize,
+    pub _expand_node:      usize,
     // global trackers
     pub total_count:  usize,
     total_weight:     f32,
@@ -132,7 +132,7 @@ impl Learner {
             num_candid: 0,
 
             rho_gamma:        gamma.clone(),
-            expand_node:      0,
+            _expand_node:      0,
             total_count:      0,
             total_weight:     0.0,
             total_weight_sq:  0.0,
@@ -179,7 +179,7 @@ impl Learner {
             }
         }
         debug!("learner, learner is reset, {}, {}, {}",
-               self.expand_node, self.total_count, self.total_weight);
+               self._expand_node, self.total_count, self.total_weight);
         self.total_count = 0;
         self.total_weight = 0.0;
         self.total_weight_sq = 0.0;
@@ -247,8 +247,6 @@ impl Learner {
             data_by_node.entry(index).or_insert(Vec::new()).push((weight, stats));
         });
 
-        // TODO: Calculate total sum of the weights and the number of examples
-
         // Update each weak rule - Complexity: O(Bins * Splits)
         let count = self.total_count;
         let total_weight = self.total_weight;
@@ -274,8 +272,7 @@ impl Learner {
                     let (((bin, weak_rules_score), sum_c_squared), debug_info) = zipped_values;
                     learner_helpers::find_tree_node(
                         &data, i, rho_gamma, count, total_weight, total_weight_sq,
-                        index, // TODO: debug this expand_node
-                        bin, weak_rules_score, sum_c_squared, debug_info)
+                        index, bin, weak_rules_score, sum_c_squared, debug_info)
                 })
                 .find_any(|t| t.is_some())
                 .unwrap_or(None)
@@ -299,9 +296,9 @@ impl Learner {
     }
 
     pub fn set_expand_node(&mut self, expand_node: usize) -> bool {
-        if expand_node != self.expand_node {
-            debug!("set-expand-node, {}, {}", self.expand_node, expand_node);
-            self.expand_node = expand_node;
+        if expand_node != self._expand_node {
+            debug!("set-expand-node, {}, {}", self._expand_node, expand_node);
+            self._expand_node = expand_node;
             true
         } else {
             false

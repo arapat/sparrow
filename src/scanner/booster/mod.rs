@@ -1,6 +1,9 @@
 pub mod learner;
 pub mod learner_helpers;
 
+use rand;
+use rand::Rng;
+
 use std::sync::Arc;
 use std::sync::RwLock;
 use std::fmt::Display;
@@ -90,12 +93,22 @@ impl Boosting {
         global_timer.start();
         let mut last_logging_ts = global_timer.get_duration();
 
-        let mut tree = Tree::new(self.num_splits);
+        // split the root of the tree on the median of a randomly-selected feature dimension
+        let tree = self.get_root_node();
+        if tree.is_none() {
+            info!("Training is stopped because ess is too small, {:?}",
+                self.training_loader.ess);
+            return BoostingResult::LowESS;
+        }
+
+        let mut tree = tree.unwrap();
         let mut is_booster_running = true;
         self.verbose = false;
         while is_booster_running && !tree.is_full_tree() {
             let mut new_rule = None;
-            while is_booster_running && new_rule.is_none() && self.training_loader.is_ess_valid() {
+            self.learner.reset();
+            while is_booster_running && new_rule.is_none() && self.training_loader.is_ess_valid() &&
+                    self.learner.total_count < self.training_loader.size {
                 // Logging for the status check
                 if global_timer.get_duration() - last_logging_ts >= 10.0 {
                     self.print_log();
@@ -122,11 +135,6 @@ impl Boosting {
                 let booster_state = self.booster_state.read().unwrap();
                 is_booster_running = (*booster_state) == BoosterState::RUNNING;
                 drop(booster_state);
-
-                if self.learner.total_count >= self.training_loader.size &&
-                    self.training_loader.is_ess_large() {
-                        break;
-                }
             }
             if !self.training_loader.is_ess_valid() {
                 info!("Training is stopped because ess is too small, {:?}",
@@ -137,7 +145,7 @@ impl Boosting {
                 info!("Training is stopped because stopping rule is failed to trigger.");
                 return BoostingResult::FailedToTrigger;
             }
-            let rule = new_rule.unwrap_or(self.learner.get_max_empirical_ratio_tree_node());
+            let rule = new_rule.unwrap();
             rule.write_log();
             let (left_index, right_index) = tree.split(
                 rule.prt_index,
@@ -153,6 +161,41 @@ impl Boosting {
         write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
         info!("Training is finished. Model length: {}.", self.curr_model.size());
         BoostingResult::Succeed
+    }
+
+    pub fn get_root_node(&mut self) -> Option<Tree> {
+        let root_index = 0;
+        let mut rng = rand::thread_rng();
+        let selected_feature: usize = rng.gen_range(0, self.learner.num_features);
+
+        let mut feature_vals = Vec::with_capacity(self.training_loader.size);
+        let mut count = 0;
+        while self.training_loader.is_ess_valid() && count < self.training_loader.size {
+            let (data, _) = self.training_loader.get_next_batch(false);
+            count += data.len();
+            let mut vals = data.iter()
+                               .map(|(example, _)| example.feature[selected_feature])
+                               .collect();
+            feature_vals.append(&mut vals);
+        }
+
+        if !self.training_loader.is_ess_large() {  // ESS must be updated after a full scan above
+            None
+        } else {
+            feature_vals.sort();
+            let median = feature_vals[feature_vals.len() / 2];
+            let mut tree = Tree::new(self.num_splits);
+            let (left_index, right_index) = tree.split(
+                root_index,
+                selected_feature,
+                median,
+                0.0,
+                0.0,
+            );
+            info!("scanner, added new rule, {}, {}, {}, {}, {}", self.curr_model.size(), count,
+                count, left_index, right_index);
+            Some(tree)
+        }
     }
 
     fn print_log(&self) {
