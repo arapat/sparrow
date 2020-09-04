@@ -181,6 +181,7 @@ fn start_booster(
 pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver<UpdatePacket>) {
     network.set_health_parameter(10);
     for (packet_id, mut new_updates) in new_updates_receiver.iter().enumerate() {
+        // the head node asks the scanners to quit
         if new_updates.task.new_sample_version.is_none() && new_updates.task.model.is_none() {
             break;
         }

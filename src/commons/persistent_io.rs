@@ -3,7 +3,6 @@ use std::fs::remove_file;
 use std::io::Write;
 use std::sync::Arc;
 use std::sync::RwLock;
-use std::thread::spawn;
 
 use REGION;
 use BUCKET;

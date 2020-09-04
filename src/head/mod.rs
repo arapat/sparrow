@@ -41,6 +41,7 @@ pub fn start_head(
     let (sampler_model_s, sampler_model_r) = channel::bounded(config.channel_size, "updated-models");
 
     let model = ModelWithVersion::new(init_tree, "Head".to_string());
+    let starting_model_size = model.size();
 
     // 1. Start sampler
     // let sampler_state = start_sampler_async(
@@ -82,11 +83,7 @@ pub fn start_head(
             let mut task_packet = TaskPacket::new();
             task_packet.set_model(model.model);
             task_packet.set_gamma(gamma);
-            // assigns.into_iter().for_each(|(addr, task)| {
-            //     task_packet.set_expand_node(Some(task));
-            //     task_packet_sender.send((Some(addr), task_packet.clone())).unwrap();
-            // });
-            // other scanners also receive an update without updating their tasks
+            // TODO: use expand node
             task_packet.set_expand_node(None);
             let mut curr_packet = mutex_packet.lock().unwrap();
             if *curr_packet != task_packet {
@@ -116,7 +113,9 @@ pub fn start_head(
     let mut _current_sample_version = 0;
     network.set_health_parameter(10);
     for (packet_id, (dest, mut task)) in task_packet_receiver.iter().enumerate() {
-        if task.model.is_some() && task.model.as_ref().unwrap().size() >= config.num_trees {
+        // Stop the head node when the goal is reached
+        if task.model.is_some() && task.model.as_ref().unwrap().size() >=
+                starting_model_size + config.num_trees {
             task.new_sample_version = None;
             task.model = None;
         }
