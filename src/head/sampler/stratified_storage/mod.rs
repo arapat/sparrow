@@ -62,6 +62,7 @@ pub struct StratifiedStorage {
     updated_examples_s: Sender<ExampleWithScore>,
     positive: String,
     pub node_counts: Arc<RwLock<Vec<u32>>>,
+    size: Arc<RwLock<usize>>,
 }
 
 
@@ -182,9 +183,10 @@ impl StratifiedStorage {
             num_samplers,
             sampler_state.clone(),
         );
+        let size = Arc::new(RwLock::new(0));
         gatherer.run(sample_mode, packet_sender);
         assigners.run();
-        samplers.run();
+        samplers.run(size.clone(), num_examples);
 
         // run_snapshot_thread(
         //     snapshot_filename, strata, counts_table_r, weights_table_r, sampler_state);
@@ -193,8 +195,7 @@ impl StratifiedStorage {
             updated_examples_s: assigners.get_sender(),
             positive: positive,
             node_counts: gatherer.counter.clone(),
-            // core objects (that are not saved as the fields):
-            //     strata, counts_table_r, weights_table_r
+            size: size,
         }
     }
 
@@ -216,6 +217,7 @@ impl StratifiedStorage {
             None,
         );
         let updated_examples_s = self.updated_examples_s.clone();
+        let stratified_size = self.size.clone();
         spawn(move || {
             let mut index = 0;
             let mut last_report_length = 0;
@@ -234,6 +236,9 @@ impl StratifiedStorage {
                 if index - last_report_length > size / 10 {
                     debug!("init-stratified, progress, {}", index);
                     last_report_length = index;
+                    let mut size = stratified_size.write().unwrap();
+                    *size = index;
+                    drop(size);
                 }
             }
             debug!("Raw data on disk has been loaded into the stratified storage, \

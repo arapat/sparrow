@@ -70,7 +70,7 @@ impl Samplers {
         }
     }
 
-    pub fn run(&self) {
+    pub fn run(&self, stratified_size: Arc<RwLock<usize>>, capacity: usize) {
         let num_threads      = self.num_threads;
         let strata           = self.strata.clone();
         let sampled_examples = self.sampled_examples.clone();
@@ -87,7 +87,14 @@ impl Samplers {
             let stats_update_s   = stats_update_s.clone();
             let weights_table    = weights_table.clone();
             let sampler_state    = sampler_state.clone();
+            let size             = stratified_size.clone();
             spawn(move || {
+                let mut is_enough_loaded = false;
+                while is_enough_loaded {
+                    let size = size.read().unwrap();
+                    is_enough_loaded = *size > capacity / 3;
+                    drop(size);
+                }
                 sampler(
                     strata, sampled_examples, updated_examples,
                     model, stats_update_s, weights_table, sampler_state,

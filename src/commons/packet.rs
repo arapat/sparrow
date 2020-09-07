@@ -125,7 +125,8 @@ impl UpdatePacket {
     pub fn set_packet_type(&mut self, curr_model_size: usize) {
         self.packet_type = {
             if self.base_size != curr_model_size {
-                debug!("model_manager, packet, base version mismatch");
+                debug!("model_manager, packet, base version mismatch, {}, {}",
+                    self.base_size, curr_model_size);
                 UpdatePacketType::BaseVersionMismatch
             } else if self.update_tree.is_none() {
                 debug!("model_manager, packet, empty");
