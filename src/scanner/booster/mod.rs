@@ -86,12 +86,12 @@ impl Boosting {
 
     /// Start training the boosting algorithm.
     pub fn training(&mut self) -> BoostingResult {
-        debug!("Start training.");
+        info!("Start training.");
 
         let mut global_timer = PerformanceMonitor::new();
         let mut learner_timer = PerformanceMonitor::new();
         global_timer.start();
-        let mut last_logging_ts = global_timer.get_duration();
+        // let mut last_logging_ts = global_timer.get_duration();
 
         // split the root of the tree on the median of a randomly-selected feature dimension
         let tree = self.get_root_node();
@@ -110,10 +110,12 @@ impl Boosting {
             while is_booster_running && new_rule.is_none() && self.training_loader.is_ess_valid() &&
                     self.learner.total_count < self.training_loader.size {
                 // Logging for the status check
+                /*
                 if global_timer.get_duration() - last_logging_ts >= 10.0 {
                     self.print_log();
                     last_logging_ts = global_timer.get_duration();
                 }
+                */
 
                 let (rule, batch_size, _switched) = {
                     let (data, switched) =
@@ -129,8 +131,8 @@ impl Boosting {
                 new_rule = rule;
                 global_timer.update(batch_size);
 
-                global_timer.write_log("boosting-overall");
-                learner_timer.write_log("boosting-learning");
+                // global_timer.write_log("boosting-overall");
+                // learner_timer.write_log("boosting-learning");
 
                 let booster_state = self.booster_state.read().unwrap();
                 is_booster_running = (*booster_state) == BoosterState::RUNNING;
@@ -198,6 +200,7 @@ impl Boosting {
         }
     }
 
+    #[allow(dead_code)]
     fn print_log(&self) {
         debug!("booster, status, {}",
                 vec![

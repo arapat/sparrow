@@ -43,10 +43,10 @@ impl Loader {
             SampleMode::LOCAL => load_sample_local,
             SampleMode::S3 => load_sample_s3,
         };
-        info!("Starting non-blocking loader");
+        trace!("Starting non-blocking loader");
         spawn(move || {
             for incoming_version in sampler_signal_receiver.iter() {
-                debug!("buffer-loader, start download, {}", incoming_version);
+                trace!("buffer-loader, start download, {}", incoming_version);
                 loop {
                     let sample = load_sample(load_func, exp_name.as_str());
                     if sample.is_some() {

@@ -178,7 +178,7 @@ impl Learner {
                 }
             }
         }
-        debug!("learner, learner is reset, {}, {}, {}",
+        trace!("learner, learner is reset, {}, {}, {}",
                self._expand_node, self.total_count, self.total_weight);
         self.total_count = 0;
         self.total_weight = 0.0;

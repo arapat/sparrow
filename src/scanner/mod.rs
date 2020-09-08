@@ -59,10 +59,10 @@ pub fn start_scanner(
 
     let network = Network::new(config.port, &vec![],
         Box::new(move |from_addr: String, task_packet: String| {
-            debug!("Received a new packet from head, {}, {}", from_addr, task_packet);
+            trace!("Received a new packet from head, {}, {}", from_addr, task_packet);
             let packet: TaskPacket = serde_json::from_str(&task_packet).unwrap();
             if packet.new_sample_version.is_some() {
-                debug!("Packet is a new sample signal");
+                info!("Packet is a new sample signal, {}", packet.packet_id);
                 let sampler_signal_sender = sampler_signal_sender.lock().unwrap();
                 let new_version = packet.new_sample_version.as_ref().unwrap().clone();
                 sampler_signal_sender.send(new_version.clone()).unwrap();
@@ -75,7 +75,7 @@ pub fn start_scanner(
                 spawn(move || start_booster(
                     packet, booster_state, buffer_loader, new_updates_sender, bins, config));
             } else if packet.model.is_none() {
-                debug!("Packet is asking scanner to quit.");
+                info!("Packet is asking scanner to quit.");
                 let new_updates_sender = new_updates_sender.lock().unwrap();
                 // the empty packet will stop the for loop in `handle_network_send`
                 new_updates_sender.send(
@@ -113,7 +113,7 @@ fn start_booster(
     }
     let sample_version = packet.new_sample_version.clone().unwrap();
 
-    debug!("Stopping existing booster");
+    trace!("Stopping existing booster");
     let mut is_booster_stopped = false;
     while !is_booster_stopped {
         let mut booster_state = booster_state.write().unwrap();
@@ -125,7 +125,7 @@ fn start_booster(
         sleep(Duration::from_millis(500));
     }
 
-    debug!("Starting the booster.");
+    trace!("Starting the booster.");
     let mut buffer_loader = buffer_loader.lock().unwrap();
     let mut training_loader = buffer_loader.take().unwrap();
     if training_loader.current_version < sample_version {
@@ -144,7 +144,7 @@ fn start_booster(
         bins,
         config,
     );
-    debug!("Booster ready to train");
+    info!("Booster ready to train");
     let booster_result = booster.training();
 
     let (prev_packet, model, mut loader) = booster.destroy();
@@ -187,7 +187,7 @@ pub fn handle_network_send(network: &mut Network, new_updates_receiver: Receiver
         }
         new_updates.set_packet_id(packet_id);
         let updates_json = serde_json::to_string(&new_updates).unwrap();
-        info!("scanner packet, {}", updates_json);
+        trace!("scanner packet, {}", updates_json);
         network.send(None, updates_json).unwrap();
     }
 }
