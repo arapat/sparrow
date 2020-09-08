@@ -169,10 +169,12 @@ impl BufferLoader {
         let mut timer = PerformanceMonitor::new();
         let mut last_report_time = 0.0;
         timer.start();
+        debug!("loader, blocking switch, {}, {}, {}",
+            self.ess.as_ref().unwrap_or(&-1.0), self.min_ess, self.current_version);
         while !self.try_switch() {
             if timer.get_duration() - last_report_time > 10.0 {
                 last_report_time = timer.get_duration();
-                debug!("loader, blocking switch, {}, {}, {}, {}",
+                trace!("loader, blocking switch, {}, {}, {}, {}",
                         last_report_time, self.ess.as_ref().unwrap_or(&-1.0), self.min_ess,
                         self.current_version);
             }

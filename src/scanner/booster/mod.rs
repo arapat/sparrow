@@ -8,8 +8,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use std::fmt::Display;
 
-use commons::persistent_io::write_model;
-
 use config::Config;
 use commons::model::Model;
 use commons::tree::Tree;
@@ -39,7 +37,7 @@ pub struct Boosting {
     init_packet: TaskPacket,
     curr_model: Model,
 
-    save_process: bool,
+    // save_process: bool,
     verbose: bool,
 }
 
@@ -75,7 +73,7 @@ impl Boosting {
             init_packet: init_packet,
             curr_model: model,
 
-            save_process: config.save_process,
+            // save_process: config.save_process,
             verbose: false,
         }
     }
@@ -160,7 +158,7 @@ impl Boosting {
                 rule.num_scanned, self.learner.total_count, left_index, right_index);
         }
         self.curr_model.append(tree);
-        write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
+        // write_model(&self.curr_model, global_timer.get_duration(), self.save_process);
         info!("Training is finished. Model length: {}.", self.curr_model.size());
         BoostingResult::Succeed
     }
