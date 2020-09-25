@@ -66,7 +66,7 @@ impl PacketStats {
         let accept_rate = (num_accept as f32) / (self.packs_queue.len() as f32);
         self.last_condition = self.curr_condition.clone();
         self.curr_condition = {
-            if accept_rate <= THRESHOLD {
+            if accept_rate <= 0.0 {  // THRESHOLD {
                 UpdateSpeed::TooSlow
             } else if accept_rate >= 1.0 - THRESHOLD {
                 UpdateSpeed::TooFast

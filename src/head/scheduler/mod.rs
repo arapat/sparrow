@@ -46,7 +46,7 @@ impl Scheduler {
 
             gamma: gamma,
             // TODO: make the history length of the pakcetstats a parameter
-            packet_stats: PacketStats::new(num_machines, 20),
+            packet_stats: PacketStats::new(num_machines, num_machines),
 
             last_gamma_update_time: perf_mon.get_duration(),
             perf_mon: perf_mon,
