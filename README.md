@@ -2,6 +2,8 @@
 
 Sparrow is an impementation of boosting that is optimized for training on very large datasets, as well as training in limited memory settings. The opimizations involve two technologies: early stopping and selective sampling. Please read [our paper](https://arxiv.org/abs/1901.09047) for more details.
 
+Latest implementation is described in https://github.com/arapat/sysml18
+
 ## Prerequisites
 
 1. Install Rust following the instruction on [the Rust offical webiste](https://www.rust-lang.org/tools/install).
