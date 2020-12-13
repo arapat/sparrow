@@ -4,6 +4,8 @@ Sparrow is an impementation of boosting that is optimized for training on very l
 
 Latest implementation is described in https://github.com/arapat/sparrow-writeup
 
+Read [the wiki page](https://github.com/arapat/sparrow/wiki) for the instructions for development.
+
 ## Prerequisites
 
 1. Install Rust following the instruction on [the Rust offical webiste](https://www.rust-lang.org/tools/install).
