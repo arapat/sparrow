@@ -6,6 +6,8 @@ Latest implementation is described in https://github.com/arapat/sparrow-writeup
 
 Read [the wiki page](https://github.com/arapat/sparrow/wiki) for the instructions for development.
 
+Documentation: https://arapat.github.io/sparrow/sparrow/
+
 ## Prerequisites
 
 1. Install Rust following the instruction on [the Rust offical webiste](https://www.rust-lang.org/tools/install).
